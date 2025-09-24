@@ -13,6 +13,7 @@ from os import getenv
 from dotenv import load_dotenv
 
 
+
 # Load variables from a .env file, if present
 load_dotenv()
 
