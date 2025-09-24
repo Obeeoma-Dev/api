@@ -61,20 +61,19 @@ TEMPLATES = [
 WSGI_APPLICATION = 'api.wsgi.application'
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "neondb",  # same as PGDATABASE
-        "USER": "neondb_owner",  # same as PGUSER
-        "PASSWORD": "npg_CrqN2sJFu6jP",  # same as PGPASSWORD
-        "HOST": "ep-lingering-lake-a11zk1y8-pooler.ap-southeast-1.aws.neon.tech",  # same as PGHOST
-        "PORT": "5432",
-        "OPTIONS": {
-            "sslmode": "require",  # required by Neon
-            # remove channel_binding (not supported in Django)
-        },
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'Obeeoma database',  # ⚠️ spaces in DB name are unusual
+        'USER': 'neondb_owner',
+        'PASSWORD': 'npg_TLCoOi96DFJM',
+        'HOST': 'ep-billowing-cell-a140og62-pooler.ap-southeast-1.aws.neon.tech',
+        'PORT': '5432',
+        'OPTIONS': {
+            'sslmode': 'require',
+            'channel_binding': 'require',
+        }
     }
 }
-
 
 
 
