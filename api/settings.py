@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'obeeomaapp',
     'rest_framework',
     'rest_framework_simplejwt',
+    'django_extensions',
 ]
 
 #  Middleware
