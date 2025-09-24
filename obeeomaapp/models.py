@@ -68,7 +68,7 @@ class HotlineActivity(models.Model):
         verbose_name_plural = "Hotline Activities"
 
 
-class PatientEngagement(models.Model):
+class ClientEngagement(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="engagements")
     engagement_rate = models.DecimalField(
         max_digits=5, 
