@@ -29,7 +29,7 @@ class HotlineActivitySerializer(serializers.ModelSerializer):
         model = HotlineActivity
         fields = ['id', 'organization', 'call_count', 'spike_percentage', 'recorded_at']
 
-class PatientEngagementSerializer(serializers.ModelSerializer):
+class ClientEngagementSerializer(serializers.ModelSerializer):
     class Meta:
         model = PatientEngagement
         fields = ['id', 'organization', 'engagement_rate', 'month']
