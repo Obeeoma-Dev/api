@@ -7,6 +7,8 @@ from rest_framework.views import APIView
 from django.contrib.auth import authenticate, get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from.serializers import SignupSerializer, LoginSerializer, PasswordResetSerializer, PasswordChangeSerializer
+from django.http import JsonResponse
+from django.views import View
 
 User = get_user_model()
 
@@ -60,3 +62,10 @@ class PasswordChangeView(APIView):
         user.set_password(serializer.validated_data['new_password'])
         user.save()
         return Response({"message": "Password updated successfully"})
+  
+
+class SignupView(View):
+    def get(self, request):
+        return JsonResponse({"message": "Signup endpoint is working!"})
+
+    
