@@ -1,7 +1,8 @@
-
-# dashboard/urls.py
 from django.urls import path
-from .views import (OverviewView, TrendsView, EngagementView, FeaturesUsageView,BillingView, InviteView, UsersView, UserDetailView,ReportsView, CrisisInsightsView,
+from .views import (
+    OverviewView, TrendsView, EngagementView, FeaturesUsageView,
+    BillingView, InviteView, UsersView, UserDetailView,
+    ReportsView, CrisisInsightsView,
 )
 
 urlpatterns = [
@@ -16,4 +17,3 @@ urlpatterns = [
     path("admin/reports/", ReportsView.as_view(), name="admin-reports"),
     path("admin/crisis-insights/", CrisisInsightsView.as_view(), name="admin-crisis-insights"),
 ]
-

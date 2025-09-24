@@ -1,7 +1,7 @@
-# dashboard/views.py
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+
 
 class IsCompanyAdmin(IsAuthenticated):
     """Custom permission: only staff/admins allowed."""
@@ -15,8 +15,12 @@ class OverviewView(APIView):
     permission_classes = [IsCompanyAdmin]
 
     def get(self, request):
-        context = {}  # later you fill with DB queries
-        return render(request, "dashboard/admin_overview.html", context)
+        context = {
+            "wellbeing_index": 75,
+            "active_users": 120,
+            "engagement_rate": "65%",
+        }
+        return render(request, "dashboard/admin/overview.html", context)
 
 
 class TrendsView(APIView):
@@ -24,7 +28,7 @@ class TrendsView(APIView):
 
     def get(self, request):
         context = {}
-        return render(request, "dashboard/admin_trends.html", context)
+        return render(request, "dashboard/admin/trends.html", context)
 
 
 class EngagementView(APIView):
@@ -32,7 +36,7 @@ class EngagementView(APIView):
 
     def get(self, request):
         context = {}
-        return render(request, "dashboard/admin_engagement.html", context)
+        return render(request, "dashboard/admin/engagement.html", context)
 
 
 class FeaturesUsageView(APIView):
@@ -40,7 +44,7 @@ class FeaturesUsageView(APIView):
 
     def get(self, request):
         context = {}
-        return render(request, "dashboard/admin_features.html", context)
+        return render(request, "dashboard/admin/features.html", context)
 
 
 class BillingView(APIView):
@@ -48,7 +52,7 @@ class BillingView(APIView):
 
     def get(self, request):
         context = {}
-        return render(request, "dashboard/admin_billing.html", context)
+        return render(request, "dashboard/admin/billing.html", context)
 
 
 class InviteView(APIView):
@@ -56,12 +60,12 @@ class InviteView(APIView):
 
     def get(self, request):
         context = {}
-        return render(request, "dashboard/admin_invites.html", context)
+        return render(request, "dashboard/admin/invites.html", context)
 
     def post(self, request):
-        # handle form submission later
-        context = {"message": "Invite sent successfully"}
-        return render(request, "dashboard/admin_invites.html", context)
+        # Later you’ll hook into models/serializers
+        # For now we simulate success + redirect
+        return redirect("admin-invites")
 
 
 class UsersView(APIView):
@@ -69,7 +73,7 @@ class UsersView(APIView):
 
     def get(self, request):
         context = {}
-        return render(request, "dashboard/admin_users.html", context)
+        return render(request, "dashboard/admin/users.html", context)
 
 
 class UserDetailView(APIView):
@@ -77,7 +81,7 @@ class UserDetailView(APIView):
 
     def get(self, request, user_id):
         context = {"user_id": user_id}
-        return render(request, "dashboard/admin_user_detail.html", context)
+        return render(request, "dashboard/admin/user_detail.html", context)
 
 
 class ReportsView(APIView):
@@ -85,7 +89,7 @@ class ReportsView(APIView):
 
     def get(self, request):
         context = {}
-        return render(request, "dashboard/admin_reports.html", context)
+        return render(request, "dashboard/admin/reports.html", context)
 
 
 class CrisisInsightsView(APIView):
@@ -93,5 +97,5 @@ class CrisisInsightsView(APIView):
 
     def get(self, request):
         context = {}
-        return render(request, "dashboard/admin_crisis_insights.html", context)
+        return render(request, "dashboard/admin/crisis_insights.html", context)
 
