@@ -111,7 +111,7 @@ class RecentActivity(models.Model):
         ("New Organization", "New Organization"),
         ("AI Recommendation", "AI Recommendation"),
         ("Hotline Activity", "Hotline Activity"),
-        ("Patient Engagement", "Patient Engagement"),
+        ("Client Engagement", "Client Engagement"),
         ("Subscription", "Subscription"),
     )
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="activities")

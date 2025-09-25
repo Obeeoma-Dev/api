@@ -1,4 +1,4 @@
 # api
 Backend team
 
-backend is awesomegit
+backend is awesome
