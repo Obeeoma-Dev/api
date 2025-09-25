@@ -1,27 +1,29 @@
-from django.shortcuts import render
-
-# Create your views here.
 from rest_framework import generics, status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate, get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
-from.serializers import SignupSerializer, LoginSerializer, PasswordResetSerializer, PasswordChangeSerializer
-from django.http import JsonResponse
-from django.views import View
+from .serializers import (
+    SignupSerializer,
+    LoginSerializer,
+    PasswordResetSerializer,
+    PasswordChangeSerializer
+)
 
 User = get_user_model()
 
-# Signup
+#  Signup
 class SignupView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = SignupSerializer
 
 
-# Login
+#  Login
 class LoginView(APIView):
+    serializer_class = LoginSerializer
+
     def post(self, request):
-        serializer = LoginSerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = authenticate(
@@ -38,21 +40,24 @@ class LoginView(APIView):
         return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
 
-# Password Reset (stub – integrate email later)
+#  Password Reset (stub – email integration later)
 class PasswordResetView(APIView):
+    serializer_class = PasswordResetSerializer
+
     def post(self, request):
-        serializer = PasswordResetSerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
         return Response({"message": f"Password reset link sent to {email}"})
 
 
-# Password Change
+#  Password Change
 class PasswordChangeView(APIView):
+    serializer_class = PasswordChangeSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        serializer = PasswordChangeSerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = request.user
@@ -62,10 +67,3 @@ class PasswordChangeView(APIView):
         user.set_password(serializer.validated_data['new_password'])
         user.save()
         return Response({"message": "Password updated successfully"})
-  
-
-class SignupView(View):
-    def get(self, request):
-        return JsonResponse({"message": "Signup endpoint is working!"})
-
-    
