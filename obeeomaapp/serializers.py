@@ -2,9 +2,9 @@ from rest_framework import serializers
 from .models import (
     Organization,
     Client,
-    AIRecommendation,
+    AIManagement,
     HotlineActivity,
-    PatientEngagement,
+    ClientEngagement,
     Subscription,
     RecentActivity
 )
@@ -19,9 +19,9 @@ class ClientSerializer(serializers.ModelSerializer):
         model = Client
         fields = ['id', 'organization', 'name', 'email', 'joined_date']
 
-class AIRecommendationSerializer(serializers.ModelSerializer):
+class AIManagementSerializer(serializers.ModelSerializer):
     class Meta:
-        model = AIRecommendation
+        model = AIManagement
         fields = ['id', 'organization', 'title', 'description', 'effectiveness', 'created_at']
 
 class HotlineActivitySerializer(serializers.ModelSerializer):
@@ -31,13 +31,13 @@ class HotlineActivitySerializer(serializers.ModelSerializer):
 
 class ClientEngagementSerializer(serializers.ModelSerializer):
     class Meta:
-        model = PatientEngagement
+        model = ClientEngagement
         fields = ['id', 'organization', 'engagement_rate', 'month']
 
 class SubscriptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subscription
-        fields = ['id', 'organization', 'plan', 'revenue', 'start_date', 'end_date']
+        fields = ['id', 'organization', 'plan', 'subscriptions', 'start_date', 'end_date']
 
 class RecentActivitySerializer(serializers.ModelSerializer):
     class Meta:
