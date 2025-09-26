@@ -7,10 +7,10 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-
-from pathlib import Path
 import os
-from dotenv import load_dotenv
+from pathlib import Path
+from decouple import config
+import os
 
 
 load_dotenv()
@@ -40,7 +40,11 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'obeeomaapp',
     'rest_framework',
-    'rest_framework.authtoken',
+
+    'rest_framework_simplejwt',
+    'django_extensions',
+    'drf_yasg',
+
 ]
 
 #  Middleware

@@ -8,6 +8,33 @@ from .views import (
 
 app_name = "obeeomaapp"
 
+from django.contrib import admin
+from django.urls import path
+from rest_framework import permissions
+from drf_yasg.views import get_schema_view
+from drf_yasg import openapi
+from obeeomaapp.views import (
+    SignupView,
+    LoginView,
+    PasswordResetView,
+    PasswordChangeView,
+)
+
+
+
+
+#  Define schema_view BEFORE urlpatterns
+Schema_view = get_schema_view(
+   openapi.Info(
+      title="Obeeoma API",
+      default_version='v1',
+      description="Endpoints for signup, login, reset-password ,change-password",
+   ),
+   public=True,
+   permission_classes=(permissions.AllowAny,),
+)
+
+# Now reference it inside urlpatterns
 urlpatterns = [
     # Dashboard / Admin URLs
     path("overview/", OverviewView.as_view(), name="overview"),
