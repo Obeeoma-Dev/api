@@ -42,17 +42,10 @@ INSTALLED_APPS = [
     'rest_framework',
 
     'rest_framework_simplejwt',
-    'django_extensions',
-<<<<<<< HEAD
-    'drf_yasg',
-    'whitenoise.runserver_nostatic',
-=======
- 
-    
+    'django_extensions', 
     'drf_yasg',
 
 
->>>>>>> 41d72db831cc19bcd5ae86851b8994766896e4a9
 ]
 
 #  Middleware
