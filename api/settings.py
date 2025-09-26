@@ -10,10 +10,11 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 from decouple import config
+import os
+from dotenv import load_dotenv
 
 
-
-
+load_dotenv()
 
 
 
@@ -42,7 +43,7 @@ INSTALLED_APPS = [
     'rest_framework',
 
     'rest_framework_simplejwt',
-    'django_extensions', 
+    'django_extensions',
     'drf_yasg',
 
 
@@ -79,19 +80,31 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'api.wsgi.application'
 
-#  PostgreSQL via Decouple
+
+# Database
+# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+import os
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": config("PGDATABASE"),
-        "USER": config("PGUSER"),
-        "PASSWORD": config("PGPASSWORD"),
-        "HOST": config("PGHOST"),
-        "PORT": config("POSTGRES_PORT", default="5432"),
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('PGDATABASE', 'neondb'),
+        'USER': os.getenv('PGUSER', 'neondb_owner'),
+        'PASSWORD': os.getenv('PGPASSWORD', 'npg_CrqN2sJFu6jP'),
+        'HOST': os.getenv('PGHOST', 'ep-lingering-lake-a11zk1y8-pooler.ap-southeast-1.aws.neon.tech'),
+        'PORT': os.getenv('PGPORT', '5432'),
+        'OPTIONS': {
+            'sslmode': os.getenv('PGSSLMODE', 'require'),
+            'channel_binding': os.getenv('PGCHANNELBINDING', 'require'),
+        },
     }
 }
 
-#  Password validation
+
+
+# Password validation
+# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
