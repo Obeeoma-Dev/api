@@ -3,14 +3,15 @@ from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.db.utils import IntegrityError
 from datetime import date, timedelta
-import decimal
+import decimal 
 
-from .models import (
+
+from obeeomaapp.models import (
     Organization,
     Client,
-    AIManagement,  # Keep as AIManagement to match your models.py
+    AIManagement,
     HotlineActivity,
-    ClientEngagement,  # Keep as ClientEngagement to match your models.py
+    ClientEngagement,
     Subscription,
     RecentActivity
 )
