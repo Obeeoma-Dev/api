@@ -6,7 +6,7 @@ from datetime import date, timedelta
 import decimal 
 
 
-from .models import (
+from obeeomaapp.models import (
     Organization,
     Client,
     AIManagement,
