@@ -21,20 +21,5 @@ from django.urls import path,include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("admin/", admin.site.urls),
-    path("api/", include("obeeomaapp.urls")),   # ✅ only include your app here
-    
+    path("api/", include("obeeomaapp.urls"))
 ]
-
-
-
-
-
-
-from django.contrib import admin
-from django.urls import path, include
-
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('', include('obeeomaapp.urls')),  # 👈 This connects your app’s URLs
-]
-
