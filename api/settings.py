@@ -7,12 +7,10 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-
-from pathlib import Path
 import os
-from dotenv import load_dotenv
+from pathlib import Path
+from decouple import config
 
-load_dotenv()
 
 
 
@@ -26,10 +24,10 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 #  Security
-SECRET_KEY = os.getenv('SECRET_KEY')
-DEBUG = os.getenv('DEBUG', 'False') == 'True'
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
-PORT = os.getenv('PORT', '8000')
+SECRET_KEY = config('SECRET_KEY')
+DEBUG = config('DEBUG', default=False, cast=bool)
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
+PORT = os.environ.get('PORT', '8000')
 
 #  Installed apps
 INSTALLED_APPS = [
@@ -79,15 +77,15 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'api.wsgi.application'
 
-#  PostgreSQL Configuration
+#  PostgreSQL via Decouple
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("PGDATABASE"),
-        "USER": os.getenv("PGUSER"),
-        "PASSWORD": os.getenv("PGPASSWORD"),
-        "HOST": os.getenv("PGHOST"),
-        "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        "NAME": config("PGDATABASE"),
+        "USER": config("PGUSER"),
+        "PASSWORD": config("PGPASSWORD"),
+        "HOST": config("PGHOST"),
+        "PORT": config("POSTGRES_PORT", default="5432"),
     }
 }
 
