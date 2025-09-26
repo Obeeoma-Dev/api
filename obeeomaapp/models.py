@@ -29,15 +29,14 @@ class Client(models.Model):
         ordering = ['-joined_date']
 
 
-class AIRecommendation(models.Model):
+class AIManagement(models.Model):
     organization = models.ForeignKey(Organization,
                                      on_delete=models.CASCADE,
-                                     related_name="recommendations")
+                                     related_name="managements")
     title = models.CharField(max_length=255)
     description = models.TextField()
     effectiveness = models.DecimalField(
-        max_digits=5, 
-        decimal_places=2,
+        max_digits=5, decimal_places=2,
         validators=[MinValueValidator(0), MaxValueValidator(100)]
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -54,8 +53,7 @@ class HotlineActivity(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="hotline_activities")
     call_count = models.PositiveIntegerField(default=0)
     spike_percentage = models.DecimalField(
-        max_digits=5, 
-        decimal_places=2,
+        max_digits=5, decimal_places=2,
         validators=[MinValueValidator(0), MaxValueValidator(100)]
     )
     recorded_at = models.DateTimeField(auto_now_add=True)
@@ -71,8 +69,7 @@ class HotlineActivity(models.Model):
 class ClientEngagement(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="engagements")
     engagement_rate = models.DecimalField(
-        max_digits=5, 
-        decimal_places=2,
+        max_digits=5, decimal_places=2,
         validators=[MinValueValidator(0), MaxValueValidator(100)]
     )
     month = models.DateField()
@@ -90,11 +87,10 @@ class Subscription(models.Model):
     PLAN_CHOICES = (
         ("Free", "Free"),
         ("Premium", "Premium"),
-        ("Enterprise", "Enterprise"),
     )
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="subscriptions")
     plan = models.CharField(max_length=50, choices=PLAN_CHOICES, default="Free")
-    revenue = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    Subscriptions = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
@@ -109,7 +105,7 @@ class Subscription(models.Model):
 class RecentActivity(models.Model):
     ACTIVITY_TYPES = (
         ("New Organization", "New Organization"),
-        ("AI Recommendation", "AI Recommendation"),
+        ("AI Management", "AI Management"),
         ("Hotline Activity", "Hotline Activity"),
         ("Client Engagement", "Client Engagement"),
         ("Subscription", "Subscription"),
