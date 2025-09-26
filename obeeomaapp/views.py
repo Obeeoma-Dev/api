@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate, get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import (
+from obeeomaapp.serializers import (
     SignupSerializer,
     LoginSerializer,
     PasswordResetSerializer,
