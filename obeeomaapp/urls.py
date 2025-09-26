@@ -14,7 +14,7 @@ from obeeomaapp.views import (
 
 
 #  Define schema_view BEFORE urlpatterns
-Schema_view = get_schema_view(
+schema_view = get_schema_view(
    openapi.Info(
       title="Obeeoma API",
       default_version='v1',
