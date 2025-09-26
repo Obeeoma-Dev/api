@@ -18,10 +18,9 @@ Including another URLconf
  # Include your app's URLs
 from django.contrib import admin
 from django.urls import path,include
-from django.shortcuts import redirect
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path("admin/", admin.site.urls),
     path("api/", include("obeeomaapp.urls"))
 ]
