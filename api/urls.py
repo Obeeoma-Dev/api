@@ -15,10 +15,19 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+ # Include your app's URLs
 from django.contrib import admin
 from django.urls import path, include
+from django.shortcuts import redirect
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('', include('obeeomaapp.urls')),  # 👈 This connects your app’s URLs
+    path("admin/", admin.site.urls),  # Django admin
+    path("", lambda request: redirect("obeeomaapp:overview")),  # Redirect root to dashboard overview
+    path("dashboard/", include("obeeomaapp.urls", namespace="obeeomaapp")),  # Include your app URLs
 ]
+
+
+
+
+
+  
