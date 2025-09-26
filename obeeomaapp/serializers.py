@@ -1,4 +1,16 @@
+# obeeomaapp/serializers.py
 from rest_framework import serializers
+
+from obeeomaapp.models import (
+    Organization,
+    Client,
+    AIManagement,
+    HotlineActivity,
+    ClientEngagement,
+    Subscription,
+    RecentActivity
+)
+
 
 from .models import *
 from rest_framework import serializers
@@ -83,3 +95,4 @@ class RecentActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = RecentActivity
         fields = ['id', 'organization', 'activity_type', 'details', 'timestamp']
+
