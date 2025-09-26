@@ -15,6 +15,21 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+from django.contrib import admin
+from django.urls import path,include
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path("admin/", admin.site.urls),
+    path("api/", include("obeeomaapp.urls")),   # ✅ only include your app here
+    
+]
+
+
+
+
+
+
  # Include your app's URLs
 from django.contrib import admin
 from django.urls import path, include
@@ -25,6 +40,8 @@ urlpatterns = [
     path("", lambda request: redirect("obeeomaapp:overview")),  # Redirect root to dashboard overview
     path("dashboard/", include("obeeomaapp.urls", namespace="obeeomaapp")),  # Include your app URLs
 ]
+
+
 
 
 
