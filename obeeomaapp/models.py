@@ -142,42 +142,42 @@ class RecentActivity(models.Model):
         ordering = ['-timestamp']
         verbose_name_plural = "Recent Activities"
 
-class LoginActivity(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    timestamp = models.DateTimeField(auto_now_add=True)
-    success = models.BooleanField(default=True)
-    ip_address = models.GenericIPAddressField(blank=True, null=True)
-    user_agent = models.TextField(blank=True, null=True)
-    location = models.CharField(max_length=255, blank=True, null=True)
+# class LoginActivity(models.Model):
+#     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+#     timestamp = models.DateTimeField(auto_now_add=True)
+#     success = models.BooleanField(default=True)
+#     ip_address = models.GenericIPAddressField(blank=True, null=True)
+#     user_agent = models.TextField(blank=True, null=True)
+#     location = models.CharField(max_length=255, blank=True, null=True)
 
-    def __str__(self):
-        status = "Success" if self.success else "Failed"
-        return f"{self.user.username} - {status} at {self.timestamp}"
+#     def __str__(self):
+#         status = "Success" if self.success else "Failed"
+#         return f"{self.user.username} - {status} at {self.timestamp}"
 
-class EmployeeProfile(models.Model):
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='profile'
-    )
-    organization = models.ForeignKey(
-        'Organization',
-        on_delete=models.CASCADE,
-        related_name='employees'
-    )
-    department = models.CharField(max_length=100, blank=True, null=True)
-    phone_number = models.CharField(max_length=20, blank=True, null=True)
-    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
-    is_active = models.BooleanField(default=True)
-    joined_date = models.DateTimeField(auto_now_add=True)
+# class EmployeeProfile(models.Model):
+#     user = models.OneToOneField(
+#         settings.AUTH_USER_MODEL,
+#         on_delete=models.CASCADE,
+#         related_name='profile'
+#     )
+#     organization = models.ForeignKey(
+#         'Organization',
+#         on_delete=models.CASCADE,
+#         related_name='employees'
+#     )
+#     department = models.CharField(max_length=100, blank=True, null=True)
+#     phone_number = models.CharField(max_length=20, blank=True, null=True)
+#     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+#     is_active = models.BooleanField(default=True)
+#     joined_date = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
-        return f"{self.user.username} - {self.organization.name}"
+#     def __str__(self):
+#         return f"{self.user.username} - {self.organization.name}"
 
-    class Meta:
-        ordering = ['-joined_date']
-        verbose_name = "Employee Profile"
-        verbose_name_plural = "Employee Profiles"    
+#     class Meta:
+#         ordering = ['-joined_date']
+#         verbose_name = "Employee Profile"
+#         verbose_name_plural = "Employee Profiles"    
     
 
 
