@@ -1,12 +1,20 @@
 from django.urls import path
 from django.contrib import admin
-from .views import SignupView, LoginView, PasswordResetView, PasswordChangeView
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+from obeeomaapp.views import (
+    SignupView,
+    LoginView,
+    PasswordResetView,
+    PasswordChangeView,
+)
+
+
+
 
 #  Define schema_view BEFORE urlpatterns
-schema_view = get_schema_view(
+Schema_view = get_schema_view(
    openapi.Info(
       title="Obeeoma API",
       default_version='v1',

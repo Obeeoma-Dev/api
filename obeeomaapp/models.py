@@ -1,8 +1,7 @@
-
-
-# Create your models here.
+# obeeomaapp/models.py
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 class User(AbstractUser):
     ROLE_CHOICES = (
@@ -16,8 +15,6 @@ class User(AbstractUser):
     def __str__(self):
         return f"{self.username} ({self.role})"
 
-from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
 
 
 class Organization(models.Model):
@@ -140,4 +137,3 @@ class RecentActivity(models.Model):
     class Meta:
         ordering = ['-timestamp']
         verbose_name_plural = "Recent Activities"
-
