@@ -7,10 +7,10 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-
+import os
 from pathlib import Path
 from decouple import config
-import os
+
 
 
 
@@ -42,8 +42,11 @@ INSTALLED_APPS = [
 
     'rest_framework_simplejwt',
     'django_extensions',
+ josephine
+    
     'drf_yasg',
 
+main
 ]
 
 #  Middleware
