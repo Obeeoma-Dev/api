@@ -9,8 +9,11 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
-from os import getenv
+import os
 from dotenv import load_dotenv
+
+
+load_dotenv()
 
 
 
@@ -44,6 +47,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'obeeomaapp',
     'rest_framework',
+    'rest_framework.authtoken',
 ]
 
 MIDDLEWARE = [
@@ -78,20 +82,23 @@ WSGI_APPLICATION = 'api.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+import os
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': getenv('PGDATABASE'),
-        'USER': getenv('PGUSER'),
-        'PASSWORD': getenv('PGPASSWORD'),
-        'HOST': getenv('PGHOST'),
-        'PORT': getenv('PGPORT', "5432"),
-         'OPTIONS': {
-             'sslmode': 'require',
-        }
+        'NAME': os.getenv('PGDATABASE', 'neondb'),
+        'USER': os.getenv('PGUSER', 'neondb_owner'),
+        'PASSWORD': os.getenv('PGPASSWORD', 'npg_CrqN2sJFu6jP'),
+        'HOST': os.getenv('PGHOST', 'ep-lingering-lake-a11zk1y8-pooler.ap-southeast-1.aws.neon.tech'),
+        'PORT': os.getenv('PGPORT', '5432'),
+        'OPTIONS': {
+            'sslmode': os.getenv('PGSSLMODE', 'require'),
+            'channel_binding': os.getenv('PGCHANNELBINDING', 'require'),
+        },
     }
 }
+
 
 
 # Password validation
