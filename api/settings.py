@@ -41,8 +41,6 @@ INSTALLED_APPS = [
     'drf_yasg',
     'whitenoise.runserver_nostatic',
     'rest_framework.authtoken',
-    'drf_yasg',
-
 
 ]
 

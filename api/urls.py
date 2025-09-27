@@ -16,34 +16,22 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import path,include
+from django.urls import path, include
+from django.shortcuts import redirect
 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path("api/", include("obeeomaapp.urls"))
+    path("api/", include("obeeomaapp.urls")),
+    path("", lambda request: redirect("obeeomaapp:overview")),
 ]
 
-    path("admin/", admin.site.urls),
-    path("api/", include("obeeomaapp.urls")),   # ✅ only include your app here
+
+
+
+
     
-]
-
-
-
-
-
-
- # Include your app's URLs
-from django.contrib import admin
-from django.urls import path, include
-from django.shortcuts import redirect
-
-urlpatterns = [
-    path("admin/", admin.site.urls),  # Django admin
-    path("", lambda request: redirect("obeeomaapp:overview")),  # Redirect root to dashboard overview
-    path("dashboard/", include("obeeomaapp.urls", namespace="obeeomaapp")),  # Include your app URLs
-]
+    
 
 
 
