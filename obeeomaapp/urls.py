@@ -1,5 +1,6 @@
 from django.urls import path
 from django.contrib import admin
+from .views import SignupView, LoginView, PasswordResetView, PasswordChangeView, home
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
@@ -24,8 +25,9 @@ Schema_view = get_schema_view(
    permission_classes=(permissions.AllowAny,),
 )
 
-# Now reference it inside urlpatterns
+# My urls
 urlpatterns = [
+    path("", home, name="home"),   # root URL
     path("signup/", SignupView.as_view(), name="signup"),
     path("login/", LoginView.as_view(), name="login"),
     path("password-reset/", PasswordResetView.as_view(), name="password_reset"),
