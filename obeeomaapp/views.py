@@ -1,25 +1,24 @@
+from django.shortcuts import render, redirect
+from django.contrib.auth import authenticate, get_user_model
 from rest_framework import generics, status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.http import JsonResponse
-from django.contrib.auth import authenticate, get_user_model
+from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import (
-    SignupSerializer,
-    LoginSerializer,
-    PasswordResetSerializer,
-    PasswordChangeSerializer
-)
+
+from obeeomaapp.models import *
+from obeeomaapp.serializers import *
 
 User = get_user_model()
 
-#  Signup
+# --- Authentication Views ---
+
 class SignupView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = SignupSerializer
 
 
-#  Login
 class LoginView(APIView):
     serializer_class = LoginSerializer
 
@@ -41,7 +40,6 @@ class LoginView(APIView):
         return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
 
-#  Password Reset (stub – email integration later)
 class PasswordResetView(APIView):
     serializer_class = PasswordResetSerializer
 
@@ -52,7 +50,6 @@ class PasswordResetView(APIView):
         return Response({"message": f"Password reset link sent to {email}"})
 
 
-#  Password Change
 class PasswordChangeView(APIView):
     serializer_class = PasswordChangeSerializer
     permission_classes = [permissions.IsAuthenticated]
