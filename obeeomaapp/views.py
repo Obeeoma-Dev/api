@@ -1,6 +1,7 @@
 from rest_framework import generics, status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.http import JsonResponse
 from django.contrib.auth import authenticate, get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import (
@@ -67,3 +68,18 @@ class PasswordChangeView(APIView):
         user.set_password(serializer.validated_data['new_password'])
         user.save()
         return Response({"message": "Password updated successfully"})
+    
+#  Home View
+
+def home(request):
+    return JsonResponse({
+        "message": "Obeeoma API is running!",
+        "endpoints": [
+            "/signup/",
+            "/login/",
+            "/password-reset/",
+            "/password-change/",
+            "/swagger/",
+        ]
+    })
+
