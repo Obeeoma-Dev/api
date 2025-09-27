@@ -10,32 +10,20 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 from decouple import config
-
-
-
-
-import os
 from dotenv import load_dotenv
-
 
 load_dotenv()
 
-
-
-# Load variables from a .env file, if present
-
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-#  Security
+# Security
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
 PORT = os.environ.get('PORT', '8000')
 
-#  Installed apps
+# Installed apps
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -45,23 +33,14 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'obeeomaapp',
     'rest_framework',
-
     'rest_framework_simplejwt',
     'django_extensions',
-<<<<<<< HEAD
     'drf_yasg',
     'whitenoise.runserver_nostatic',
-=======
- 
-    
-    'drf_yasg',
-
-
->>>>>>> 41d72db831cc19bcd5ae86851b8994766896e4a9
     'rest_framework.authtoken',
 ]
 
-#  Middleware
+# Middleware
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -74,11 +53,11 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'api.urls'
 
-#  Templates
+# Templates
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],  # Optional: add custom template dir
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -92,12 +71,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'api.wsgi.application'
 
-#  PostgreSQL via Decouple
-
 # Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-import os
-
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -106,29 +80,14 @@ DATABASES = {
         "PASSWORD": config("PGPASSWORD"),
         "HOST": config("PGHOST"),
         "PORT": config("POSTGRES_PORT", default="5432"),
-    }
-}
-
-#  Password validation
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('PGDATABASE', 'neondb'),
-        'USER': os.getenv('PGUSER', 'neondb_owner'),
-        'PASSWORD': os.getenv('PGPASSWORD', 'npg_CrqN2sJFu6jP'),
-        'HOST': os.getenv('PGHOST', 'ep-lingering-lake-a11zk1y8-pooler.ap-southeast-1.aws.neon.tech'),
-        'PORT': os.getenv('PGPORT', '5432'),
-        'OPTIONS': {
-            'sslmode': os.getenv('PGSSLMODE', 'require'),
-            'channel_binding': os.getenv('PGCHANNELBINDING', 'require'),
+        "OPTIONS": {
+            "sslmode": os.getenv("PGSSLMODE", "require"),
+            "channel_binding": os.getenv("PGCHANNELBINDING", "require"),
         },
     }
 }
 
-
-
 # Password validation
-# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -136,19 +95,19 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-#  Internationalization
+# Internationalization
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-#  Static & Media
+# Static & Media
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 STATIC_URL = "static/"
 
-#  Custom user model
+# Custom user model
 AUTH_USER_MODEL = "obeeomaapp.User"
 
-#  Default primary key
+# Default primary key
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
