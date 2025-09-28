@@ -10,7 +10,7 @@ from obeeomaapp.views import (
     SignupView, LoginView, PasswordResetView, PasswordChangeView
 )
 
-app_name = "obeeomaapp"
+app_name= "obeeomaapp"
 #  Define schema_view BEFORE urlpatterns
 schema_view = get_schema_view(
    openapi.Info(
