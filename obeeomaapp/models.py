@@ -106,9 +106,21 @@ class Subscription(models.Model):
         ("Free", "Free"),
         ("Premium", "Premium"),
     )
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="subscriptions")
-    plan = models.CharField(max_length=50, choices=PLAN_CHOICES, default="Free")
-    Subscriptions = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="subscriptions"
+    )
+    plan = models.CharField(
+        max_length=50,
+        choices=PLAN_CHOICES,
+        default="Free"
+    )
+    revenue = models.DecimalField(  # ← corrected field name
+        max_digits=10,
+        decimal_places=2,
+        default=0.00
+    )
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)

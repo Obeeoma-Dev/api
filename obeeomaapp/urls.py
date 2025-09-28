@@ -10,7 +10,8 @@ schema_view = get_schema_view(
    openapi.Info(
       title="Obeeoma API",
       default_version='v1',
-      description="Endpoints for signup, login, reset-password ,change-password",
+      description="Authentication endpoints for user signup, login, password reset, and password change.",
+
    ),
    public=True,
    permission_classes=(permissions.AllowAny,),
@@ -19,10 +20,12 @@ schema_view = get_schema_view(
 # My urls
 urlpatterns = [
     path("", home, name="home"),   # root URL
-    path("signup/", SignupView.as_view(), name="signup"),
-    path("login/", LoginView.as_view(), name="login"),
-    path("password-reset/", PasswordResetView.as_view(), name="password_reset"),
-    path("password-change/", PasswordChangeView.as_view(), name="password_change"),
-    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    path("api/signup/", SignupView.as_view(), name="signup"),
+    path("api/login/", LoginView.as_view(), name="login"),
+    path("api/password-reset/", PasswordResetView.as_view(), name="password_reset"),
+    path("api/password-change/", PasswordChangeView.as_view(), name="password_change"),
+    path('api/swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
      
 ]
+
+
