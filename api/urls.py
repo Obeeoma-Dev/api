@@ -21,7 +21,7 @@ from django.urls import path,include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("admin/", admin.site.urls),
-    path("api/", include("obeeomaapp.urls")),   # ✅ only include your app here
+    path("api/", include("obeeomaapp.urls")),   
     
 ]
 

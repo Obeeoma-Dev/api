@@ -42,11 +42,11 @@ INSTALLED_APPS = [
 
     'rest_framework_simplejwt',
     'django_extensions',
- josephine
+ 
     
     'drf_yasg',
 
-main
+
 ]
 
 #  Middleware
