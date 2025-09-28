@@ -10,27 +10,22 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 from decouple import config
+from decouple import config
 from dotenv import load_dotenv
 
 
 load_dotenv()
 
-
-
-# Load variables from a .env file, if present
-
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-#  Security
+# Security
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
 PORT = os.environ.get('PORT', '8000')
 
-#  Installed apps
+# Installed apps
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -44,11 +39,12 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'django_extensions',
     'drf_yasg',
-
+    'whitenoise.runserver_nostatic',
+    'rest_framework.authtoken',
 
 ]
 
-#  Middleware
+# Middleware
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -61,11 +57,11 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'api.urls'
 
-#  Templates
+# Templates
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],  # Optional: add custom template dir
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -81,6 +77,22 @@ WSGI_APPLICATION = 'api.wsgi.application'
 
 
 # Database
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": config("PGDATABASE"),
+        "USER": config("PGUSER"),
+        "PASSWORD": config("PGPASSWORD"),
+        "HOST": config("PGHOST"),
+        "PORT": config("POSTGRES_PORT", default="5432"),
+        "OPTIONS": {
+            "sslmode": os.getenv("PGSSLMODE", "require"),
+            "channel_binding": os.getenv("PGCHANNELBINDING", "require"),
+        },
+    }
+}
+
+# Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
@@ -110,19 +122,19 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-#  Internationalization
+# Internationalization
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-#  Static & Media
+# Static & Media
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 STATIC_URL = "static/"
 
-#  Custom user model
+# Custom user model
 AUTH_USER_MODEL = "obeeomaapp.User"
 
-#  Default primary key
+# Default primary key
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
