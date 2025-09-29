@@ -7,8 +7,8 @@ from django.http import JsonResponse
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from obeeomaapp.models import *
-from obeeomaapp.serializers import *
+from obeeomaapp.models import Organization, Client, User 
+from obeeomaapp.serializers import SignupSerializer, LoginSerializer, PasswordResetSerializer, PasswordChangeSerializer
 
 User = get_user_model()
 
