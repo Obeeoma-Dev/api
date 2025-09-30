@@ -12,7 +12,7 @@ from obeeomaapp.models import (
 
 User = get_user_model()
 
-
+# signup serializer
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
@@ -106,7 +106,6 @@ class RecentActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = RecentActivity
         fields = ['id', 'organization', 'activity_type', 'details', 'timestamp', 'is_important']
-
 
 
 class SelfAssessmentSerializer(serializers.ModelSerializer):
