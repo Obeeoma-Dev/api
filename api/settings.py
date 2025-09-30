@@ -17,17 +17,32 @@ PORT = os.getenv("PORT", "8000")
 # Database
 tmpPostgres = urlparse(os.getenv('DATABASE_URL', ''))
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': tmpPostgres.path.lstrip('/'),
+#         'USER': tmpPostgres.username,
+#         'PASSWORD': tmpPostgres.password,
+#         'HOST': tmpPostgres.hostname,
+#         'PORT': tmpPostgres.port or 5432,
+#         'OPTIONS': {
+#             'sslmode': 'require',
+#             **dict(parse_qsl(tmpPostgres.query)),
+#         },
+#     }
+# }
+
+# Database
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': tmpPostgres.path.lstrip('/'),
-        'USER': tmpPostgres.username,
-        'PASSWORD': tmpPostgres.password,
-        'HOST': tmpPostgres.hostname,
-        'PORT': tmpPostgres.port or 5432,
+        'NAME': os.getenv('PGDATABASE', ''),
+        'USER': os.getenv('PGUSER', ''),
+        'PASSWORD': os.getenv('PGPASSWORD', ''),
+        'HOST': os.getenv('PGHOST', ''),
+        'PORT': os.getenv('PGPORT', '5432'),
         'OPTIONS': {
-            'sslmode': 'require',
-            **dict(parse_qsl(tmpPostgres.query)),
+            'sslmode': os.getenv('PGSSLMODE', '5432'),
         },
     }
 }
