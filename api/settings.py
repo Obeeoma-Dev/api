@@ -11,9 +11,9 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 from decouple import config
 import os
-
-
-
+from dotenv import load_dotenv
+import dj_database_url
+load_dotenv()
 
 
 # Load variables from a .env file, if present
@@ -25,8 +25,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 #  Security
 SECRET_KEY = config('SECRET_KEY')
-DEBUG = config('DEBUG', default=False, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
+DEBUG = config('DEBUG', default=True, cast=bool)
+ALLOWED_HOSTS = ['*']  # Allow all hosts for development
 PORT = os.environ.get('PORT', '8000')
 
 #  Installed apps
@@ -37,21 +37,18 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'whitenoise.runserver_nostatic',
     'obeeomaapp',
     'rest_framework',
-
     'rest_framework_simplejwt',
     'django_extensions',
- 
-    
     'drf_yasg',
-
-
 ]
 
 #  Middleware
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -80,18 +77,14 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'api.wsgi.application'
 
-#  PostgreSQL via Decouple
+#  Database configuration
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": config("PGDATABASE"),
-        "USER": config("PGUSER"),
-        "PASSWORD": config("PGPASSWORD"),
-        "HOST": config("PGHOST"),
-        "PORT": config("POSTGRES_PORT", default="5432"),
-    }
+    "default": dj_database_url.config(
+        default=os.getenv("DATABASE_URL", "sqlite:///db.sqlite3"),
+        conn_max_age=600, 
+        ssl_require=False
+    )
 }
-
 #  Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -116,3 +109,5 @@ AUTH_USER_MODEL = "obeeomaapp.User"
 
 #  Default primary key
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
