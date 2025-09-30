@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "obeeomaapp",
+
     "rest_framework",
     "rest_framework_simplejwt",
     "django_extensions",
@@ -45,6 +46,7 @@ INSTALLED_APPS = [
     "drf_yasg",
     "whitenoise.runserver_nostatic",
     "rest_framework.authtoken",
+    'drf_spectacular_sidecar'
 ]
 
 # Middleware
@@ -154,19 +156,16 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
-    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+
+   
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "My API",
-    "DESCRIPTION": "API documentation",
-    "VERSION": "1.0.0",
+'TITLE': 'My API',
+    'DESCRIPTION': 'API documentation',
+    'VERSION': '1.0.0',
+
+    
+    
 }
-
-SPECTACULAR_SETTINGS = {
-    "TITLE": "My API",
-    "DESCRIPTION": "API documentation",
-    "VERSION": "1.0.0",
-}
-
-
