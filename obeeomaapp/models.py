@@ -12,6 +12,8 @@ class User(AbstractUser):
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
     onboarding_completed = models.BooleanField(default=False)
+    is_suspended = models.BooleanField(default=False)
+    mfa_enabled = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.username} ({self.role})"

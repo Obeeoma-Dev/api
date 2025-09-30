@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 
 User = get_user_model()
-
+# signup serializer
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
@@ -86,7 +86,7 @@ class ClientEngagementSerializer(serializers.ModelSerializer):
 class SubscriptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subscription
-        fields = ['id', 'organization', 'plan', 'subscriptions', 'start_date', 'end_date']
+        fields = ['id', 'organization', 'plan', 'revenue', 'start_date', 'end_date']
 
 class RecentActivitySerializer(serializers.ModelSerializer):
     class Meta:

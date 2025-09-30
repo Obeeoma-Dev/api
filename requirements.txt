@@ -54,5 +54,6 @@ tzdata==2025.2
 uritemplate==4.2.0
 urllib3==2.5.0
 websocket-client==1.8.0
+whitenoise==6.8.2
 wsproto==1.2.0
 
