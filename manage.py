@@ -1,8 +1,9 @@
-#!/usr/bin/env python
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
+from dotenv import load_dotenv
 
+load_dotenv()
 
 def main():
     """Run administrative tasks."""
@@ -20,3 +21,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+def print_python_version():
+    print(sys.version_info)
