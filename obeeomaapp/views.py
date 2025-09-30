@@ -18,8 +18,7 @@ class SignupView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = SignupSerializer
 
-
-#  Login
+#  Login 
 class LoginView(APIView):
     serializer_class = LoginSerializer
 
@@ -41,7 +40,7 @@ class LoginView(APIView):
         return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
 
-#  Password Reset (stub – email integration later)
+#  Password Reset 
 class PasswordResetView(APIView):
     serializer_class = PasswordResetSerializer
 
@@ -72,15 +71,16 @@ class PasswordChangeView(APIView):
 #  Home View
 
 def home(request):
-    return JsonResponse({
-        "message": "Obeeoma API is running!",
-        "endpoints": [
-            "/signup/",
-            "/login/",
-            "/password-reset/",
-            "/password-change/",
-            "/swagger/",
-        ]
-    })
-
+    if request.method == "GET":
+        return JsonResponse({
+            "message": "Obeeoma API is running!",
+            "endpoints": [
+                "/signup/",
+                "/login/",
+                "/password-reset/",
+                "/password-change/",
+                "/swagger/",
+            ]
+        })
+    return JsonResponse({"error": "Invalid request method"}, status=400)
 
