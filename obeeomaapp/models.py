@@ -15,6 +15,8 @@ class User(AbstractUser):
     mfa_enabled = models.BooleanField(default=False)
     mfa_secret = models.CharField(max_length=255, blank=True, null=True)
     avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
+    is_suspended = models.BooleanField(default=False)
+    mfa_enabled = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.username} ({self.role})"
