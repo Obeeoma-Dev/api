@@ -34,23 +34,28 @@ DATABASES = {
 
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
-    "obeeomaapp",
-    "rest_framework",
-    "rest_framework_simplejwt",
-    "django_extensions",
-    "drf_yasg",
-    "drf_spectacular",
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'obeeomaapp',
+    'rest_framework',
+
+    'rest_framework_simplejwt',
+    'django_extensions',
+ 
+    
+    'drf_yasg',
+
+
 ]
 
-
+#  Middleware
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -121,3 +126,5 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "API documentation",
     "VERSION": "1.0.0",
 }
+
+
