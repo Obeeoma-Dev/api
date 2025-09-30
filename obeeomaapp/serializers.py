@@ -108,7 +108,6 @@ class RecentActivitySerializer(serializers.ModelSerializer):
         fields = ['id', 'organization', 'activity_type', 'details', 'timestamp', 'is_important']
 
 
-
 class SelfAssessmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = SelfAssessment
