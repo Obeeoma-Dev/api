@@ -1,11 +1,4 @@
 from django.test import TestCase
-from django.utils import timezone
-from django.core.exceptions import ValidationError
-from django.db.utils import IntegrityError
-from datetime import date, timedelta
-import decimal 
-
-
 from obeeomaapp.models import (
     Organization,
     Client,
@@ -20,6 +13,7 @@ from obeeomaapp.models import (
 class OrganizationModelTest(TestCase):
     @classmethod
     def setUpTestData(cls):
+        
         cls.org = Organization.objects.create(name="Test Organization")
 
     def test_organization_creation(self):
@@ -89,7 +83,8 @@ class ClientEngagementModelTest(TestCase):
         cls.org = Organization.objects.create(name="Test Organization")
         cls.engagement = ClientEngagement.objects.create(
             organization=cls.org,
-            engagement_rate=88.7
+            engagement_rate=88.7,
+            month=date.today()
         )
 
     def test_client_engagement_creation(self):
@@ -104,13 +99,13 @@ class SubscriptionModelTest(TestCase):
         cls.subscription = Subscription.objects.create(
             organization=cls.org,
             plan="Premium",
-            revenue=299.99,
+            Subscriptions=299.99,  
             start_date=date.today()
         )
 
     def test_subscription_creation(self):
         self.assertEqual(self.subscription.plan, "Premium")
-        self.assertEqual(float(self.subscription.revenue), 299.99)
+        self.assertEqual(float(self.subscription.Subscriptions), 299.99)
         self.assertEqual(self.subscription.organization.name, "Test Organization")
 
 
