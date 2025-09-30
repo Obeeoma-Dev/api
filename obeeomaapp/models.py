@@ -14,11 +14,13 @@ class User(AbstractUser):
     is_suspended = models.BooleanField(default=False)
     mfa_enabled = models.BooleanField(default=False)
     mfa_secret = models.CharField(max_length=255, blank=True, null=True)
+    avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
 
     def __str__(self):
         return f"{self.username} ({self.role})"
 
-# --- Organization & Client ---
+
+
 class Organization(models.Model):
     name = models.CharField(max_length=255, unique=True)
     joined_date = models.DateTimeField(auto_now_add=True)
@@ -44,10 +46,11 @@ class Client(models.Model):
     class Meta:
         ordering = ['-joined_date']
 
-# --- Admin & System Monitoring ---
+
+
 class AuthenticationEvent(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    event_type = models.CharField(max_length=50)  # login, logout, failed_attempt
+    event_type = models.CharField(max_length=50)
     ip_address = models.GenericIPAddressField(blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
@@ -55,7 +58,7 @@ class AuthenticationEvent(models.Model):
 class AdminAction(models.Model):
     performed_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="admin_actions")
     target_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="targeted_actions")
-    action_type = models.CharField(max_length=50)  # suspend, delete, promote
+    action_type = models.CharField(max_length=50)
     reason = models.TextField(blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
@@ -79,7 +82,8 @@ class SystemStatus(models.Model):
     message = models.TextField(blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-# --- Mental Health Features ---
+
+
 class SelfAssessment(models.Model):
     ASSESSMENT_TYPES = (
         ("GAD-7", "Anxiety"),
@@ -124,7 +128,8 @@ class ChatbotInteraction(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     escalated = models.BooleanField(default=False)
 
-# --- Gamification ---
+
+
 class UserBadge(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="badges")
     badge_name = models.CharField(max_length=100)
@@ -133,8 +138,9 @@ class UserBadge(models.Model):
 
 class EngagementStreak(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="streaks")
-    current_streak = models.PositiveIntegerField(default=0)
-    last_check_in = models.DateTimeField()
+    streak_count = models.PositiveIntegerField(default=0)
+    last_active_date = models.DateTimeField(blank=True, null=True)
+
 
 # --- Employer Analytics ---
 class AnalyticsSnapshot(models.Model):
@@ -144,7 +150,6 @@ class AnalyticsSnapshot(models.Model):
     average_stress_score = models.DecimalField(max_digits=5, decimal_places=2)
     most_used_feature = models.CharField(max_length=100)
 
-# --- Crisis Support ---
 class CrisisHotline(models.Model):
     country = models.CharField(max_length=100)
     region = models.CharField(max_length=100, blank=True, null=True)
@@ -152,12 +157,17 @@ class CrisisHotline(models.Model):
     phone_number = models.CharField(max_length=50)
     is_active = models.BooleanField(default=True)
 
-# --- Existing Dashboard Models ---
+
+
 class AIManagement(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="managements")
     title = models.CharField(max_length=255)
     description = models.TextField()
-    effectiveness = models.DecimalField(max_digits=5, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    effectiveness = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        validators=[MinValueValidator(0), MaxValueValidator(100)]
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -203,7 +213,7 @@ class Subscription(models.Model):
     )
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="subscriptions")
     plan = models.CharField(max_length=50, choices=PLAN_CHOICES, default="Free")
-    Subscriptions = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
@@ -235,4 +245,3 @@ class RecentActivity(models.Model):
     class Meta:
         ordering = ['-timestamp']
         verbose_name_plural = "Recent Activities"
-
