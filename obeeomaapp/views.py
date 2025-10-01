@@ -1,11 +1,11 @@
-from django.shortcuts import render, redirect
+
 from django.contrib.auth import authenticate, get_user_model
-from rest_framework import generics, status, permissions
+from rest_framework import generics, status, permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-
+from django.shortcuts import render, redirect
 from obeeomaapp.models import *
 from obeeomaapp.serializers import *
 
@@ -66,6 +66,37 @@ class PasswordChangeView(APIView):
         return Response({"message": "Password updated successfully"})
 
 
+
+
+class TermsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return render(request, "terms.html")  # show T&C page
+
+    def post(self, request):
+        # user accepts terms
+        user = request.user
+        user.terms_accepted = True
+        user.save()
+        return redirect('avatar-setup')  # go to avatar selection page
+
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+
+
+class DashboardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not request.user.terms_accepted:
+            return redirect('terms')
+        if not request.user.avatar:
+            return redirect('avatar-setup')
+        return render(request, "dashboard.html")
+
 # --- Custom Permission ---
 
 class IsCompanyAdmin(IsAuthenticated):
@@ -73,8 +104,7 @@ class IsCompanyAdmin(IsAuthenticated):
     def has_permission(self, request, view):
         return super().has_permission(request, view) and request.user.is_staff
 
-
-# --- Admin Dashboard Views ---
+# --- Admin Dashboard API Views ---
 
 class OverviewView(APIView):
     permission_classes = [IsCompanyAdmin]
@@ -83,14 +113,14 @@ class OverviewView(APIView):
         org_count = Organization.objects.count()
         client_count = Client.objects.count()
         active_subscriptions = Subscription.objects.filter(is_active=True).count()
+        recent_activities = RecentActivity.objects.select_related("organization").order_by("-timestamp")[:10]
 
-        context = {
+        return Response({
             "organization_count": org_count,
             "client_count": client_count,
             "active_subscriptions": active_subscriptions,
-            "recent_activities": RecentActivity.objects.select_related("organization").all()[:10],
-        }
-        return render(request, "overview.html", context)
+            "recent_activities": RecentActivitySerializer(recent_activities, many=True).data,
+        })
 
 
 class TrendsView(APIView):
@@ -98,7 +128,7 @@ class TrendsView(APIView):
 
     def get(self, request):
         hotline_trends = HotlineActivity.objects.select_related("organization").order_by("-recorded_at")[:20]
-        return render(request, "trends.html", {"hotline_trends": hotline_trends})
+        return Response(HotlineActivitySerializer(hotline_trends, many=True).data)
 
 
 class ClientEngagementView(APIView):
@@ -106,7 +136,7 @@ class ClientEngagementView(APIView):
 
     def get(self, request):
         engagements = ClientEngagement.objects.select_related("organization").order_by("-month")[:20]
-        return render(request, "engagement.html", {"engagements": engagements})
+        return Response(ClientEngagementSerializer(engagements, many=True).data)
 
 
 class FeaturesUsageView(APIView):
@@ -114,7 +144,7 @@ class FeaturesUsageView(APIView):
 
     def get(self, request):
         ai_managements = AIManagement.objects.select_related("organization").order_by("-created_at")[:20]
-        return render(request, "features.html", {"ai_managements": ai_managements})
+        return Response(AIManagementSerializer(ai_managements, many=True).data)
 
 
 class BillingView(APIView):
@@ -122,22 +152,17 @@ class BillingView(APIView):
 
     def get(self, request):
         subscriptions = Subscription.objects.select_related("organization").all()
-        total_revenue = sum(float(s.Subscriptions) for s in subscriptions)
-        return render(request, "billing.html", {
-            "subscriptions": subscriptions,
+        total_revenue = sum(float(s.amount) for s in subscriptions)
+        return Response({
+            "subscriptions": SubscriptionSerializer(subscriptions, many=True).data,
             "total_revenue": total_revenue,
         })
 
 
-class InviteView(APIView):
-    permission_classes = [IsCompanyAdmin]
-
-    def get(self, request):
-        return render(request, "invites.html")
-
-    def post(self, request):
-        # Later hook into Client/Organization logic
-        return redirect("admin-invites")
+# class InviteView(generics.CreateAPIView):
+#     permission_classes = [IsCompanyAdmin]
+#     queryset = Invite.objects.all()
+#     serializer_class = InviteSerializer
 
 
 class UsersView(APIView):
@@ -145,7 +170,7 @@ class UsersView(APIView):
 
     def get(self, request):
         clients = Client.objects.select_related("organization").all()
-        return render(request, "users.html", {"clients": clients})
+        return Response(ClientSerializer(clients, many=True).data)
 
 
 class UserDetailView(APIView):
@@ -153,7 +178,9 @@ class UserDetailView(APIView):
 
     def get(self, request, user_id):
         client = Client.objects.filter(id=user_id).first()
-        return render(request, "user_detail.html", {"client": client})
+        if not client:
+            return Response({"error": "Client not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(ClientSerializer(client).data)
 
 
 class ReportsView(APIView):
@@ -161,7 +188,7 @@ class ReportsView(APIView):
 
     def get(self, request):
         reports = RecentActivity.objects.select_related("organization").order_by("-timestamp")[:50]
-        return render(request, "reports.html", {"reports": reports})
+        return Response(RecentActivitySerializer(reports, many=True).data)
 
 
 class CrisisInsightsView(APIView):
@@ -169,4 +196,4 @@ class CrisisInsightsView(APIView):
 
     def get(self, request):
         hotline_data = HotlineActivity.objects.select_related("organization").order_by("-recorded_at")[:20]
-        return render(request, "crisis_insights.html", {"hotline_data": hotline_data})
+        return Response(HotlineActivitySerializer(hotline_data, many=True).data)
