@@ -37,11 +37,11 @@ urlpatterns = [
     # Dashboard API
     path("dashboard/overview/", OverviewView.as_view(), name="overview"),
     path("dashboard/trends/", TrendsView.as_view(), name="trends"),
-    path("dashboard/client-engagement/", ClientEngagementView.as_view(), name="client-engagement"),
+    path("dashboard/client_engagement/", ClientEngagementView.as_view(), name="client-engagement"),
     path("dashboard/features-usage/", FeaturesUsageView.as_view(), name="features-usage"),
     path("dashboard/billing/", BillingView.as_view(), name="billing"),
     path("dashboard/invites/", InviteView.as_view(), name="invites"),
-    path("dashboard/users/", UsersView.as_view(), name="users"),
+    path("dashboard/users/list", UsersView.as_view(), name="list"),
     path("dashboard/users/<int:user_id>/", UserDetailView.as_view(), name="user-detail"),
     path("dashboard/reports/", ReportsView.as_view(), name="reports"),
     path("dashboard/crisis-insights/", CrisisInsightsView.as_view(), name="crisis-insights"),
