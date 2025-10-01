@@ -25,6 +25,7 @@ SchemaView = get_schema_view(
 )
 
 # --- URL patterns ---
+# Now reference it inside urlpatterns
 urlpatterns = [
     # Home
     path("", home, name="home"),
