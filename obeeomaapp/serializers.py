@@ -1,14 +1,9 @@
+
+# serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from obeeomaapp.models import (
-    User, Organization, Client, RecentActivity,
-    HotlineActivity, ClientEngagement,
-    AIManagement, Subscription,
-    SelfAssessment, MoodCheckIn,
-    SelfHelpResource, ChatbotInteraction,
-    UserBadge, EngagementStreak
-)
+from obeeomaapp.models import *
 
 User = get_user_model()
 
@@ -16,10 +11,11 @@ User = get_user_model()
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
+    role = serializers.ChoiceField(choices=User.ROLE_CHOICES, default="employee")
 
     class Meta:
         model = User
-        fields = ('username', 'email', 'password', 'confirm_password')
+        fields = ('username', 'email', 'password', 'confirm_password', 'role')
 
     def validate(self, attrs):
         if attrs['password'] != attrs['confirm_password']:
@@ -27,13 +23,28 @@ class SignupSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        validated_data.pop('confirm_password')
+        role = validated_data.pop('role', 'employee')
+
         user = User(
             username=validated_data['username'],
-            email=validated_data['email']
+            email=validated_data['email'],
+            role=role
         )
         user.set_password(validated_data['password'])
         user.save()
+
+        # Automatically create a Client record if the role is employee
+        if role == 'employee':
+            Client.objects.create(
+                user=user,
+                name=user.username,
+                email=user.email,
+                organization=None  # or assign default org if needed
+            )
+
         return user
+
 
 
 class LoginSerializer(serializers.Serializer):
