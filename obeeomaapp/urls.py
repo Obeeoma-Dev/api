@@ -2,12 +2,7 @@ from django.urls import path
 from drf_yasg.views import get_schema_view
 from rest_framework import permissions
 from drf_yasg import openapi
-from obeeomaapp.views import (
-    SignupView, LoginView, PasswordResetView, PasswordChangeView,
-    OverviewView, TrendsView, ClientEngagementView, FeaturesUsageView,
-    BillingView, InviteView, UsersView, UserDetailView, ReportsView,
-    CrisisInsightsView, home
-)
+from obeeomaapp.views import *
 
 
 APP_NAME = "obeeomaapp"
