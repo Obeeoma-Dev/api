@@ -1,20 +1,13 @@
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate, get_user_model
-from rest_framework import generics, status, permissions
+from rest_framework import generics, status, permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.http import JsonResponse
-from obeeomaapp.models import (
-    User, Organization, Client, RecentActivity, HotlineActivity, ClientEngagement,
-    AIManagement, Subscription
-)
-from obeeomaapp.serializers import (UserSerializer,LoginSerializer, SignupSerializer, PasswordResetSerializer, PasswordChangeSerializer,
-    OrganizationSerializer, ClientSerializer, RecentActivitySerializer,
-    HotlineActivitySerializer, ClientEngagementSerializer, AIManagementSerializer,
-    SubscriptionSerializer
-)
+from obeeomaapp.models import *
+from obeeomaapp.serializers import *
 
 User = get_user_model()
 
@@ -94,6 +87,7 @@ class OverviewView(APIView):
         org_count = Organization.objects.count()
         client_count = Client.objects.count()
         active_subscriptions = Subscription.objects.filter(is_active=True).count()
+        recent_activities = RecentActivity.objects.select_related("organization").order_by("-timestamp")[:10]
 
         recent = RecentActivity.objects.select_related("organization").order_by("-timestamp")[:10]
         recent_serialized = RecentActivitySerializer(recent, many=True).data
