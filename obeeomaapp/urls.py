@@ -6,6 +6,7 @@ from obeeomaapp.views import *
 
 app_name = "obeeomaapp"
 
+# --- Swagger Schema ---
 schema_view = get_schema_view(
     openapi.Info(
         title="Obeeoma API",
@@ -17,6 +18,17 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
+    # --- User Authentication ---
+    path("signup/", SignupView.as_view(), name="signup"),
+    path("login/", LoginView.as_view(), name="login"),
+    path("password-reset/", PasswordResetView.as_view(), name="password-reset"),
+    path("password-change/", PasswordChangeView.as_view(), name="password-change"),
+
+    # --- Post-signup flow for employees/clients ---
+    path("terms/", TermsView.as_view(), name="terms"),
+    path("avatar-setup/", AvatarSetupView.as_view(), name="avatar-setup"),
+    path("dashboard/", DashboardView.as_view(), name="dashboard"),
+
     # --- Admin Dashboard ---
     path("overview/", OverviewView.as_view(), name="overview"),
     path("trends/", TrendsView.as_view(), name="trends"),
@@ -29,12 +41,7 @@ urlpatterns = [
     path("reports/", ReportsView.as_view(), name="reports"),
     path("crisis-insights/", CrisisInsightsView.as_view(), name="crisis-insights"),
 
-
-    path("signup/", SignupView.as_view(), name="signup"),
-    path("login/", LoginView.as_view(), name="login"),
-    path("password-reset/", PasswordResetView.as_view(), name="password_reset"),
-    path("password-change/", PasswordChangeView.as_view(), name="password_change"),
-
     # --- Swagger Docs ---
     path("swagger/", schema_view.with_ui('swagger', cache_timeout=0), name="schema-swagger-ui"),
 ]
+

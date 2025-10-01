@@ -2,7 +2,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 
-# --- User Model ---
+# --- User & Authentication ---
 class User(AbstractUser):
     ROLE_CHOICES = (
         ('systemadmin', 'System Admin'),
@@ -14,9 +14,12 @@ class User(AbstractUser):
     is_suspended = models.BooleanField(default=False)
     mfa_enabled = models.BooleanField(default=False)
     mfa_secret = models.CharField(max_length=255, blank=True, null=True)
+    terms_accepted = models.BooleanField(default=False)  # track T&C acceptance
+    avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
 
     def __str__(self):
         return f"{self.username} ({self.role})"
+
 
 # --- Organization & Client ---
 class Organization(models.Model):
