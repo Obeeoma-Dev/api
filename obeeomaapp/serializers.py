@@ -3,11 +3,18 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from obeeomaapp.models import *
+from obeeomaapp.models import (
+    User, Organization, Client, RecentActivity,
+    HotlineActivity, ClientEngagement,
+    AIManagement, Subscription,
+    SelfAssessment, MoodCheckIn,
+    SelfHelpResource, ChatbotInteraction,
+    UserBadge, EngagementStreak
+)
 
 User = get_user_model()
 
-# --- Auth & User ---
+# signup serializer
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
@@ -51,14 +58,23 @@ class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
 
+    def create(self, validated_data):
+        return validated_data
+
 
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
+
+    def create(self, validated_data):
+        return validated_data
 
 
 class PasswordChangeSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True, validators=[validate_password])
+
+    def create(self, validated_data):
+        return validated_data
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -67,7 +83,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'email', 'role', 'avatar', 'onboarding_completed']
 
 
-# --- Core Models ---
+
 class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
@@ -109,7 +125,7 @@ class RecentActivitySerializer(serializers.ModelSerializer):
         model = RecentActivity
         fields = ['id', 'organization', 'activity_type', 'details', 'timestamp', 'is_important']
 
-# --- Mental Health ---
+
 class SelfAssessmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = SelfAssessment
@@ -134,7 +150,7 @@ class ChatbotInteractionSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'message', 'response', 'timestamp', 'escalated']
 
 
-# --- Gamification ---
+
 class UserBadgeSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserBadge
@@ -144,42 +160,5 @@ class UserBadgeSerializer(serializers.ModelSerializer):
 class EngagementStreakSerializer(serializers.ModelSerializer):
     class Meta:
         model = EngagementStreak
-        fields = ['id', 'user', 'current_streak', 'last_check_in']
-
-
-# --- Analytics & Crisis Support ---
-class AnalyticsSnapshotSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = AnalyticsSnapshot
-        fields = ['id', 'organization', 'date', 'active_users', 'average_stress_score', 'most_used_feature']
-
-
-class CrisisHotlineSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CrisisHotline
-        fields = ['id', 'country', 'region', 'hotline_name', 'phone_number', 'is_active']
-
-
-# --- Admin Monitoring ---
-class AuthenticationEventSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = AuthenticationEvent
-        fields = ['id', 'user', 'event_type', 'ip_address', 'timestamp']
-
-
-class AdminActionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = AdminAction
-        fields = ['id', 'performed_by', 'target_user', 'action_type', 'reason', 'timestamp']
-
-
-class FeatureFlagSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = FeatureFlag
-        fields = ['id', 'name', 'description', 'enabled', 'updated_at']
-
-
-class SystemStatusSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SystemStatus
-        fields = ['id', 'is_in_maintenance', 'message', 'updated_at']
+        fields = ['id', 'user', 'streak_count', 'last_active_date']
+      

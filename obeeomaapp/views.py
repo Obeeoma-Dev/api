@@ -1,24 +1,42 @@
-
+from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate, get_user_model
 from rest_framework import generics, status, permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.shortcuts import render, redirect
-from obeeomaapp.models import *
-from obeeomaapp.serializers import *
+from django.http import JsonResponse
+from obeeomaapp.models import (
+    User, Organization, Client, RecentActivity, HotlineActivity, ClientEngagement,
+    AIManagement, Subscription
+)
+from obeeomaapp.serializers import (UserSerializer,LoginSerializer, SignupSerializer, PasswordResetSerializer, PasswordChangeSerializer,
+    OrganizationSerializer, ClientSerializer, RecentActivitySerializer,
+    HotlineActivitySerializer, ClientEngagementSerializer, AIManagementSerializer,
+    SubscriptionSerializer
+)
 
 User = get_user_model()
 
-# --- Authentication Views ---
 
+# --- Permission: company admin (is_staff) ---
+class IsCompanyAdmin(BasePermission):
+    """
+    Allows access only to users with is_staff=True.
+    """
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.is_staff)
+
+
+# --- Authentication Views ---
 class SignupView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = SignupSerializer
+    permission_classes = [permissions.AllowAny]
 
 
 class LoginView(APIView):
+    permission_classes = [permissions.AllowAny]
     serializer_class = LoginSerializer
 
     def post(self, request):
@@ -40,18 +58,20 @@ class LoginView(APIView):
 
 
 class PasswordResetView(APIView):
+    permission_classes = [permissions.AllowAny]
     serializer_class = PasswordResetSerializer
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
+        # Hook to actual email service later
         return Response({"message": f"Password reset link sent to {email}"})
 
 
 class PasswordChangeView(APIView):
+    permission_classes = [IsAuthenticated]
     serializer_class = PasswordChangeSerializer
-    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
@@ -66,46 +86,7 @@ class PasswordChangeView(APIView):
         return Response({"message": "Password updated successfully"})
 
 
-
-
-class TermsView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        return render(request, "terms.html")  # show T&C page
-
-    def post(self, request):
-        # user accepts terms
-        user = request.user
-        user.terms_accepted = True
-        user.save()
-        return redirect('avatar-setup')  # go to avatar selection page
-
-from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
-
-
-class DashboardView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        if not request.user.terms_accepted:
-            return redirect('terms')
-        if not request.user.avatar:
-            return redirect('avatar-setup')
-        return render(request, "dashboard.html")
-
-# --- Custom Permission ---
-
-class IsCompanyAdmin(IsAuthenticated):
-    """Custom permission: only staff/admins allowed."""
-    def has_permission(self, request, view):
-        return super().has_permission(request, view) and request.user.is_staff
-
-# --- Admin Dashboard API Views ---
-
+# --- Admin Dashboard API Views (JSON) ---
 class OverviewView(APIView):
     permission_classes = [IsCompanyAdmin]
 
@@ -115,12 +96,16 @@ class OverviewView(APIView):
         active_subscriptions = Subscription.objects.filter(is_active=True).count()
         recent_activities = RecentActivity.objects.select_related("organization").order_by("-timestamp")[:10]
 
-        return Response({
+        recent = RecentActivity.objects.select_related("organization").order_by("-timestamp")[:10]
+        recent_serialized = RecentActivitySerializer(recent, many=True).data
+
+        data = {
             "organization_count": org_count,
             "client_count": client_count,
             "active_subscriptions": active_subscriptions,
-            "recent_activities": RecentActivitySerializer(recent_activities, many=True).data,
-        })
+            "recent_activities": recent_serialized,
+        }
+        return Response(data)
 
 
 class TrendsView(APIView):
@@ -128,7 +113,8 @@ class TrendsView(APIView):
 
     def get(self, request):
         hotline_trends = HotlineActivity.objects.select_related("organization").order_by("-recorded_at")[:20]
-        return Response(HotlineActivitySerializer(hotline_trends, many=True).data)
+        data = HotlineActivitySerializer(hotline_trends, many=True).data
+        return Response({"hotline_trends": data})
 
 
 class ClientEngagementView(APIView):
@@ -136,7 +122,8 @@ class ClientEngagementView(APIView):
 
     def get(self, request):
         engagements = ClientEngagement.objects.select_related("organization").order_by("-month")[:20]
-        return Response(ClientEngagementSerializer(engagements, many=True).data)
+        data = ClientEngagementSerializer(engagements, many=True).data
+        return Response({"engagements": data})
 
 
 class FeaturesUsageView(APIView):
@@ -144,7 +131,8 @@ class FeaturesUsageView(APIView):
 
     def get(self, request):
         ai_managements = AIManagement.objects.select_related("organization").order_by("-created_at")[:20]
-        return Response(AIManagementSerializer(ai_managements, many=True).data)
+        data = AIManagementSerializer(ai_managements, many=True).data
+        return Response({"ai_managements": data})
 
 
 class BillingView(APIView):
@@ -152,17 +140,22 @@ class BillingView(APIView):
 
     def get(self, request):
         subscriptions = Subscription.objects.select_related("organization").all()
+        serialized = SubscriptionSerializer(subscriptions, many=True).data
         total_revenue = sum(float(s.amount) for s in subscriptions)
         return Response({
-            "subscriptions": SubscriptionSerializer(subscriptions, many=True).data,
-            "total_revenue": total_revenue,
+            "subscriptions": serialized,
+            "total_revenue": total_revenue
         })
 
 
-# class InviteView(generics.CreateAPIView):
-#     permission_classes = [IsCompanyAdmin]
-#     queryset = Invite.objects.all()
-#     serializer_class = InviteSerializer
+class InviteView(APIView):
+    permission_classes = [IsCompanyAdmin]
+
+    def get(self, request):
+        return Response({"message": "Invite endpoint (GET) - implement as needed"})
+
+    def post(self, request):
+        return Response({"message": "Invite created"}, status=status.HTTP_201_CREATED)
 
 
 class UsersView(APIView):
@@ -170,17 +163,17 @@ class UsersView(APIView):
 
     def get(self, request):
         clients = Client.objects.select_related("organization").all()
-        return Response(ClientSerializer(clients, many=True).data)
+        data = ClientSerializer(clients, many=True).data
+        return Response({"clients": data})
 
 
 class UserDetailView(APIView):
     permission_classes = [IsCompanyAdmin]
 
     def get(self, request, user_id):
-        client = Client.objects.filter(id=user_id).first()
-        if not client:
-            return Response({"error": "Client not found"}, status=status.HTTP_404_NOT_FOUND)
-        return Response(ClientSerializer(client).data)
+        client = get_object_or_404(Client, id=user_id)
+        data = ClientSerializer(client).data
+        return Response({"client": data})
 
 
 class ReportsView(APIView):
@@ -188,7 +181,8 @@ class ReportsView(APIView):
 
     def get(self, request):
         reports = RecentActivity.objects.select_related("organization").order_by("-timestamp")[:50]
-        return Response(RecentActivitySerializer(reports, many=True).data)
+        data = RecentActivitySerializer(reports, many=True).data
+        return Response({"reports": data})
 
 
 class CrisisInsightsView(APIView):
@@ -196,4 +190,11 @@ class CrisisInsightsView(APIView):
 
     def get(self, request):
         hotline_data = HotlineActivity.objects.select_related("organization").order_by("-recorded_at")[:20]
-        return Response(HotlineActivitySerializer(hotline_data, many=True).data)
+        data = HotlineActivitySerializer(hotline_data, many=True).data
+        return Response({"hotline_data": data})
+
+
+
+def home(request):
+    return JsonResponse({"status": "ok", "app": "obeeomaapp"})
+
