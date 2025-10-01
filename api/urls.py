@@ -24,7 +24,12 @@ urlpatterns = [
 ]
 from django.urls import path, include
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-from rest_framework_simplejwt.views import *
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView,
+)
+
 urlpatterns = [
     # Include app URLs
     path("api/v1/", include("obeeomaapp.urls")),
