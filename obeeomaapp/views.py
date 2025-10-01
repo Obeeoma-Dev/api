@@ -6,16 +6,15 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.http import JsonResponse
-from obeeomaapp.models import *
+from obeeomaapp.models import (
+    User, Organization, Client, RecentActivity, HotlineActivity, ClientEngagement,
+    AIManagement, Subscription
+)
 from obeeomaapp.serializers import (UserSerializer,LoginSerializer, SignupSerializer, PasswordResetSerializer, PasswordChangeSerializer,
     OrganizationSerializer, ClientSerializer, RecentActivitySerializer,
     HotlineActivitySerializer, ClientEngagementSerializer, AIManagementSerializer,
-    SubscriptionSerializer,
-    OverviewResponseSerializer, TrendsResponseSerializer, ClientEngagementResponseSerializer,
-    FeaturesUsageResponseSerializer, BillingResponseSerializer, UsersResponseSerializer,
-    UserDetailResponseSerializer, ReportsResponseSerializer, CrisisInsightsResponseSerializer
+    SubscriptionSerializer
 )
-from drf_spectacular.utils import extend_schema
 
 User = get_user_model()
 
@@ -41,15 +40,20 @@ class LoginView(APIView):
     serializer_class = LoginSerializer
 
     def post(self, request):
-        username = request.data.get('username')
-        password = request.data.get('password')
-        user = authenticate(request, username=username, password=password)
-        if user is not None:
-            if user.is_active:
-                LoginView(request, user)
-                return Response({"detail": "Login successful"}, status=status.HTTP_200_OK)
-            else:
-                return Response({"detail": "Inactive user"}, status=status.HTTP_403_FORBIDDEN)
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = authenticate(
+            username=serializer.validated_data['username'],
+            password=serializer.validated_data['password']
+        )
+        if user:
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+                "username": user.username,
+            })
         return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
 
@@ -86,7 +90,6 @@ class PasswordChangeView(APIView):
 class OverviewView(APIView):
     permission_classes = [IsCompanyAdmin]
 
-    @extend_schema(responses=OverviewResponseSerializer)
     def get(self, request):
         org_count = Organization.objects.count()
         client_count = Client.objects.count()
@@ -107,7 +110,6 @@ class OverviewView(APIView):
 class TrendsView(APIView):
     permission_classes = [IsCompanyAdmin]
 
-    @extend_schema(responses=TrendsResponseSerializer)
     def get(self, request):
         hotline_trends = HotlineActivity.objects.select_related("organization").order_by("-recorded_at")[:20]
         data = HotlineActivitySerializer(hotline_trends, many=True).data
@@ -117,7 +119,6 @@ class TrendsView(APIView):
 class ClientEngagementView(APIView):
     permission_classes = [IsCompanyAdmin]
 
-    @extend_schema(responses=ClientEngagementResponseSerializer)
     def get(self, request):
         engagements = ClientEngagement.objects.select_related("organization").order_by("-month")[:20]
         data = ClientEngagementSerializer(engagements, many=True).data
@@ -127,7 +128,6 @@ class ClientEngagementView(APIView):
 class FeaturesUsageView(APIView):
     permission_classes = [IsCompanyAdmin]
 
-    @extend_schema(responses=FeaturesUsageResponseSerializer)
     def get(self, request):
         ai_managements = AIManagement.objects.select_related("organization").order_by("-created_at")[:20]
         data = AIManagementSerializer(ai_managements, many=True).data
@@ -137,7 +137,6 @@ class FeaturesUsageView(APIView):
 class BillingView(APIView):
     permission_classes = [IsCompanyAdmin]
 
-    @extend_schema(responses=BillingResponseSerializer)
     def get(self, request):
         subscriptions = Subscription.objects.select_related("organization").all()
         serialized = SubscriptionSerializer(subscriptions, many=True).data
@@ -151,11 +150,9 @@ class BillingView(APIView):
 class InviteView(APIView):
     permission_classes = [IsCompanyAdmin]
 
-    @extend_schema(responses={200: None})
     def get(self, request):
         return Response({"message": "Invite endpoint (GET) - implement as needed"})
 
-    @extend_schema(request=None, responses={201: None})
     def post(self, request):
         return Response({"message": "Invite created"}, status=status.HTTP_201_CREATED)
 
@@ -163,7 +160,6 @@ class InviteView(APIView):
 class UsersView(APIView):
     permission_classes = [IsCompanyAdmin]
 
-    @extend_schema(responses=UsersResponseSerializer)
     def get(self, request):
         clients = Client.objects.select_related("organization").all()
         data = ClientSerializer(clients, many=True).data
@@ -173,7 +169,6 @@ class UsersView(APIView):
 class UserDetailView(APIView):
     permission_classes = [IsCompanyAdmin]
 
-    @extend_schema(responses=UserDetailResponseSerializer)
     def get(self, request, user_id):
         client = get_object_or_404(Client, id=user_id)
         data = ClientSerializer(client).data
@@ -183,7 +178,6 @@ class UserDetailView(APIView):
 class ReportsView(APIView):
     permission_classes = [IsCompanyAdmin]
 
-    @extend_schema(responses=ReportsResponseSerializer)
     def get(self, request):
         reports = RecentActivity.objects.select_related("organization").order_by("-timestamp")[:50]
         data = RecentActivitySerializer(reports, many=True).data
@@ -193,7 +187,6 @@ class ReportsView(APIView):
 class CrisisInsightsView(APIView):
     permission_classes = [IsCompanyAdmin]
 
-    @extend_schema(responses=CrisisInsightsResponseSerializer)
     def get(self, request):
         hotline_data = HotlineActivity.objects.select_related("organization").order_by("-recorded_at")[:20]
         data = HotlineActivitySerializer(hotline_data, many=True).data

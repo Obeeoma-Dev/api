@@ -1,4 +1,4 @@
-# import os 
+# import os
 
 # from pathlib import Path
 # from urllib.parse import urlparse, parse_qsl
@@ -60,8 +60,8 @@
 
 #     'rest_framework_simplejwt',
 #     'django_extensions',
- 
-    
+
+
 #     'drf_yasg',
 
 
@@ -137,12 +137,13 @@
 # }
 
 # SPECTACULAR_SETTINGS = {
-#     "TITLE": "My API",
-#     "DESCRIPTION": "API documentation",
-#     "VERSION": "1.0.0",
-# }
+# 'TITLE': 'My API',
+#     'DESCRIPTION': 'API documentation',
+#     'VERSION': '1.0.0',
 
-import os 
+
+# }
+import os
 
 from pathlib import Path
 from urllib.parse import urlparse, parse_qsl
@@ -159,18 +160,18 @@ ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 PORT = os.getenv("PORT", "8000")
 
 # Database
-tmpPostgres = urlparse(os.getenv('DATABASE_URL', ''))
+tmpPostgres = urlparse(os.getenv("DATABASE_URL", ""))
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': tmpPostgres.path.lstrip('/'),
-        'USER': tmpPostgres.username,
-        'PASSWORD': tmpPostgres.password,
-        'HOST': tmpPostgres.hostname,
-        'PORT': tmpPostgres.port or 5432,
-        'OPTIONS': {
-            'sslmode': 'require',
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": tmpPostgres.path.lstrip("/"),
+        "USER": tmpPostgres.username,
+        "PASSWORD": tmpPostgres.password,
+        "HOST": tmpPostgres.hostname,
+        "PORT": tmpPostgres.port or 5432,
+        "OPTIONS": {
+            "sslmode": "require",
             **dict(parse_qsl(tmpPostgres.query)),
         },
     }
@@ -204,8 +205,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 # Media files
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 
 ROOT_URLCONF = "api.urls"
@@ -265,4 +266,3 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "API documentation",
     "VERSION": "1.0.0",
 }
-
