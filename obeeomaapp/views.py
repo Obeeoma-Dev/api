@@ -6,15 +6,8 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.http import JsonResponse
-from obeeomaapp.models import (
-    User, Organization, Client, RecentActivity, HotlineActivity, ClientEngagement,
-    AIManagement, Subscription
-)
-from obeeomaapp.serializers import (UserSerializer,LoginSerializer, SignupSerializer, PasswordResetSerializer, PasswordChangeSerializer,
-    OrganizationSerializer, ClientSerializer, RecentActivitySerializer,
-    HotlineActivitySerializer, ClientEngagementSerializer, AIManagementSerializer,
-    SubscriptionSerializer
-)
+from obeeomaapp.models import *
+from obeeomaapp.serializers import *
 
 User = get_user_model()
 
