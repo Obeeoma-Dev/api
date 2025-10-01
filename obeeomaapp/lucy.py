@@ -11,8 +11,8 @@ try:
     cur = conn.cursor()
     cur.execute("SELECT version();")
     db_version = cur.fetchone()
-    print("✅ Successfully connected! PostgreSQL version:", db_version)
+    print(" Successfully connected! PostgreSQL version:", db_version)
     cur.close()
     conn.close()
 except Exception as e:
-    print("❌ Connection failed:", e)
+    print("Connection failed:", e)
