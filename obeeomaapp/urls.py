@@ -1,8 +1,19 @@
 from django.urls import path
 from drf_yasg.views import get_schema_view
 from rest_framework import permissions
-from drf_yasg import openapi 
+from drf_yasg import openapi
+from obeeomaapp.views import *
 
+app_name = "obeeomaapp"
+
+schema_view = get_schema_view(
+   openapi.Info(
+      title="Obeeoma API",
+      default_version='v1',
+      description="Endpoints for signup, login, reset-password ,change-password",
+   ),
+   public=True,
+   permission_classes=(permissions.AllowAny,),)
 from obeeomaapp.views import (
     SignupView, LoginView, PasswordResetView, PasswordChangeView,
     OverviewView, TrendsView, ClientEngagementView, FeaturesUsageView,
@@ -25,7 +36,6 @@ SchemaView = get_schema_view(
 )
 
 # --- URL patterns ---
-# Now reference it inside urlpatterns
 urlpatterns = [
     # Home
     path("", home, name="home"),
@@ -39,11 +49,11 @@ urlpatterns = [
     # Dashboard API
     path("dashboard/overview/", OverviewView.as_view(), name="overview"),
     path("dashboard/trends/", TrendsView.as_view(), name="trends"),
-    path("dashboard/client_engagement/", ClientEngagementView.as_view(), name="client-engagement"),
+    path("dashboard/client-engagement/", ClientEngagementView.as_view(), name="client-engagement"),
     path("dashboard/features-usage/", FeaturesUsageView.as_view(), name="features-usage"),
     path("dashboard/billing/", BillingView.as_view(), name="billing"),
     path("dashboard/invites/", InviteView.as_view(), name="invites"),
-    path("dashboard/users/list", UsersView.as_view(), name="list"),
+    path("dashboard/users/", UsersView.as_view(), name="users"),
     path("dashboard/users/<int:user_id>/", UserDetailView.as_view(), name="user-detail"),
     path("dashboard/reports/", ReportsView.as_view(), name="reports"),
     path("dashboard/crisis-insights/", CrisisInsightsView.as_view(), name="crisis-insights"),
