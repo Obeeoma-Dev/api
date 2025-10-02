@@ -19,7 +19,18 @@ urlpatterns = [
 
     # Mount app at root
     path("", include("obeeomaapp.urls")),
+]
+from django.urls import path, include
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView,
+)
 
+urlpatterns = [
+    # Include app URLs
+    path("api/v1/", include("obeeomaapp.urls")),
     # JWT Token endpoints
     path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
