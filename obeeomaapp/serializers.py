@@ -3,7 +3,14 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from obeeomaapp.models import *
+from obeeomaapp.models import (
+    User, Organization, Client, RecentActivity,
+    HotlineActivity, ClientEngagement,
+    AIManagement, Subscription,
+    SelfAssessment, MoodCheckIn,
+    SelfHelpResource, ChatbotInteraction,
+    UserBadge, EngagementStreak
+)
 
 User = get_user_model()
 
@@ -154,45 +161,4 @@ class EngagementStreakSerializer(serializers.ModelSerializer):
     class Meta:
         model = EngagementStreak
         fields = ['id', 'user', 'streak_count', 'last_active_date']
-
-
-# Response serializers for APIView GET responses
-class OverviewResponseSerializer(serializers.Serializer):
-    organization_count = serializers.IntegerField()
-    client_count = serializers.IntegerField()
-    active_subscriptions = serializers.IntegerField()
-    recent_activities = RecentActivitySerializer(many=True)
-
-
-class TrendsResponseSerializer(serializers.Serializer):
-    hotline_trends = HotlineActivitySerializer(many=True)
-
-
-class ClientEngagementResponseSerializer(serializers.Serializer):
-    engagements = ClientEngagementSerializer(many=True)
-
-
-class FeaturesUsageResponseSerializer(serializers.Serializer):
-    ai_managements = AIManagementSerializer(many=True)
-
-
-class BillingResponseSerializer(serializers.Serializer):
-    subscriptions = SubscriptionSerializer(many=True)
-    total_revenue = serializers.FloatField()
-
-
-class UsersResponseSerializer(serializers.Serializer):
-    clients = ClientSerializer(many=True)
-
-
-class UserDetailResponseSerializer(serializers.Serializer):
-    client = ClientSerializer()
-
-
-class ReportsResponseSerializer(serializers.Serializer):
-    reports = RecentActivitySerializer(many=True)
-
-
-class CrisisInsightsResponseSerializer(serializers.Serializer):
-    hotline_data = HotlineActivitySerializer(many=True)
       
