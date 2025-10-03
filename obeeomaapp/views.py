@@ -6,16 +6,9 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.http import JsonResponse
-from obeeomaapp.models import (
-    User, Organization, Client, RecentActivity, HotlineActivity, ClientEngagement,
-    AIManagement, Subscription
-)
-from obeeomaapp.serializers import (UserSerializer,LoginSerializer, SignupSerializer, PasswordResetSerializer, PasswordChangeSerializer,
-    OrganizationSerializer, ClientSerializer, RecentActivitySerializer,
-    HotlineActivitySerializer, ClientEngagementSerializer, AIManagementSerializer,
-    SubscriptionSerializer
-)
-
+from rest_framework.decorators import action
+from obeeomaapp.models import *
+from obeeomaapp.serializers import *
 User = get_user_model()
 
 
@@ -197,3 +190,140 @@ class CrisisInsightsView(APIView):
 def home(request):
     return JsonResponse({"status": "ok", "app": "obeeomaapp"})
 
+#views for employee app
+
+
+
+
+# --- Employee Profile ---
+class EmployeeProfileView(generics.RetrieveUpdateAPIView):
+    queryset = EmployeeProfile.objects.all()
+    serializer_class = EmployeeProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return get_object_or_404(EmployeeProfile, user=self.request.user)
+
+# --- Avatar ---
+class AvatarProfileView(generics.RetrieveUpdateAPIView):
+    queryset = AvatarProfile.objects.all()
+    serializer_class = AvatarProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return get_object_or_404(AvatarProfile, employee__user=self.request.user)
+
+# --- Wellness Hub ---
+class WellnessHubView(generics.RetrieveAPIView):
+    queryset = WellnessHub.objects.all()
+    serializer_class = WellnessHubSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return get_object_or_404(WellnessHub, employee__user=self.request.user)
+
+# --- Mood Check-ins ---
+class MoodCheckInCreateView(generics.CreateAPIView):
+    serializer_class = MoodCheckInSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
+        serializer.save(employee=employee)
+
+# --- Assessments ---
+class AssessmentResultView(generics.ListCreateAPIView):
+    serializer_class = AssessmentResultSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return AssessmentResult.objects.filter(employee__user=self.request.user)
+
+    def perform_create(self, serializer):
+        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
+        serializer.save(employee=employee)
+
+# --- Self-Help Resources ---
+class SelfHelpResourceListView(generics.ListAPIView):
+    queryset = SelfHelpResource.objects.all()
+    serializer_class = SelfHelpResourceSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+# --- Educational Resources ---
+class EducationalResourceListView(generics.ListAPIView):
+    queryset = EducationalResource.objects.all()
+    serializer_class = EducationalResourceSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+# --- Crisis Triggers ---
+class CrisisTriggerView(generics.ListCreateAPIView):
+    serializer_class = CrisisTriggerSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return CrisisTrigger.objects.filter(employee__user=self.request.user)
+
+    def perform_create(self, serializer):
+        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
+        serializer.save(employee=employee)
+
+# --- Notifications ---
+class NotificationListView(generics.ListAPIView):
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(employee__user=self.request.user)
+
+# --- Engagement Tracker ---
+class EngagementTrackerView(generics.RetrieveAPIView):
+    serializer_class = EngagementTrackerSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return get_object_or_404(EngagementTracker, employee__user=self.request.user)
+
+# --- Feedback ---
+class FeedbackCreateView(generics.CreateAPIView):
+    serializer_class = FeedbackSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
+        serializer.save(employee=employee)
+
+# --- Sana Chat Sessions ---
+class ChatSessionView(generics.ListCreateAPIView):
+    serializer_class = ChatSessionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return ChatSession.objects.filter(employee__user=self.request.user)
+
+    def perform_create(self, serializer):
+        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
+        serializer.save(employee=employee)
+
+class ChatMessageView(generics.ListCreateAPIView):
+    serializer_class = ChatMessageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        session_id = self.kwargs.get("session_id")
+        return ChatMessage.objects.filter(session__id=session_id, session__employee__user=self.request.user)
+
+    def perform_create(self, serializer):
+        session = get_object_or_404(ChatSession, id=self.kwargs.get("session_id"), employee__user=self.request.user)
+        serializer.save(session=session)
+
+# --- Recommendations ---
+class RecommendationLogView(generics.ListCreateAPIView):
+    serializer_class = RecommendationLogSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return RecommendationLog.objects.filter(employee__user=self.request.user)
+
+    def perform_create(self, serializer):
+        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
+        serializer.save(employee=employee)
