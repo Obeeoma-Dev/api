@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.conf import settings
+
 # --- User & Authentication ---
 class User(AbstractUser):
     ROLE_CHOICES = (
@@ -15,12 +16,9 @@ class User(AbstractUser):
     mfa_enabled = models.BooleanField(default=False)
     mfa_secret = models.CharField(max_length=255, blank=True, null=True)
     avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
-    is_suspended = models.BooleanField(default=False)
-    mfa_enabled = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.username} ({self.role})"
-
 
 
 class Organization(models.Model):
@@ -49,17 +47,16 @@ class Client(models.Model):
         ordering = ['-joined_date']
 
 
-
 class AuthenticationEvent(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     event_type = models.CharField(max_length=50)
     ip_address = models.GenericIPAddressField(blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
 
 class AdminAction(models.Model):
-    performed_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="admin_actions")
-    target_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="targeted_actions")
+    performed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="admin_actions")
+    target_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="targeted_actions")
     action_type = models.CharField(max_length=50)
     reason = models.TextField(blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
@@ -85,13 +82,12 @@ class SystemStatus(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
 
-
 class SelfAssessment(models.Model):
     ASSESSMENT_TYPES = (
         ("GAD-7", "Anxiety"),
         ("PHQ-9", "Depression"),
     )
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="assessments")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="assessments")
     assessment_type = models.CharField(max_length=10, choices=ASSESSMENT_TYPES)
     score = models.PositiveIntegerField()
     submitted_at = models.DateTimeField(auto_now_add=True)
@@ -101,9 +97,11 @@ class SelfAssessment(models.Model):
 
 
 class MoodCheckIn(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="mood_checkins")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mood_checkins")
+    employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE, null=True, blank=True, related_name="mood_checkins_employee")
     mood = models.CharField(max_length=50)
     note = models.TextField(blank=True, null=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
     checked_in_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -118,33 +116,33 @@ class SelfHelpResource(models.Model):
         ("Prompt", "Journaling Prompt"),
     )
     title = models.CharField(max_length=255)
-    resource_type = models.CharField(max_length=50, choices=RESOURCE_TYPES)
+    resource_type = models.CharField(max_length=50, choices=RESOURCE_TYPES, blank=True, null=True)
+    category = models.CharField(max_length=50, blank=True, null=True)  # meditation, journaling, CBT
     content = models.TextField()
+    is_premium = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
 
 class ChatbotInteraction(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chatbot_logs")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="chatbot_logs")
     message = models.TextField()
     response = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
     escalated = models.BooleanField(default=False)
 
 
-
 class UserBadge(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="badges")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="badges")
     badge_name = models.CharField(max_length=100)
     awarded_on = models.DateTimeField(auto_now_add=True)
 
 
 class EngagementStreak(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="streaks")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="streaks")
     streak_count = models.PositiveIntegerField(default=0)
     last_active_date = models.DateTimeField(blank=True, null=True)
 
 
-# --- Employer Analytics ---
 class AnalyticsSnapshot(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="analytics")
     date = models.DateField()
@@ -152,13 +150,13 @@ class AnalyticsSnapshot(models.Model):
     average_stress_score = models.DecimalField(max_digits=5, decimal_places=2)
     most_used_feature = models.CharField(max_length=100)
 
+
 class CrisisHotline(models.Model):
     country = models.CharField(max_length=100)
     region = models.CharField(max_length=100, blank=True, null=True)
     hotline_name = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=50)
     is_active = models.BooleanField(default=True)
-
 
 
 class AIManagement(models.Model):
@@ -247,11 +245,10 @@ class RecentActivity(models.Model):
     class Meta:
         ordering = ['-timestamp']
         verbose_name_plural = "Recent Activities"
-# --- Employee Wellbeing ---
-from django.db import models
-from django.contrib.auth.models import User
 
-# --- Core Employee Profile ---
+
+# --- Employee Wellbeing ---
+
 class EmployeeProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
@@ -264,14 +261,14 @@ class EmployeeProfile(models.Model):
     receive_notifications = models.BooleanField(default=True)
     current_wellness_status = models.CharField(max_length=50, blank=True)
 
-# --- Avatar Customization ---
+
 class AvatarProfile(models.Model):
     employee = models.OneToOneField(EmployeeProfile, on_delete=models.CASCADE)
-    style = models.CharField(max_length=50)  # e.g., cartoon, abstract
+    style = models.CharField(max_length=50)
     color_theme = models.CharField(max_length=30)
     accessory = models.CharField(max_length=50, blank=True)
 
-# --- Wellness Hub ---
+
 class WellnessHub(models.Model):
     employee = models.OneToOneField(EmployeeProfile, on_delete=models.CASCADE, related_name="wellness_hub")
     last_checkin_date = models.DateField(blank=True, null=True)
@@ -289,66 +286,53 @@ class WellnessHub(models.Model):
     def __str__(self):
         return f"Wellness Hub - {self.employee.user.username}"
 
-# --- Mood Check-ins ---
-class MoodCheckIn(models.Model):
-    employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
-    mood = models.CharField(max_length=20)
-    note = models.TextField(blank=True)
-    timestamp = models.DateTimeField(auto_now_add=True)
 
-# --- Assessments ---
 class AssessmentResult(models.Model):
     employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
     type = models.CharField(max_length=20)  # GAD-7, PHQ-9
     score = models.IntegerField()
     submitted_on = models.DateTimeField(auto_now_add=True)
 
-# --- Self-Help Resources ---
-class SelfHelpResource(models.Model):
-    title = models.CharField(max_length=100)
-    category = models.CharField(max_length=50)  # meditation, journaling, CBT
-    content = models.TextField()
-    is_premium = models.BooleanField(default=False)
 
-# --- Educational Resources ---
 class EducationalResource(models.Model):
     title = models.CharField(max_length=100)
     type = models.CharField(max_length=20)  # article, podcast, video
     url = models.URLField()
     description = models.TextField()
 
-# --- Crisis Detection ---
+
 class CrisisTrigger(models.Model):
     employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
     detected_phrase = models.CharField(max_length=255)
     triggered_on = models.DateTimeField(auto_now_add=True)
     escalated = models.BooleanField(default=False)
 
-# --- Notifications ---
+
 class Notification(models.Model):
     employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
     message = models.CharField(max_length=255)
     sent_on = models.DateTimeField(auto_now_add=True)
     read = models.BooleanField(default=False)
 
-# --- Engagement Tracking ---
+
 class EngagementTracker(models.Model):
     employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
     streak_days = models.IntegerField(default=0)
     badges = models.CharField(max_length=255, blank=True)
 
-# --- Feedback ---
+
 class Feedback(models.Model):
     employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
     rating = models.IntegerField()
     comment = models.TextField()
     submitted_on = models.DateTimeField(auto_now_add=True)
 
-# --- Chat Sessions ---
+
 class ChatSession(models.Model):
     employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE, related_name="chat_sessions")
     started_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
+
 
 class ChatMessage(models.Model):
     ROLE_CHOICES = [
@@ -361,7 +345,7 @@ class ChatMessage(models.Model):
     message = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
 
-# --- Recommendation Log ---
+
 class RecommendationLog(models.Model):
     employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
     resource = models.ForeignKey(SelfHelpResource, on_delete=models.SET_NULL, null=True, blank=True)

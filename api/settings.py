@@ -164,19 +164,21 @@ tmpPostgres = urlparse(os.getenv("DATABASE_URL", ""))
 import os
 
 DATABASES = {
-    "default": {
+        "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ.get("PGDATABASE", "neondb"),
         "USER": os.environ.get("PGUSER", "neondb_owner"),
-        "PASSWORD": os.environ.get("PGPASSWORD", ""),
-        "HOST": os.environ.get("PGHOST", ""),
+        "PASSWORD": os.environ.get("PGPASSWORD"),
+        "HOST": os.environ.get("PGHOST"),
         "PORT": os.environ.get("PGPORT", "5432"),
         "OPTIONS": {
             "sslmode": os.environ.get("PGSSLMODE", "require"),
-            "channel_binding": os.environ.get("PGCHANNELBINDING", "require"),
         },
+        "CONN_MAX_AGE": 600,  # Connection pooling (10 minutes)
+        "CONN_HEALTH_CHECKS": True,  # Check connection health before reusing
     }
 }
+    
 
 
 
