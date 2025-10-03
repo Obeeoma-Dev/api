@@ -247,3 +247,123 @@ class RecentActivity(models.Model):
     class Meta:
         ordering = ['-timestamp']
         verbose_name_plural = "Recent Activities"
+# --- Employee Wellbeing ---
+from django.db import models
+from django.contrib.auth.models import User
+
+# --- Core Employee Profile ---
+class EmployeeProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    organization = models.CharField(max_length=100)
+    role = models.CharField(max_length=50)
+    joined_on = models.DateField(auto_now_add=True)
+    subscription_tier = models.CharField(max_length=20, choices=[('freemium', 'Freemium'), ('premium', 'Premium')])
+    is_premium_active = models.BooleanField(default=False)
+    is_anonymous = models.BooleanField(default=False)
+    receive_notifications = models.BooleanField(default=True)
+    current_wellness_status = models.CharField(max_length=50, blank=True)
+
+# --- Avatar Customization ---
+class AvatarProfile(models.Model):
+    employee = models.OneToOneField(EmployeeProfile, on_delete=models.CASCADE)
+    style = models.CharField(max_length=50)  # e.g., cartoon, abstract
+    color_theme = models.CharField(max_length=30)
+    accessory = models.CharField(max_length=50, blank=True)
+
+# --- Wellness Hub ---
+class WellnessHub(models.Model):
+    employee = models.OneToOneField(EmployeeProfile, on_delete=models.CASCADE, related_name="wellness_hub")
+    last_checkin_date = models.DateField(blank=True, null=True)
+    last_checkin_mood = models.CharField(
+        max_length=20,
+        choices=[("happy", "Happy"), ("sad", "Sad"), ("stressed", "Stressed"),
+                 ("anxious", "Anxious"), ("neutral", "Neutral")],
+        blank=True,
+        null=True
+    )
+    mood_logs = models.JSONField(default=list, blank=True)
+    mood_insights = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Wellness Hub - {self.employee.user.username}"
+
+# --- Mood Check-ins ---
+class MoodCheckIn(models.Model):
+    employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
+    mood = models.CharField(max_length=20)
+    note = models.TextField(blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+# --- Assessments ---
+class AssessmentResult(models.Model):
+    employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
+    type = models.CharField(max_length=20)  # GAD-7, PHQ-9
+    score = models.IntegerField()
+    submitted_on = models.DateTimeField(auto_now_add=True)
+
+# --- Self-Help Resources ---
+class SelfHelpResource(models.Model):
+    title = models.CharField(max_length=100)
+    category = models.CharField(max_length=50)  # meditation, journaling, CBT
+    content = models.TextField()
+    is_premium = models.BooleanField(default=False)
+
+# --- Educational Resources ---
+class EducationalResource(models.Model):
+    title = models.CharField(max_length=100)
+    type = models.CharField(max_length=20)  # article, podcast, video
+    url = models.URLField()
+    description = models.TextField()
+
+# --- Crisis Detection ---
+class CrisisTrigger(models.Model):
+    employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
+    detected_phrase = models.CharField(max_length=255)
+    triggered_on = models.DateTimeField(auto_now_add=True)
+    escalated = models.BooleanField(default=False)
+
+# --- Notifications ---
+class Notification(models.Model):
+    employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
+    message = models.CharField(max_length=255)
+    sent_on = models.DateTimeField(auto_now_add=True)
+    read = models.BooleanField(default=False)
+
+# --- Engagement Tracking ---
+class EngagementTracker(models.Model):
+    employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
+    streak_days = models.IntegerField(default=0)
+    badges = models.CharField(max_length=255, blank=True)
+
+# --- Feedback ---
+class Feedback(models.Model):
+    employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
+    rating = models.IntegerField()
+    comment = models.TextField()
+    submitted_on = models.DateTimeField(auto_now_add=True)
+
+# --- Chat Sessions ---
+class ChatSession(models.Model):
+    employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE, related_name="chat_sessions")
+    started_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+class ChatMessage(models.Model):
+    ROLE_CHOICES = [
+        ("user", "User"),
+        ("ai", "AI Assistant (Sana)"),
+        ("system", "System")
+    ]
+    session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name="messages")
+    sender = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    message = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+# --- Recommendation Log ---
+class RecommendationLog(models.Model):
+    employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
+    resource = models.ForeignKey(SelfHelpResource, on_delete=models.SET_NULL, null=True, blank=True)
+    recommended_on = models.DateTimeField(auto_now_add=True)
+    clicked = models.BooleanField(default=False)

@@ -3,14 +3,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from obeeomaapp.models import (
-    User, Organization, Client, RecentActivity,
-    HotlineActivity, ClientEngagement,
-    AIManagement, Subscription,
-    SelfAssessment, MoodCheckIn,
-    SelfHelpResource, ChatbotInteraction,
-    UserBadge, EngagementStreak
-)
+from obeeomaapp.models import *
 
 User = get_user_model()
 
@@ -162,3 +155,101 @@ class EngagementStreakSerializer(serializers.ModelSerializer):
         model = EngagementStreak
         fields = ['id', 'user', 'streak_count', 'last_active_date']
       
+# Additional serializers for the new models
+
+
+
+# --- Employee Profile ---
+class EmployeeProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmployeeProfile
+        fields = '__all__'
+        read_only_fields = ['user', 'joined_on']
+
+# --- Avatar ---
+class AvatarProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AvatarProfile
+        fields = '__all__'
+        read_only_fields = ['employee']
+
+# --- Wellness Hub ---
+class WellnessHubSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WellnessHub
+        fields = '__all__'
+        read_only_fields = ['employee', 'updated_at']
+
+# --- Mood Check-in ---
+class MoodCheckInSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MoodCheckIn
+        fields = '__all__'
+        read_only_fields = ['employee', 'timestamp']
+
+# --- Assessment Results ---
+class AssessmentResultSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AssessmentResult
+        fields = '__all__'
+        read_only_fields = ['employee', 'submitted_on']
+
+# --- Self-Help Resources ---
+class SelfHelpResourceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SelfHelpResource
+        fields = '__all__'
+
+# --- Educational Resources ---
+class EducationalResourceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EducationalResource
+        fields = '__all__'
+
+# --- Crisis Trigger ---
+class CrisisTriggerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CrisisTrigger
+        fields = '__all__'
+        read_only_fields = ['employee', 'triggered_on']
+
+# --- Notifications ---
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = '__all__'
+        read_only_fields = ['employee', 'sent_on']
+
+# --- Engagement Tracker ---
+class EngagementTrackerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EngagementTracker
+        fields = '__all__'
+        read_only_fields = ['employee']
+
+# --- Feedback ---
+class FeedbackSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Feedback
+        fields = '__all__'
+        read_only_fields = ['employee', 'submitted_on']
+
+# --- Sana Chat Sessions ---
+class ChatSessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChatSession
+        fields = '__all__'
+        read_only_fields = ['employee', 'started_at']
+
+class ChatMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChatMessage
+        fields = '__all__'
+        read_only_fields = ['session', 'timestamp']
+
+# --- Recommendations ---
+class RecommendationLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RecommendationLog
+        fields = '__all__'
+        read_only_fields = ['employee', 'recommended_on']
