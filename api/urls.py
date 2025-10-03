@@ -20,23 +20,15 @@ urlpatterns = [
     # Mount app at root
     path("", include("obeeomaapp.urls")),
 ]
-from django.urls import path, include
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-    TokenVerifyView,
-)
 
-urlpatterns = [
-    # Include app URLs
-    path("api/v1/", include("obeeomaapp.urls")),
-    # JWT Token endpoints
+urlpatterns = urlpatterns = [
+    path("admin/", admin.site.urls),                     # enable /admin/
+    path("", include("obeeomaapp.urls")),               # root → your app (so / works)
+    path("api/v1/", include("obeeomaapp.urls")),        # keep versioned paths too
     path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("auth/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
-
-    # API schema and docs
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
 ]
+   

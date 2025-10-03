@@ -157,7 +157,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret-key")
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 PORT = os.getenv("PORT", "8000")
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+ALLOWED_HOSTS = ['127.0.0.1', 'api-0904.onrender.com', 'localhost']
+
+# CSRF Trusted Origins (important for HTTPS in production)
+CSRF_TRUSTED_ORIGINS = [
+    "https://api-0904.onrender.com",
+]
+
+
 # Database
 tmpPostgres = urlparse(os.getenv("DATABASE_URL", ""))
 
