@@ -1,7 +1,9 @@
 
 # serializers.py
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework import serializers
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate
+from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
 
@@ -47,20 +49,49 @@ class SignupSerializer(serializers.ModelSerializer):
 
 
 
+# class LoginSerializer(serializers.Serializer):
+#     username = serializers.CharField()
+#     password = serializers.CharField(write_only=True)
+
+#     def create(self, validated_data):
+#         return validated_data
+
+
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
 
+    def validate(self, attrs):
+        username = attrs.get('username')
+        password = attrs.get('password')
+
+        if username and password:
+            # Authenticate the user
+            user = authenticate(
+                request=self.context.get('request'),
+                username=username,
+                password=password
+            )
+            
+            if not user:
+                raise serializers.ValidationError('Invalid credentials. Please try again.')
+                
+            if not user.is_active:
+                raise serializers.ValidationError('Account is disabled.')
+                
+            attrs['user'] = user
+            return attrs
+        else:
+            raise serializers.ValidationError('Both username and password are required.')
+
     def create(self, validated_data):
         return validated_data
-
 
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
     def create(self, validated_data):
         return validated_data
-
 
 class PasswordChangeSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
