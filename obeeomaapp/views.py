@@ -9,20 +9,19 @@ from django.http import JsonResponse
 from rest_framework.decorators import action
 from obeeomaapp.models import *
 from obeeomaapp.serializers import *
+
 User = get_user_model()
 
 
 # --- Permission: company admin (is_staff) ---
 class IsCompanyAdmin(BasePermission):
-    """
-    Allows access only to users with is_staff=True.
-    """
+    """Allows access only to users with is_staff=True."""
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated and request.user.is_staff)
 
 
 # --- Authentication Views ---
-class SignupView(generics.CreateAPIView):
+class SignupView(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = SignupSerializer
     permission_classes = [permissions.AllowAny]
@@ -35,7 +34,6 @@ class LoginView(APIView):
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         user = authenticate(
             username=serializer.validated_data['username'],
             password=serializer.validated_data['password']
@@ -50,23 +48,22 @@ class LoginView(APIView):
         return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
 
-class PasswordResetView(APIView):
+class PasswordResetView(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = PasswordResetSerializer
 
-    def post(self, request):
+    def create(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
-        # Hook to actual email service later
         return Response({"message": f"Password reset link sent to {email}"})
 
 
-class PasswordChangeView(APIView):
+class PasswordChangeView(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = PasswordChangeSerializer
 
-    def post(self, request):
+    def create(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -79,160 +76,123 @@ class PasswordChangeView(APIView):
         return Response({"message": "Password updated successfully"})
 
 
-# --- Admin Dashboard API Views (JSON) ---
-class OverviewView(APIView):
+# --- Admin Dashboard ---
+class OverviewView(viewsets.ViewSet):
     permission_classes = [IsCompanyAdmin]
 
-    def get(self, request):
+    def list(self, request):
         org_count = Organization.objects.count()
         client_count = Client.objects.count()
         active_subscriptions = Subscription.objects.filter(is_active=True).count()
-
         recent = RecentActivity.objects.select_related("organization").order_by("-timestamp")[:10]
         recent_serialized = RecentActivitySerializer(recent, many=True).data
-
-        data = {
+        return Response({
             "organization_count": org_count,
             "client_count": client_count,
             "active_subscriptions": active_subscriptions,
             "recent_activities": recent_serialized,
-        }
-        return Response(data)
+        })
 
 
-class TrendsView(APIView):
+class TrendsView(viewsets.ReadOnlyModelViewSet):
+    queryset = HotlineActivity.objects.select_related("organization").order_by("-recorded_at")
+    serializer_class = HotlineActivitySerializer
     permission_classes = [IsCompanyAdmin]
 
-    def get(self, request):
-        hotline_trends = HotlineActivity.objects.select_related("organization").order_by("-recorded_at")[:20]
-        data = HotlineActivitySerializer(hotline_trends, many=True).data
-        return Response({"hotline_trends": data})
 
-
-class ClientEngagementView(APIView):
+class ClientEngagementView(viewsets.ModelViewSet):
+    queryset = ClientEngagement.objects.select_related("organization").order_by("-month")
+    serializer_class = ClientEngagementSerializer
     permission_classes = [IsCompanyAdmin]
 
-    def get(self, request):
-        engagements = ClientEngagement.objects.select_related("organization").order_by("-month")[:20]
-        data = ClientEngagementSerializer(engagements, many=True).data
-        return Response({"engagements": data})
 
-
-class FeaturesUsageView(APIView):
+class FeaturesUsageView(viewsets.ModelViewSet):
+    queryset = AIManagement.objects.select_related("organization").order_by("-created_at")
+    serializer_class = AIManagementSerializer
     permission_classes = [IsCompanyAdmin]
 
-    def get(self, request):
-        ai_managements = AIManagement.objects.select_related("organization").order_by("-created_at")[:20]
-        data = AIManagementSerializer(ai_managements, many=True).data
-        return Response({"ai_managements": data})
 
-
-class BillingView(APIView):
+class BillingView(viewsets.ModelViewSet):
+    queryset = Subscription.objects.select_related("organization").all()
+    serializer_class = SubscriptionSerializer
     permission_classes = [IsCompanyAdmin]
 
-    def get(self, request):
-        subscriptions = Subscription.objects.select_related("organization").all()
-        serialized = SubscriptionSerializer(subscriptions, many=True).data
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        subscriptions = self.get_queryset()
         total_revenue = sum(float(s.amount) for s in subscriptions)
         return Response({
-            "subscriptions": serialized,
+            "subscriptions": SubscriptionSerializer(subscriptions, many=True).data,
             "total_revenue": total_revenue
         })
 
 
-class InviteView(APIView):
+class InviteView(viewsets.ModelViewSet):
+    queryset = Client.objects.all()
+    serializer_class = ClientSerializer
     permission_classes = [IsCompanyAdmin]
 
-    def get(self, request):
-        return Response({"message": "Invite endpoint (GET) - implement as needed"})
 
-    def post(self, request):
-        return Response({"message": "Invite created"}, status=status.HTTP_201_CREATED)
-
-
-class UsersView(APIView):
+class UsersView(viewsets.ModelViewSet):
+    queryset = Client.objects.select_related("organization").all()
+    serializer_class = ClientSerializer
     permission_classes = [IsCompanyAdmin]
 
-    def get(self, request):
-        clients = Client.objects.select_related("organization").all()
-        data = ClientSerializer(clients, many=True).data
-        return Response({"clients": data})
 
-
-class UserDetailView(APIView):
+class ReportsView(viewsets.ReadOnlyModelViewSet):
+    queryset = RecentActivity.objects.select_related("organization").order_by("-timestamp")
+    serializer_class = RecentActivitySerializer
     permission_classes = [IsCompanyAdmin]
 
-    def get(self, request, user_id):
-        client = get_object_or_404(Client, id=user_id)
-        data = ClientSerializer(client).data
-        return Response({"client": data})
 
-
-class ReportsView(APIView):
+class CrisisInsightsView(viewsets.ReadOnlyModelViewSet):
+    queryset = HotlineActivity.objects.select_related("organization").order_by("-recorded_at")
+    serializer_class = HotlineActivitySerializer
     permission_classes = [IsCompanyAdmin]
-
-    def get(self, request):
-        reports = RecentActivity.objects.select_related("organization").order_by("-timestamp")[:50]
-        data = RecentActivitySerializer(reports, many=True).data
-        return Response({"reports": data})
-
-
-class CrisisInsightsView(APIView):
-    permission_classes = [IsCompanyAdmin]
-
-    def get(self, request):
-        hotline_data = HotlineActivity.objects.select_related("organization").order_by("-recorded_at")[:20]
-        data = HotlineActivitySerializer(hotline_data, many=True).data
-        return Response({"hotline_data": data})
-
 
 
 def home(request):
     return JsonResponse({"status": "ok", "app": "obeeomaapp"})
 
-#views for employee app
 
-
-
-
-# --- Employee Profile ---
-class EmployeeProfileView(generics.RetrieveUpdateAPIView):
-    queryset = EmployeeProfile.objects.all()
+# --- Employee App ---
+class EmployeeProfileView(viewsets.ModelViewSet):
     serializer_class = EmployeeProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_object(self):
-        return get_object_or_404(EmployeeProfile, user=self.request.user)
+    def get_queryset(self):
+        return EmployeeProfile.objects.filter(user=self.request.user)
 
-# --- Avatar ---
-class AvatarProfileView(generics.RetrieveUpdateAPIView):
-    queryset = AvatarProfile.objects.all()
+
+class AvatarProfileView(viewsets.ModelViewSet):
     serializer_class = AvatarProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_object(self):
-        return get_object_or_404(AvatarProfile, employee__user=self.request.user)
+    def get_queryset(self):
+        return AvatarProfile.objects.filter(employee__user=self.request.user)
 
-# --- Wellness Hub ---
-class WellnessHubView(generics.RetrieveAPIView):
-    queryset = WellnessHub.objects.all()
+
+class WellnessHubView(viewsets.ModelViewSet):
     serializer_class = WellnessHubSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_object(self):
-        return get_object_or_404(WellnessHub, employee__user=self.request.user)
+    def get_queryset(self):
+        return WellnessHub.objects.filter(employee__user=self.request.user)
 
-# --- Mood Check-ins ---
-class MoodCheckInCreateView(generics.CreateAPIView):
+
+class MoodCheckInView(viewsets.ModelViewSet):
     serializer_class = MoodCheckInSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return MoodCheckIn.objects.filter(employee__user=self.request.user)
 
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(employee=employee)
 
-# --- Assessments ---
-class AssessmentResultView(generics.ListCreateAPIView):
+
+class AssessmentResultView(viewsets.ModelViewSet):
     serializer_class = AssessmentResultSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -243,20 +203,20 @@ class AssessmentResultView(generics.ListCreateAPIView):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(employee=employee)
 
-# --- Self-Help Resources ---
-class SelfHelpResourceListView(generics.ListAPIView):
+
+class SelfHelpResourceView(viewsets.ModelViewSet):
     queryset = SelfHelpResource.objects.all()
     serializer_class = SelfHelpResourceSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-# --- Educational Resources ---
-class EducationalResourceListView(generics.ListAPIView):
+
+class EducationalResourceView(viewsets.ModelViewSet):
     queryset = EducationalResource.objects.all()
     serializer_class = EducationalResourceSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-# --- Crisis Triggers ---
-class CrisisTriggerView(generics.ListCreateAPIView):
+
+class CrisisTriggerView(viewsets.ModelViewSet):
     serializer_class = CrisisTriggerSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -267,33 +227,36 @@ class CrisisTriggerView(generics.ListCreateAPIView):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(employee=employee)
 
-# --- Notifications ---
-class NotificationListView(generics.ListAPIView):
+
+class NotificationView(viewsets.ModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return Notification.objects.filter(employee__user=self.request.user)
 
-# --- Engagement Tracker ---
-class EngagementTrackerView(generics.RetrieveAPIView):
+
+class EngagementTrackerView(viewsets.ModelViewSet):
     serializer_class = EngagementTrackerSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_object(self):
-        return get_object_or_404(EngagementTracker, employee__user=self.request.user)
+    def get_queryset(self):
+        return EngagementTracker.objects.filter(employee__user=self.request.user)
 
-# --- Feedback ---
-class FeedbackCreateView(generics.CreateAPIView):
+
+class FeedbackView(viewsets.ModelViewSet):
     serializer_class = FeedbackSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Feedback.objects.filter(employee__user=self.request.user)
 
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(employee=employee)
 
-# --- Sana Chat Sessions ---
-class ChatSessionView(generics.ListCreateAPIView):
+
+class ChatSessionView(viewsets.ModelViewSet):
     serializer_class = ChatSessionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -304,7 +267,8 @@ class ChatSessionView(generics.ListCreateAPIView):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(employee=employee)
 
-class ChatMessageView(generics.ListCreateAPIView):
+
+class ChatMessageView(viewsets.ModelViewSet):
     serializer_class = ChatMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -316,8 +280,8 @@ class ChatMessageView(generics.ListCreateAPIView):
         session = get_object_or_404(ChatSession, id=self.kwargs.get("session_id"), employee__user=self.request.user)
         serializer.save(session=session)
 
-# --- Recommendations ---
-class RecommendationLogView(generics.ListCreateAPIView):
+
+class RecommendationLogView(viewsets.ModelViewSet):
     serializer_class = RecommendationLogSerializer
     permission_classes = [permissions.IsAuthenticated]
 

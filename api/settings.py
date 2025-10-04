@@ -24,20 +24,25 @@ CSRF_TRUSTED_ORIGINS = [
 # Database
 tmpPostgres = urlparse(os.getenv("DATABASE_URL", ""))
 
+import os
+
 DATABASES = {
-    "default": {
+        "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": tmpPostgres.path.lstrip("/"),
-        "USER": tmpPostgres.username,
-        "PASSWORD": tmpPostgres.password,
-        "HOST": tmpPostgres.hostname,
-        "PORT": tmpPostgres.port or 5432,
+        "NAME": os.environ.get("PGDATABASE", "neondb"),
+        "USER": os.environ.get("PGUSER", "neondb_owner"),
+        "PASSWORD": os.environ.get("PGPASSWORD"),
+        "HOST": os.environ.get("PGHOST"),
+        "PORT": os.environ.get("PGPORT", "5432"),
         "OPTIONS": {
-            "sslmode": "require",
-            **dict(parse_qsl(tmpPostgres.query)),
+            "sslmode": os.environ.get("PGSSLMODE", "require"),
         },
+        "CONN_MAX_AGE": 600,  # Connection pooling (10 minutes)
+        "CONN_HEALTH_CHECKS": True,  # Check connection health before reusing
     }
 }
+    
+
 
 
 INSTALLED_APPS = [
