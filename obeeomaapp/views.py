@@ -1,14 +1,31 @@
+from django.http import JsonResponse
+from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate, get_user_model
-from rest_framework import generics, status, permissions, viewsets
+from rest_framework import status, permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.http import JsonResponse
-from rest_framework.decorators import action
-from obeeomaapp.models import *
-from obeeomaapp.serializers import *
+from obeeomaapp.models import MentalHealthAssessment
+from obeeomaapp.serializers import MentalHealthAssessmentSerializer
+from obeeomaapp.models import (
+    Organization, Client, AIManagement, HotlineActivity, ClientEngagement,
+    Subscription, RecentActivity, SelfAssessment, MoodCheckIn, SelfHelpResource, ChatbotInteraction,
+    UserBadge, EngagementStreak, EmployeeProfile, AvatarProfile, WellnessHub,
+    AssessmentResult, EducationalResource, CrisisTrigger, Notification, EngagementTracker,
+    Feedback, ChatSession, ChatMessage, RecommendationLog
+)
+from obeeomaapp.serializers import (
+    SignupSerializer, LoginSerializer, PasswordResetSerializer, PasswordChangeSerializer, 
+    OrganizationSerializer, ClientSerializer, AIManagementSerializer, HotlineActivitySerializer,
+    ClientEngagementSerializer, SubscriptionSerializer, RecentActivitySerializer, SelfAssessmentSerializer,
+    MoodCheckInSerializer, SelfHelpResourceSerializer, ChatbotInteractionSerializer,
+    UserBadgeSerializer, EngagementStreakSerializer, EmployeeProfileSerializer, AvatarProfileSerializer,
+    WellnessHubSerializer, AssessmentResultSerializer, EducationalResourceSerializer,
+    CrisisTriggerSerializer, NotificationSerializer, EngagementTrackerSerializer,
+    FeedbackSerializer, ChatSessionSerializer, ChatMessageSerializer, RecommendationLogSerializer
+        )
 
 User = get_user_model()
 
@@ -291,3 +308,139 @@ class RecommendationLogView(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(employee=employee)
+
+from rest_framework import viewsets, permissions, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from .models import MentalHealthAssessment
+from .serializers import (
+    MentalHealthAssessmentSerializer, MentalHealthAssessmentListSerializer,
+    AssessmentResponseSerializer
+)
+
+class MentalHealthAssessmentViewSet(viewsets.ModelViewSet):
+    """ViewSet for mental health assessments"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return MentalHealthAssessment.objects.filter(user=self.request.user)
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return MentalHealthAssessmentListSerializer
+        return MentalHealthAssessmentSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    @action(detail=False, methods=['post'], url_path='submit-assessment')
+    def submit_assessment(self, request):
+        """Submit a new assessment with responses"""
+        serializer = AssessmentResponseSerializer(data=request.data)
+        if serializer.is_valid():
+            data = serializer.validated_data
+            assessment_type = data['assessment_type']
+            gad7_responses = data.get('gad7_responses', [])
+            phq9_responses = data.get('phq9_responses', [])
+
+            # Create assessment instance
+            assessment_data = {
+                'assessment_type': assessment_type,
+                'gad7_scores': gad7_responses,
+                'phq9_scores': phq9_responses,
+            }
+            
+            assessment_serializer = MentalHealthAssessmentSerializer(data=assessment_data)
+            if assessment_serializer.is_valid():
+                assessment = assessment_serializer.save(user=request.user)
+                
+                return Response({
+                    'message': 'Assessment submitted successfully',
+                    'assessment': MentalHealthAssessmentSerializer(assessment).data
+                }, status=status.HTTP_201_CREATED)
+            else:
+                return Response(assessment_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'], url_path='my-results')
+    def my_results(self, request):
+        """Get user's assessment results with summary"""
+        assessments = self.get_queryset()
+        
+        if not assessments.exists():
+            return Response({
+                'message': 'No assessments found',
+                'assessments': [],
+                'summary': None
+            })
+
+        # Get latest assessment
+        latest = assessments.first()
+        
+        # Calculate summary statistics
+        all_assessments = list(assessments.values('gad7_total', 'phq9_total', 'assessment_date'))
+        
+        summary = {
+            'total_assessments': len(all_assessments),
+            'latest_assessment_date': latest.assessment_date,
+            'latest_gad7_score': latest.gad7_total,
+            'latest_phq9_score': latest.phq9_total,
+            'latest_gad7_severity': latest.gad7_severity,
+            'latest_phq9_severity': latest.phq9_severity,
+            'average_gad7_score': sum(a['gad7_total'] for a in all_assessments if a['gad7_total'] > 0) / max(1, len([a for a in all_assessments if a['gad7_total'] > 0])),
+            'average_phq9_score': sum(a['phq9_total'] for a in all_assessments if a['phq9_total'] > 0) / max(1, len([a for a in all_assessments if a['phq9_total'] > 0])),
+        }
+
+        return Response({
+            'assessments': MentalHealthAssessmentListSerializer(assessments, many=True).data,
+            'summary': summary
+        })
+
+    @action(detail=True, methods=['get'], url_path='detailed-results')
+    def detailed_results(self, request, pk=None):
+        """Get detailed results for a specific assessment"""
+        assessment = self.get_object()
+        
+        detailed_data = {
+            'assessment': MentalHealthAssessmentSerializer(assessment).data,
+            'interpretation': {
+                'gad7': {
+                    'score': assessment.gad7_total,
+                    'severity': assessment.gad7_severity,
+                    'recommendation': self._get_gad7_recommendation(assessment.gad7_total)
+                },
+                'phq9': {
+                    'score': assessment.phq9_total,
+                    'severity': assessment.phq9_severity,
+                    'recommendation': self._get_phq9_recommendation(assessment.phq9_total)
+                }
+            }
+        }
+        
+        return Response(detailed_data)
+
+    def _get_gad7_recommendation(self, score):
+        """Get recommendation based on GAD-7 score"""
+        if score <= 4:
+            return "Your anxiety levels are minimal. Continue with current self-care practices."
+        elif score <= 9:
+            return "Mild anxiety detected. Consider stress management techniques and regular check-ins."
+        elif score <= 14:
+            return "Moderate anxiety levels. Consider speaking with a healthcare provider or mental health professional."
+        else:
+            return "Severe anxiety levels. Please consider reaching out to a mental health professional for support."
+
+    def _get_phq9_recommendation(self, score):
+        """Get recommendation based on PHQ-9 score"""
+        if score <= 4:
+            return "Your mood appears stable. Continue with current self-care practices."
+        elif score <= 9:
+            return "Mild depression symptoms detected. Consider mood tracking and self-care activities."
+        elif score <= 14:
+            return "Moderate depression symptoms. Consider speaking with a healthcare provider."
+        elif score <= 19:
+            return "Moderately severe depression symptoms. Please consider reaching out to a mental health professional."
+        else:
+            return "Severe depression symptoms detected. Please seek immediate support from a mental health professional."
+
