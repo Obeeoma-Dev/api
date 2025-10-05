@@ -24,10 +24,8 @@ CSRF_TRUSTED_ORIGINS = [
 # Database
 tmpPostgres = urlparse(os.getenv("DATABASE_URL", ""))
 
-import os
-
 DATABASES = {
-        "default": {
+    "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ.get("PGDATABASE", "neondb"),
         "USER": os.environ.get("PGUSER", "neondb_owner"),
