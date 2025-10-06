@@ -5,7 +5,12 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
-from obeeomaapp.models import *
+from obeeomaapp.models import (
+    User, Organization, Client, AIManagement, HotlineActivity, ClientEngagement,
+    Subscription, RecentActivity, SelfAssessment, MoodCheckIn, SelfHelpResource, ChatbotInteraction,
+    UserBadge, EngagementStreak, EmployeeProfile, AvatarProfile, WellnessHub,
+    AssessmentResult, EducationalResource, CrisisTrigger, Notification, EngagementTracker,
+    Feedback, ChatSession, ChatMessage, RecommendationLog, MentalHealthAssessment)
 
 User = get_user_model()
 
@@ -90,7 +95,7 @@ class LoginSerializer(serializers.Serializer):
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
-    def create(self, validated_data):
+def create(self, validated_data):
         return validated_data
 
 class PasswordChangeSerializer(serializers.Serializer):
@@ -211,12 +216,6 @@ class WellnessHubSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['employee', 'updated_at']
 
-# --- Mood Check-in ---
-class MoodCheckInSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = MoodCheckIn
-        fields = '__all__'
-        read_only_fields = ['employee', 'timestamp']
 
 # --- Assessment Results ---
 class AssessmentResultSerializer(serializers.ModelSerializer):
@@ -224,12 +223,6 @@ class AssessmentResultSerializer(serializers.ModelSerializer):
         model = AssessmentResult
         fields = '__all__'
         read_only_fields = ['employee', 'submitted_on']
-
-# --- Self-Help Resources ---
-class SelfHelpResourceSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SelfHelpResource
-        fields = '__all__'
 
 # --- Educational Resources ---
 class EducationalResourceSerializer(serializers.ModelSerializer):
@@ -284,3 +277,107 @@ class RecommendationLogSerializer(serializers.ModelSerializer):
         model = RecommendationLog
         fields = '__all__'
         read_only_fields = ['employee', 'recommended_on']
+
+
+
+# Assessment Response Serializers
+class AssessmentResponseSerializer(serializers.Serializer):
+    """Serializer for handling assessment responses"""
+    assessment_type = serializers.ChoiceField(choices=['GAD-7', 'PHQ-9', 'BOTH'])
+    gad7_responses = serializers.ListField(
+        child=serializers.IntegerField(min_value=0, max_value=3),
+        required=False,
+        allow_empty=True
+    )
+    phq9_responses = serializers.ListField(
+        child=serializers.IntegerField(min_value=0, max_value=3),
+        required=False,
+        allow_empty=True
+    )
+
+    def validate(self, data):
+        assessment_type = data.get('assessment_type')
+        gad7_responses = data.get('gad7_responses', [])
+        phq9_responses = data.get('phq9_responses', [])
+
+        if assessment_type == 'GAD-7':
+            if not gad7_responses:
+                raise serializers.ValidationError('GAD-7 responses are required for GAD-7 assessment.')
+            if len(gad7_responses) != 7:
+                raise serializers.ValidationError('GAD-7 must have exactly 7 responses.')
+                
+        elif assessment_type == 'PHQ-9':
+            if not phq9_responses:
+                raise serializers.ValidationError('PHQ-9 responses are required for PHQ-9 assessment.')
+            if len(phq9_responses) != 9:
+                raise serializers.ValidationError('PHQ-9 must have exactly 9 responses.')
+                
+        elif assessment_type == 'BOTH':
+            if not gad7_responses or not phq9_responses:
+                raise serializers.ValidationError('Both GAD-7 and PHQ-9 responses are required.')
+            if len(gad7_responses) != 7:
+                raise serializers.ValidationError('GAD-7 must have exactly 7 responses.')
+            if len(phq9_responses) != 9:
+                raise serializers.ValidationError('PHQ-9 must have exactly 9 responses.')
+
+        return data
+
+class MentalHealthAssessmentSerializer(serializers.ModelSerializer):
+    gad7_severity = serializers.CharField(read_only=True)
+    phq9_severity = serializers.CharField(read_only=True)
+    
+    class Meta:
+        model = MentalHealthAssessment
+        fields = [
+            'id', 'user', 'assessment_type', 'gad7_scores', 'phq9_scores', 
+            'gad7_total', 'phq9_total', 'gad7_severity', 'phq9_severity', 'assessment_date'
+        ]
+        read_only_fields = ['user', 'gad7_total', 'phq9_total', 'gad7_severity', 'phq9_severity', 'assessment_date']
+
+    def validate(self, data):
+        assessment_type = data.get('assessment_type')
+        gad7_scores = data.get('gad7_scores', [])
+        phq9_scores = data.get('phq9_scores', [])
+
+        if assessment_type == 'GAD-7':
+            if not gad7_scores:
+                raise serializers.ValidationError('GAD-7 scores are required for GAD-7 assessment.')
+            if len(gad7_scores) != 7:
+                raise serializers.ValidationError('GAD-7 must have exactly 7 scores.')
+            # Validate each score is between 0-3
+            for score in gad7_scores:
+                if not isinstance(score, int) or score < 0 or score > 3:
+                    raise serializers.ValidationError('Each GAD-7 score must be between 0 and 3.')
+                
+        elif assessment_type == 'PHQ-9':
+            if not phq9_scores:
+                raise serializers.ValidationError('PHQ-9 scores are required for PHQ-9 assessment.')
+            if len(phq9_scores) != 9:
+                raise serializers.ValidationError('PHQ-9 must have exactly 9 scores.')
+            # Validate each score is between 0-3
+            for score in phq9_scores:
+                if not isinstance(score, int) or score < 0 or score > 3:
+                    raise serializers.ValidationError('Each PHQ-9 score must be between 0 and 3.')
+                    
+        elif assessment_type == 'BOTH':
+            if not gad7_scores or not phq9_scores:
+                raise serializers.ValidationError('Both GAD-7 and PHQ-9 scores are required.')
+            if len(gad7_scores) != 7:
+                raise serializers.ValidationError('GAD-7 must have exactly 7 scores.')
+            if len(phq9_scores) != 9:
+                raise serializers.ValidationError('PHQ-9 must have exactly 9 scores.')
+            # Validate each score is between 0-3
+            for score in gad7_scores + phq9_scores:
+                if not isinstance(score, int) or score < 0 or score > 3:
+                    raise serializers.ValidationError('Each score must be between 0 and 3.')
+
+        return data
+
+class MentalHealthAssessmentListSerializer(serializers.ModelSerializer):
+    """Simplified serializer for listing assessments"""
+    class Meta:
+        model = MentalHealthAssessment
+        fields = [
+            'id', 'assessment_type', 'gad7_total', 'phq9_total', 
+            'gad7_severity', 'phq9_severity', 'assessment_date'
+        ]
