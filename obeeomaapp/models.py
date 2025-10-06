@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.contrib.auth.models import User
 from django.conf import settings
 
 # --- User & Authentication ---
@@ -289,7 +290,7 @@ class WellnessHub(models.Model):
 
 class AssessmentResult(models.Model):
     employee = models.ForeignKey(EmployeeProfile, on_delete=models.CASCADE)
-    type = models.CharField(max_length=20)  # GAD-7, PHQ-9
+    type = models.CharField(max_length=20)  
     score = models.IntegerField()
     submitted_on = models.DateTimeField(auto_now_add=True)
 
@@ -351,3 +352,62 @@ class RecommendationLog(models.Model):
     resource = models.ForeignKey(SelfHelpResource, on_delete=models.SET_NULL, null=True, blank=True)
     recommended_on = models.DateTimeField(auto_now_add=True)
     clicked = models.BooleanField(default=False)
+
+
+
+class MentalHealthAssessment(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='mental_health_assessments')
+    assessment_type = models.CharField(max_length=10, choices=[
+        ('GAD-7', 'GAD-7 (Anxiety)'),
+        ('PHQ-9', 'PHQ-9 (Depression)'),
+        ('BOTH', 'Both Assessments')
+    ])
+    gad7_scores = models.JSONField(default=list, blank=True)  # Store answers to 7 GAD-7 questions
+    phq9_scores = models.JSONField(default=list, blank=True)  # Store answers to 9 PHQ-9 questions
+    gad7_total = models.PositiveIntegerField(default=0)
+    phq9_total = models.PositiveIntegerField(default=0)
+    gad7_severity = models.CharField(max_length=20, blank=True)
+    phq9_severity = models.CharField(max_length=20, blank=True)
+    assessment_date = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-assessment_date']
+        
+    def __str__(self):
+        return f'Assessment for {self.user.username} on {self.assessment_date}'
+    
+    def calculate_gad7_severity(self):
+        """Calculate GAD-7 severity level based on total score"""
+        if self.gad7_total <= 4:
+            return "Minimal anxiety"
+        elif self.gad7_total <= 9:
+            return "Mild anxiety"
+        elif self.gad7_total <= 14:
+            return "Moderate anxiety"
+        else:
+            return "Severe anxiety"
+    
+    def calculate_phq9_severity(self):
+        """Calculate PHQ-9 severity level based on total score"""
+        if self.phq9_total <= 4:
+            return "Minimal depression"
+        elif self.phq9_total <= 9:
+            return "Mild depression"
+        elif self.phq9_total <= 14:
+            return "Moderate depression"
+        elif self.phq9_total <= 19:
+            return "Moderately severe depression"
+        else:
+            return "Severe depression"
+    
+    def save(self, *args, **kwargs):
+        # Calculate totals and severities before saving
+        if self.gad7_scores:
+            self.gad7_total = sum(self.gad7_scores)
+            self.gad7_severity = self.calculate_gad7_severity()
+        
+        if self.phq9_scores:
+            self.phq9_total = sum(self.phq9_scores)
+            self.phq9_severity = self.calculate_phq9_severity()
+            
+        super().save(*args, **kwargs)
