@@ -9,6 +9,7 @@ from django.http import JsonResponse
 from rest_framework.decorators import action
 from obeeomaapp.models import *
 from obeeomaapp.serializers import *
+from rest_framework.generics import RetrieveAPIView
 
 User = get_user_model()
 
@@ -291,3 +292,10 @@ class RecommendationLogView(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(employee=employee)
+
+# --- User Detail View for Admins ---
+class UserDetailView(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
+    lookup_field = 'id'
