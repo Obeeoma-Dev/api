@@ -1,4 +1,3 @@
-
 import os
 
 from pathlib import Path
@@ -112,6 +111,8 @@ STATIC_URL = "static/"
 
 AUTH_USER_MODEL = "obeeomaapp.User"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+CORS_ALLOW_CREDENTIALS = True
 
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/overview/"
