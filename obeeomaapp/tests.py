@@ -1,55 +1,56 @@
 from django.test import TestCase
 from obeeomaapp.models import (
-    Organization,
-    Client,
+    Employer,
+    Employee,
     AIManagement,
     HotlineActivity,
-    ClientEngagement,
+    EmployeeEngagement,
     Subscription,
     RecentActivity
 )
+from datetime import date
 
 
-class OrganizationModelTest(TestCase):
+class EmployerModelTest(TestCase):
     @classmethod
     def setUpTestData(cls):
         
-        cls.org = Organization.objects.create(name="Test Organization")
+        cls.employer = Employer.objects.create(name="Test Employer")
 
-    def test_organization_creation(self):
-        self.assertIsInstance(self.org, Organization)
-        self.assertEqual(self.org.name, "Test Organization")
-        self.assertTrue(self.org.is_active)
-        self.assertIsNotNone(self.org.joined_date)
+    def test_employer_creation(self):
+        self.assertIsInstance(self.employer, Employer)
+        self.assertEqual(self.employer.name, "Test Employer")
+        self.assertTrue(self.employer.is_active)
+        self.assertIsNotNone(self.employer.joined_date)
 
     def test_str_method(self):
-        self.assertEqual(str(self.org), "Test Organization")
+        self.assertEqual(str(self.employer), "Test Employer")
 
 
-class ClientModelTest(TestCase):
+class EmployeeModelTest(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.org = Organization.objects.create(name="Test Organization")
-        cls.client = Client.objects.create(
-            organization=cls.org,
-            name="Test Client",
+        cls.employer = Employer.objects.create(name="Test Employer")
+        cls.employee = Employee.objects.create(
+            employer=cls.employer,
+            name="Test Employee",
             email="test@example.com"
         )
 
-    def test_client_creation(self):
-        self.assertEqual(self.client.organization.name, "Test Organization")
-        self.assertEqual(self.client.name, "Test Client")
-        self.assertEqual(self.client.email, "test@example.com")
-        self.assertIsNotNone(self.client.joined_date)
-        self.assertIsNotNone(self.client.last_active)
+    def test_employee_creation(self):
+        self.assertEqual(self.employee.employer.name, "Test Employer")
+        self.assertEqual(self.employee.name, "Test Employee")
+        self.assertEqual(self.employee.email, "test@example.com")
+        self.assertIsNotNone(self.employee.joined_date)
+        self.assertIsNotNone(self.employee.last_active)
 
 
 class AIManagementModelTest(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.org = Organization.objects.create(name="Test Organization")
+        cls.employer = Employer.objects.create(name="Test Employer")
         cls.ai_management = AIManagement.objects.create(
-            organization=cls.org,
+            employer=cls.employer,
             title="Test Management",
             description="Test Description",
             effectiveness=95.50
@@ -58,15 +59,15 @@ class AIManagementModelTest(TestCase):
     def test_ai_management_creation(self):
         self.assertEqual(self.ai_management.title, "Test Management")
         self.assertEqual(float(self.ai_management.effectiveness), 95.50)
-        self.assertEqual(self.ai_management.organization.name, "Test Organization")
+        self.assertEqual(self.ai_management.employer.name, "Test Employer")
 
 
 class HotlineActivityModelTest(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.org = Organization.objects.create(name="Test Organization")
+        cls.employer = Employer.objects.create(name="Test Employer")
         cls.activity = HotlineActivity.objects.create(
-            organization=cls.org,
+            employer=cls.employer,
             call_count=150,
             spike_percentage=15.25
         )
@@ -77,50 +78,50 @@ class HotlineActivityModelTest(TestCase):
         self.assertIsNotNone(self.activity.recorded_at)
 
 
-class ClientEngagementModelTest(TestCase):
+class EmployeeEngagementModelTest(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.org = Organization.objects.create(name="Test Organization")
-        cls.engagement = ClientEngagement.objects.create(
-            organization=cls.org,
+        cls.employer = Employer.objects.create(name="Test Employer")
+        cls.engagement = EmployeeEngagement.objects.create(
+            employer=cls.employer,
             engagement_rate=88.7,
             month=date.today()
         )
 
-    def test_client_engagement_creation(self):
+    def test_employee_engagement_creation(self):
         self.assertEqual(float(self.engagement.engagement_rate), 88.7)
-        self.assertEqual(self.engagement.organization.name, "Test Organization")
+        self.assertEqual(self.engagement.employer.name, "Test Employer")
 
 
 class SubscriptionModelTest(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.org = Organization.objects.create(name="Test Organization")
+        cls.employer = Employer.objects.create(name="Test Employer")
         cls.subscription = Subscription.objects.create(
-            organization=cls.org,
+            employer=cls.employer,
             plan="Premium",
-            Subscriptions=299.99,  
+            amount=299.99,  
             start_date=date.today()
         )
 
     def test_subscription_creation(self):
         self.assertEqual(self.subscription.plan, "Premium")
-        self.assertEqual(float(self.subscription.Subscriptions), 299.99)
-        self.assertEqual(self.subscription.organization.name, "Test Organization")
+        self.assertEqual(float(self.subscription.amount), 299.99)
+        self.assertEqual(self.subscription.employer.name, "Test Employer")
 
 
 class RecentActivityModelTest(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.org = Organization.objects.create(name="Test Organization")
+        cls.employer = Employer.objects.create(name="Test Employer")
         cls.activity = RecentActivity.objects.create(
-            organization=cls.org,
-            activity_type="New Organization",
-            details="New organization created"
+            employer=cls.employer,
+            activity_type="New Employer",
+            details="New employer created"
         )
 
     def test_recent_activity_creation(self):
-        self.assertEqual(self.activity.activity_type, "New Organization")
-        self.assertEqual(self.activity.details, "New organization created")
-        self.assertEqual(self.activity.organization.name, "Test Organization")
+        self.assertEqual(self.activity.activity_type, "New Employer")
+        self.assertEqual(self.activity.details, "New employer created")
+        self.assertEqual(self.activity.employer.name, "Test Employer")
         self.assertIsNotNone(self.activity.timestamp)

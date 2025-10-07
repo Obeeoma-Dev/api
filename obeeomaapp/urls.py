@@ -5,7 +5,7 @@ from drf_yasg import openapi
 from rest_framework.routers import DefaultRouter
 from obeeomaapp.views import (
     SignupView, LoginView, PasswordResetView, PasswordChangeView,
-    OverviewView, TrendsView, ClientEngagementView, FeaturesUsageView,
+    OverviewView, TrendsView, EmployeeEngagementView, FeaturesUsageView,
     BillingView, InviteView, UsersView, ReportsView,
     CrisisInsightsView, home, EmployeeProfileView, AvatarProfileView,
     WellnessHubView, MoodCheckInView, AssessmentResultView,
@@ -46,7 +46,7 @@ urlpatterns = [
     # Dashboard API
     path("dashboard/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),
     path("dashboard/trends/", TrendsView.as_view({'get': 'list'}), name="trends"),
-    path("dashboard/client-engagement/", ClientEngagementView.as_view({'get': 'list', 'post': 'create'}), name="client-engagement"),
+    path("dashboard/employee-engagement/", EmployeeEngagementView.as_view({'get': 'list', 'post': 'create'}), name="employee-engagement"),
     path("dashboard/features-usage/", FeaturesUsageView.as_view({'get': 'list', 'post': 'create'}), name="features-usage"),
     path("dashboard/billing/", BillingView.as_view({'get': 'list', 'post': 'create'}), name="billing"),
     path("dashboard/invites/", InviteView.as_view({'get': 'list', 'post': 'create'}), name="invites"),

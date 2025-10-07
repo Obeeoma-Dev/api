@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import (
-    User, Organization, Client, AIManagement, HotlineActivity, ClientEngagement,
+    User, Employer, Employee, AIManagement, HotlineActivity, EmployeeEngagement,
     Subscription, RecentActivity, SelfAssessment, MoodCheckIn, SelfHelpResource, ChatbotInteraction,
     UserBadge, EngagementStreak, EmployeeProfile, AvatarProfile, WellnessHub,
     AssessmentResult, EducationalResource, CrisisTrigger, Notification, EngagementTracker,
@@ -41,13 +41,13 @@ class SignupSerializer(serializers.ModelSerializer):
         user.set_password(validated_data['password'])
         user.save()
 
-        # Automatically create a Client record if the role is employee
+        # Automatically create an Employee record if the role is employee
         if role == 'employee':
-            Client.objects.create(
+            Employee.objects.create(
                 user=user,
                 name=user.username,
                 email=user.email,
-                organization=None  # or assign default org if needed
+                employer=None  # or assign default employer if needed
             )
 
         return user
@@ -113,46 +113,46 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 
-class OrganizationSerializer(serializers.ModelSerializer):
+class EmployerSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Organization
+        model = Employer
         fields = '__all__'
 
 
-class ClientSerializer(serializers.ModelSerializer):
+class EmployeeSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Client
-        fields = ['id', 'organization', 'name', 'email', 'joined_date']
+        model = Employee
+        fields = ['id', 'employer', 'name', 'email', 'joined_date']
 
 
 class AIManagementSerializer(serializers.ModelSerializer):
     class Meta:
         model = AIManagement
-        fields = ['id', 'organization', 'title', 'description', 'effectiveness', 'created_at']
+        fields = ['id', 'employer', 'title', 'description', 'effectiveness', 'created_at']
 
 
 class HotlineActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = HotlineActivity
-        fields = ['id', 'organization', 'call_count', 'spike_percentage', 'recorded_at']
+        fields = ['id', 'employer', 'call_count', 'spike_percentage', 'recorded_at']
 
 
-class ClientEngagementSerializer(serializers.ModelSerializer):
+class EmployeeEngagementSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ClientEngagement
-        fields = ['id', 'organization', 'engagement_rate', 'month', 'notes']
+        model = EmployeeEngagement
+        fields = ['id', 'employer', 'engagement_rate', 'month', 'notes']
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subscription
-        fields = ['id', 'organization', 'plan', 'amount', 'start_date', 'end_date', 'is_active']
+        fields = ['id', 'employer', 'plan', 'amount', 'start_date', 'end_date', 'is_active']
 
 
 class RecentActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = RecentActivity
-        fields = ['id', 'organization', 'activity_type', 'details', 'timestamp', 'is_important']
+        fields = ['id', 'employer', 'activity_type', 'details', 'timestamp', 'is_important']
 
 
 class SelfAssessmentSerializer(serializers.ModelSerializer):
