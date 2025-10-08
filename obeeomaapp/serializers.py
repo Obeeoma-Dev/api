@@ -10,7 +10,8 @@ from obeeomaapp.models import (
     Subscription, RecentActivity, SelfAssessment, MoodCheckIn, SelfHelpResource, ChatbotInteraction,
     UserBadge, EngagementStreak, EmployeeProfile, AvatarProfile, WellnessHub,
     AssessmentResult, EducationalResource, CrisisTrigger, Notification, EngagementTracker,
-    Feedback, ChatSession, ChatMessage, RecommendationLog, MentalHealthAssessment)
+    Feedback, ChatSession, ChatMessage, RecommendationLog, MentalHealthAssessment, EmployeeInvitation
+    )
 
 User = get_user_model()
 
@@ -41,25 +42,9 @@ class SignupSerializer(serializers.ModelSerializer):
         user.set_password(validated_data['password'])
         user.save()
 
-        # Automatically create an Employee record if the role is employee
-        if role == 'employee':
-            Employee.objects.create(
-                user=user,
-                name=user.username,
-                email=user.email,
-                employer=None  # or assign default employer if needed
-            )
-
         return user
 
 
-
-# class LoginSerializer(serializers.Serializer):
-#     username = serializers.CharField()
-#     password = serializers.CharField(write_only=True)
-
-#     def create(self, validated_data):
-#         return validated_data
 
 
 class LoginSerializer(serializers.Serializer):
@@ -95,7 +80,7 @@ class LoginSerializer(serializers.Serializer):
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
-def create(self, validated_data):
+    def create(self, validated_data):
         return validated_data
 
 class PasswordChangeSerializer(serializers.Serializer):
@@ -190,9 +175,66 @@ class EngagementStreakSerializer(serializers.ModelSerializer):
     class Meta:
         model = EngagementStreak
         fields = ['id', 'user', 'streak_count', 'last_active_date']
-      
-# Additional serializers for the new models
 
+
+class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmployeeInvitation
+        fields = ['id', 'email', 'message', 'expires_at']
+
+    def create(self, validated_data):
+        from secrets import token_urlsafe
+        employer = self.context['employer']
+        inviter = self.context['user']
+        token = token_urlsafe(32)
+        return EmployeeInvitation.objects.create(
+            employer=employer,
+            invited_by=inviter,
+            token=token,
+            **validated_data
+        )
+
+
+class EmployeeInvitationAcceptSerializer(serializers.Serializer):
+    token = serializers.CharField()
+    username = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        token = attrs['token']
+        try:
+            invitation = EmployeeInvitation.objects.get(token=token, accepted=False)
+        except EmployeeInvitation.DoesNotExist:
+            raise serializers.ValidationError('Invalid or used invitation token.')
+        from django.utils import timezone
+        if invitation.expires_at < timezone.now():
+            raise serializers.ValidationError('Invitation has expired.')
+        attrs['invitation'] = invitation
+        return attrs
+
+    def create(self, validated_data):
+        invitation = validated_data['invitation']
+        username = validated_data['username']
+        password = validated_data['password']
+
+        # Create user
+        user = User.objects.create_user(
+            username=username,
+            email=invitation.email,
+            role='employee',
+            password=password
+        )
+        # Link to employer in Employee model
+        Employee.objects.create(
+            employer=invitation.employer,
+            name=username,
+            email=invitation.email
+        )
+        from django.utils import timezone
+        invitation.accepted = True
+        invitation.accepted_at = timezone.now()
+        invitation.save(update_fields=['accepted', 'accepted_at'])
+        return user
 
 
 # --- Employee Profile ---
@@ -381,3 +423,17 @@ class MentalHealthAssessmentListSerializer(serializers.ModelSerializer):
             'id', 'assessment_type', 'gad7_total', 'phq9_total', 
             'gad7_severity', 'phq9_severity', 'assessment_date'
         ]
+
+# User Badges 
+class UserBadgeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserBadge
+        fields = ['id', 'user', 'badge_name', 'awarded_on']
+
+# Engagement Streaks 
+class EngagementStreakSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EngagementStreak
+        fields = ['id', 'user', 'streak_count', 'last_active_date']
+
+

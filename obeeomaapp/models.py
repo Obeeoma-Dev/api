@@ -1,7 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
-from django.contrib.auth.models import User
 from django.conf import settings
 
 # --- User & Authentication ---
@@ -46,6 +45,25 @@ class Employee(models.Model):
 
     class Meta:
         ordering = ['-joined_date']
+
+
+# --- Invitations ---
+class EmployeeInvitation(models.Model):
+    employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="invitations")
+    email = models.EmailField()
+    token = models.CharField(max_length=64, unique=True)
+    invited_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    message = models.TextField(blank=True)
+    expires_at = models.DateTimeField()
+    accepted = models.BooleanField(default=False)
+    accepted_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Invite {self.email} -> {self.employer.name}"
+
+    class Meta:
+        indexes = [models.Index(fields=["token"])]
 
 
 class AuthenticationEvent(models.Model):
@@ -411,3 +429,37 @@ class MentalHealthAssessment(models.Model):
             self.phq9_severity = self.calculate_phq9_severity()
             
         super().save(*args, **kwargs)
+
+
+# Employers Models.
+class Department(models.Model):
+    """Departments within an employer (e.g., HR, Marketing, Engineering)."""
+    employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="departments")
+    name = models.CharField(max_length=100)
+    at_risk = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.name} - {self.employer.name}"
+
+
+
+class Assessment(models.Model):
+    """Each assessment (e.g., GAD-7 or PHQ-9) completed by an employee."""
+    ASSESSMENT_TYPES = [
+        ("GAD-7", "Generalized Anxiety Disorder (GAD-7)"),
+        ("PHQ-9", "Patient Health Questionnaire (PHQ-9)"),
+    ]
+
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="assessments")
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True)
+    assessment_type = models.CharField(max_length=50, choices=ASSESSMENT_TYPES)
+    score = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.employee.user.username} - {self.assessment_type} ({self.score})"
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
