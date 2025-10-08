@@ -1,4 +1,5 @@
 from django.http import JsonResponse
+from django.db.models import Avg, Count
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate, get_user_model
@@ -14,7 +15,7 @@ from obeeomaapp.models import (
     Subscription, RecentActivity, SelfAssessment, MoodCheckIn, SelfHelpResource, ChatbotInteraction,
     UserBadge, EngagementStreak, EmployeeProfile, AvatarProfile, WellnessHub,
     AssessmentResult, EducationalResource, CrisisTrigger, Notification, EngagementTracker,
-    Feedback, ChatSession, ChatMessage, RecommendationLog
+    Feedback, ChatSession, ChatMessage, RecommendationLog, EmployeeInvitation
 )
 from obeeomaapp.serializers import (
     SignupSerializer, LoginSerializer, PasswordResetSerializer, PasswordChangeSerializer, 
@@ -24,8 +25,10 @@ from obeeomaapp.serializers import (
     UserBadgeSerializer, EngagementStreakSerializer, EmployeeProfileSerializer, AvatarProfileSerializer,
     WellnessHubSerializer, AssessmentResultSerializer, EducationalResourceSerializer,
     CrisisTriggerSerializer, NotificationSerializer, EngagementTrackerSerializer,
-    FeedbackSerializer, ChatSessionSerializer, ChatMessageSerializer, RecommendationLogSerializer
+    FeedbackSerializer, ChatSessionSerializer, ChatMessageSerializer, RecommendationLogSerializer,
+    MentalHealthAssessmentListSerializer, AssessmentResponseSerializer, EmployeeInvitationCreateSerializer, EmployeeInvitationAcceptSerializer,
         )
+
 
 User = get_user_model()
 
@@ -309,14 +312,6 @@ class RecommendationLogView(viewsets.ModelViewSet):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(employee=employee)
 
-from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from .models import MentalHealthAssessment
-from .serializers import (
-    MentalHealthAssessmentSerializer, MentalHealthAssessmentListSerializer,
-    AssessmentResponseSerializer
-)
 
 class MentalHealthAssessmentViewSet(viewsets.ModelViewSet):
     """ViewSet for mental health assessments"""
@@ -444,3 +439,92 @@ class MentalHealthAssessmentViewSet(viewsets.ModelViewSet):
         else:
             return "Severe depression symptoms detected. Please seek immediate support from a mental health professional."
 
+# --- Employee-specific: Badges and Engagement Streaks ---
+
+class MyBadgesView(viewsets.ReadOnlyModelViewSet):
+    serializer_class = UserBadgeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return UserBadge.objects.filter(user=self.request.user)
+
+
+class MyStreaksView(viewsets.ReadOnlyModelViewSet):
+    serializer_class = EngagementStreakSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return EngagementStreak.objects.filter(user=self.request.user).order_by('-last_active_date')
+
+
+# --- Employer APIs ---
+class EmployerViewSet(viewsets.ModelViewSet):
+    queryset = Employer.objects.all()
+    serializer_class = EmployerSerializer
+    permission_classes = [IsCompanyAdmin]
+
+    @action(detail=True, methods=['get'])
+    def overview(self, request, pk=None):
+        employer = self.get_object()
+        data = {
+            "employee_count": Employee.objects.filter(employer=employer).count(),
+            "active_subscriptions": Subscription.objects.filter(employer=employer, is_active=True).count(),
+            "engagement_entries": EmployeeEngagement.objects.filter(employer=employer).count(),
+            "latest_hotline_activity": HotlineActivitySerializer(
+                HotlineActivity.objects.filter(employer=employer).order_by('-recorded_at').first()
+            ).data if HotlineActivity.objects.filter(employer=employer).exists() else None,
+            "recent_activities": RecentActivitySerializer(
+                RecentActivity.objects.filter(employer=employer).order_by('-timestamp')[:10], many=True
+            ).data,
+        }
+        return Response(data)
+
+    @action(detail=True, methods=['get'])
+    def employees(self, request, pk=None):
+        employer = self.get_object()
+        qs = Employee.objects.filter(employer=employer).order_by('-joined_date')
+        return Response(EmployeeSerializer(qs, many=True).data)
+
+    @action(detail=True, methods=['get'])
+    def subscriptions(self, request, pk=None):
+        employer = self.get_object()
+        qs = Subscription.objects.filter(employer=employer).order_by('-start_date')
+        return Response(SubscriptionSerializer(qs, many=True).data)
+
+    @action(detail=True, methods=['get'])
+    def features(self, request, pk=None):
+        employer = self.get_object()
+        qs = AIManagement.objects.filter(employer=employer).order_by('-created_at')
+        return Response(AIManagementSerializer(qs, many=True).data)
+
+    @action(detail=True, methods=['get'])
+    def engagements(self, request, pk=None):
+        employer = self.get_object()
+        qs = EmployeeEngagement.objects.filter(employer=employer).order_by('-month')
+        return Response(EmployeeEngagementSerializer(qs, many=True).data)
+
+    @action(detail=True, methods=['get'])
+    def activities(self, request, pk=None):
+        employer = self.get_object()
+        qs = RecentActivity.objects.filter(employer=employer).order_by('-timestamp')
+        return Response(RecentActivitySerializer(qs, many=True).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsCompanyAdmin])
+    def invite(self, request, pk=None):
+        employer = self.get_object()
+        serializer = EmployeeInvitationCreateSerializer(data=request.data, context={'employer': employer, 'user': request.user})
+        serializer.is_valid(raise_exception=True)
+        invite = serializer.save()
+        return Response({'message': 'Invitation created', 'token': invite.token}, status=status.HTTP_201_CREATED)
+
+
+class InvitationAcceptView(viewsets.ViewSet):
+    permission_classes = [permissions.AllowAny]
+    serializer_class = EmployeeInvitationAcceptSerializer
+
+    def create(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        refresh = RefreshToken.for_user(user)
+        return Response({'message': 'Account created successfully', 'access': str(refresh.access_token), 'refresh': str(refresh)}, status=status.HTTP_201_CREATED)
