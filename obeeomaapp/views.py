@@ -10,7 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from obeeomaapp.models import MentalHealthAssessment
 from obeeomaapp.serializers import MentalHealthAssessmentSerializer
 from obeeomaapp.models import (
-    Organization, Client, AIManagement, HotlineActivity, ClientEngagement,
+    Employer, Employee, AIManagement, HotlineActivity, EmployeeEngagement,
     Subscription, RecentActivity, SelfAssessment, MoodCheckIn, SelfHelpResource, ChatbotInteraction,
     UserBadge, EngagementStreak, EmployeeProfile, AvatarProfile, WellnessHub,
     AssessmentResult, EducationalResource, CrisisTrigger, Notification, EngagementTracker,
@@ -18,8 +18,8 @@ from obeeomaapp.models import (
 )
 from obeeomaapp.serializers import (
     SignupSerializer, LoginSerializer, PasswordResetSerializer, PasswordChangeSerializer, 
-    OrganizationSerializer, ClientSerializer, AIManagementSerializer, HotlineActivitySerializer,
-    ClientEngagementSerializer, SubscriptionSerializer, RecentActivitySerializer, SelfAssessmentSerializer,
+    EmployerSerializer, EmployeeSerializer, AIManagementSerializer, HotlineActivitySerializer,
+    EmployeeEngagementSerializer, SubscriptionSerializer, RecentActivitySerializer, SelfAssessmentSerializer,
     MoodCheckInSerializer, SelfHelpResourceSerializer, ChatbotInteractionSerializer,
     UserBadgeSerializer, EngagementStreakSerializer, EmployeeProfileSerializer, AvatarProfileSerializer,
     WellnessHubSerializer, AssessmentResultSerializer, EducationalResourceSerializer,
@@ -98,39 +98,39 @@ class OverviewView(viewsets.ViewSet):
     permission_classes = [IsCompanyAdmin]
 
     def list(self, request):
-        org_count = Organization.objects.count()
-        client_count = Client.objects.count()
+        employer_count = Employer.objects.count()
+        employee_count = Employee.objects.count()
         active_subscriptions = Subscription.objects.filter(is_active=True).count()
-        recent = RecentActivity.objects.select_related("organization").order_by("-timestamp")[:10]
+        recent = RecentActivity.objects.select_related("employer").order_by("-timestamp")[:10]
         recent_serialized = RecentActivitySerializer(recent, many=True).data
         return Response({
-            "organization_count": org_count,
-            "client_count": client_count,
+            "employer_count": employer_count,
+            "employee_count": employee_count,
             "active_subscriptions": active_subscriptions,
             "recent_activities": recent_serialized,
         })
 
 
 class TrendsView(viewsets.ReadOnlyModelViewSet):
-    queryset = HotlineActivity.objects.select_related("organization").order_by("-recorded_at")
+    queryset = HotlineActivity.objects.select_related("employer").order_by("-recorded_at")
     serializer_class = HotlineActivitySerializer
     permission_classes = [IsCompanyAdmin]
 
 
-class ClientEngagementView(viewsets.ModelViewSet):
-    queryset = ClientEngagement.objects.select_related("organization").order_by("-month")
-    serializer_class = ClientEngagementSerializer
+class EmployeeEngagementView(viewsets.ModelViewSet):
+    queryset = EmployeeEngagement.objects.select_related("employer").order_by("-month")
+    serializer_class = EmployeeEngagementSerializer
     permission_classes = [IsCompanyAdmin]
 
 
 class FeaturesUsageView(viewsets.ModelViewSet):
-    queryset = AIManagement.objects.select_related("organization").order_by("-created_at")
+    queryset = AIManagement.objects.select_related("employer").order_by("-created_at")
     serializer_class = AIManagementSerializer
     permission_classes = [IsCompanyAdmin]
 
 
 class BillingView(viewsets.ModelViewSet):
-    queryset = Subscription.objects.select_related("organization").all()
+    queryset = Subscription.objects.select_related("employer").all()
     serializer_class = SubscriptionSerializer
     permission_classes = [IsCompanyAdmin]
 
@@ -145,25 +145,25 @@ class BillingView(viewsets.ModelViewSet):
 
 
 class InviteView(viewsets.ModelViewSet):
-    queryset = Client.objects.all()
-    serializer_class = ClientSerializer
+    queryset = Employee.objects.all()
+    serializer_class = EmployeeSerializer
     permission_classes = [IsCompanyAdmin]
 
 
 class UsersView(viewsets.ModelViewSet):
-    queryset = Client.objects.select_related("organization").all()
-    serializer_class = ClientSerializer
+    queryset = Employee.objects.select_related("employer").all()
+    serializer_class = EmployeeSerializer
     permission_classes = [IsCompanyAdmin]
 
 
 class ReportsView(viewsets.ReadOnlyModelViewSet):
-    queryset = RecentActivity.objects.select_related("organization").order_by("-timestamp")
+    queryset = RecentActivity.objects.select_related("employer").order_by("-timestamp")
     serializer_class = RecentActivitySerializer
     permission_classes = [IsCompanyAdmin]
 
 
 class CrisisInsightsView(viewsets.ReadOnlyModelViewSet):
-    queryset = HotlineActivity.objects.select_related("organization").order_by("-recorded_at")
+    queryset = HotlineActivity.objects.select_related("employer").order_by("-recorded_at")
     serializer_class = HotlineActivitySerializer
     permission_classes = [IsCompanyAdmin]
 
