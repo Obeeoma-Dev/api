@@ -22,7 +22,7 @@ class User(AbstractUser):
         return f"{self.username} ({self.role})"
 
 
-class Organization(models.Model):
+class Employer(models.Model):
     name = models.CharField(max_length=255, unique=True)
     joined_date = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
@@ -34,15 +34,15 @@ class Organization(models.Model):
         ordering = ['-joined_date']
 
 
-class Client(models.Model):
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="clients")
+class Employee(models.Model):
+    employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="employees")
     name = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
     joined_date = models.DateTimeField(auto_now_add=True)
     last_active = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.name} - {self.organization.name}"
+        return f"{self.name} - {self.employer.name}"
 
     class Meta:
         ordering = ['-joined_date']
@@ -145,7 +145,7 @@ class EngagementStreak(models.Model):
 
 
 class AnalyticsSnapshot(models.Model):
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="analytics")
+    employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="analytics")
     date = models.DateField()
     active_users = models.PositiveIntegerField()
     average_stress_score = models.DecimalField(max_digits=5, decimal_places=2)
@@ -161,7 +161,7 @@ class CrisisHotline(models.Model):
 
 
 class AIManagement(models.Model):
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="managements")
+    employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="managements")
     title = models.CharField(max_length=255)
     description = models.TextField()
     effectiveness = models.DecimalField(
@@ -173,38 +173,38 @@ class AIManagement(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.title} - {self.organization.name}"
+        return f"{self.title} - {self.employer.name}"
 
     class Meta:
         ordering = ['-created_at']
 
 
 class HotlineActivity(models.Model):
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="hotline_activities")
+    employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="hotline_activities")
     call_count = models.PositiveIntegerField(default=0)
     spike_percentage = models.DecimalField(max_digits=5, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)])
     recorded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Hotline Activity - {self.organization.name} ({self.recorded_at})"
+        return f"Hotline Activity - {self.employer.name} ({self.recorded_at})"
 
     class Meta:
         ordering = ['-recorded_at']
         verbose_name_plural = "Hotline Activities"
 
 
-class ClientEngagement(models.Model):
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="engagements")
+class EmployeeEngagement(models.Model):
+    employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="engagements")
     engagement_rate = models.DecimalField(max_digits=5, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)])
     month = models.DateField()
     notes = models.TextField(blank=True, null=True)
 
     def __str__(self):
-        return f"{self.organization.name} - {self.month}"
+        return f"{self.employer.name} - {self.month}"
 
     class Meta:
         ordering = ['-month']
-        unique_together = ['organization', 'month']
+        unique_together = ['employer', 'month']
 
 
 class Subscription(models.Model):
@@ -212,7 +212,7 @@ class Subscription(models.Model):
         ("Free", "Free"),
         ("Premium", "Premium"),
     )
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="subscriptions")
+    employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="subscriptions")
     plan = models.CharField(max_length=50, choices=PLAN_CHOICES, default="Free")
     amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     start_date = models.DateField()
@@ -220,7 +220,7 @@ class Subscription(models.Model):
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"{self.organization.name} - {self.plan}"
+        return f"{self.employer.name} - {self.plan}"
 
     class Meta:
         ordering = ['-start_date']
@@ -228,20 +228,20 @@ class Subscription(models.Model):
 
 class RecentActivity(models.Model):
     ACTIVITY_TYPES = (
-        ("New Organization", "New Organization"),
+        ("New Employer", "New Employer"),
         ("AI Management", "AI Management"),
         ("Hotline Activity", "Hotline Activity"),
-        ("Client Engagement", "Client Engagement"),
+        ("Employee Engagement", "Employee Engagement"),
         ("Subscription", "Subscription"),
     )
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="activities")
+    employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="activities")
     activity_type = models.CharField(max_length=50, choices=ACTIVITY_TYPES)
     details = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
     is_important = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"{self.activity_type} - {self.organization.name}"
+        return f"{self.activity_type} - {self.employer.name}"
 
     class Meta:
         ordering = ['-timestamp']
