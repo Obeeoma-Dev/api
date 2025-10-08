@@ -1,9 +1,15 @@
 from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from .views import LogoutView
-from rest_framework import permissions
 from drf_yasg import openapi
-from rest_framework.routers import DefaultRouter
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView,
+)
 from obeeomaapp.views import (
     SignupView, LoginView, PasswordResetView, PasswordChangeView,
     OverviewView, TrendsView, EmployeeEngagementView, FeaturesUsageView,
@@ -13,39 +19,43 @@ from obeeomaapp.views import (
     SelfHelpResourceView, EducationalResourceView, CrisisTriggerView,
     NotificationView, EngagementTrackerView, FeedbackView,
     ChatSessionView, ChatMessageView, RecommendationLogView,
-    MentalHealthAssessmentViewSet
+    MentalHealthAssessmentViewSet,
+    MyBadgesView, MyStreaksView, EmployerViewSet, InvitationAcceptView
 )
 
 app_name = "obeeomaapp"
 
 # --- Swagger schema view ---
-SchemaView = get_schema_view(
+schema_view = get_schema_view(
     openapi.Info(
         title="Obeeoma API",
         default_version="v1",
-        description="Endpoints for signup, login, password reset/change, admin dashboard views, and mental health assessments (GAD-7 & PHQ-9)",
+        description="Endpoints for authentication, assessments (GAD-7 & PHQ-9), and organization dashboards.",
     ),
     public=True,
     permission_classes=(permissions.AllowAny,),
 )
 
-# Create router for ViewSets
+# --- Router setup ---
 router = DefaultRouter()
 router.register(r'mental-health/assessments', MentalHealthAssessmentViewSet, basename='mental-health-assessment')
+router.register(r'employers', EmployerViewSet, basename='employer')
+router.register(r'me/badges', MyBadgesView, basename='my-badges')
+router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 
-# --- URL patterns ---
+
 urlpatterns = [
     # Home
     path("", home, name="home"),
-    
+
     # Authentication
     path("auth/signup/", SignupView.as_view({'post': 'create'}), name="signup"),
     path("auth/login/", LoginView.as_view(), name="login"),
      path("auth/logout/", LogoutView.as_view(), name="logout"),
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
-    
-    # Dashboard API
+
+    # Dashboard
     path("dashboard/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),
     path("dashboard/trends/", TrendsView.as_view({'get': 'list'}), name="trends"),
     path("dashboard/employee-engagement/", EmployeeEngagementView.as_view({'get': 'list', 'post': 'create'}), name="employee-engagement"),
@@ -56,42 +66,35 @@ urlpatterns = [
     path("dashboard/reports/", ReportsView.as_view({'get': 'list'}), name="reports"),
     path("dashboard/crisis-insights/", CrisisInsightsView.as_view({'get': 'list'}), name="crisis-insights"),
 
-    # Employee Management
-    # Employee Profile & Avatar
+    # Employee endpoints
     path('employee/profile/', EmployeeProfileView.as_view({'get': 'list', 'post': 'create'}), name='employee-profile'),
     path('employee/avatar/', AvatarProfileView.as_view({'get': 'list', 'post': 'create'}), name='avatar-profile'),
-
-    # Wellness & Mood
     path('employee/wellness/', WellnessHubView.as_view({'get': 'list', 'post': 'create'}), name='wellness-hub'),
     path('employee/mood-checkin/', MoodCheckInView.as_view({'get': 'list', 'post': 'create'}), name='mood-checkin'),
-
-    # Assessments
     path('employee/assessments/', AssessmentResultView.as_view({'get': 'list', 'post': 'create'}), name='assessment-results'),
-
-    # Resources
     path('resources/self-help/', SelfHelpResourceView.as_view({'get': 'list', 'post': 'create'}), name='self-help-resources'),
     path('resources/educational/', EducationalResourceView.as_view({'get': 'list', 'post': 'create'}), name='educational-resources'),
-
-    # Crisis & Notifications
     path('employee/crisis/', CrisisTriggerView.as_view({'get': 'list', 'post': 'create'}), name='crisis-trigger'),
     path('employee/notifications/', NotificationView.as_view({'get': 'list', 'post': 'create'}), name='notifications'),
-
-    # Engagement & Feedback
     path('employee/engagement/', EngagementTrackerView.as_view({'get': 'list', 'post': 'create'}), name='engagement-tracker'),
     path('employee/feedback/', FeedbackView.as_view({'get': 'list', 'post': 'create'}), name='feedback'),
-
-    # Sana Chat
     path('sana/sessions/', ChatSessionView.as_view({'get': 'list', 'post': 'create'}), name='chat-sessions'),
     path('sana/sessions/<int:session_id>/messages/', ChatMessageView.as_view({'get': 'list', 'post': 'create'}), name='chat-messages'),
-
-    # Recommendations
     path('employee/recommendations/', RecommendationLogView.as_view({'get': 'list', 'post': 'create'}), name='recommendation-log'),
+    # Invitation acceptance (public)
+    path('auth/accept-invite/', InvitationAcceptView.as_view({'post': 'create'}), name='accept-invite'),
 
-    # Include router URLs for mental health assessments
-    path('', include(router.urls)),
+    # Include router URLs
+    path("", include(router.urls)),
+    # JWT Authentication
+    path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("auth/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
+    # API Schema
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
 
-    # API Documentation
-    path("swagger/", SchemaView.with_ui("swagger", cache_timeout=0), name="schema-swagger-ui"),
-    path("redoc/", SchemaView.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
+    # Swagger / Redoc
+    path("swagger/", schema_view.with_ui("swagger", cache_timeout=0), name="schema-swagger-ui"),
+    path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
 ]
-
