@@ -53,15 +53,6 @@ class SignupSerializer(serializers.ModelSerializer):
         return user
 
 
-
-# class LoginSerializer(serializers.Serializer):
-#     username = serializers.CharField()
-#     password = serializers.CharField(write_only=True)
-
-#     def create(self, validated_data):
-#         return validated_data
-
-
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
