@@ -1,4 +1,3 @@
-
 import os
 
 from pathlib import Path
@@ -56,10 +55,12 @@ INSTALLED_APPS = [
     "django_extensions",
     "drf_yasg",
     "drf_spectacular",
+    "corsheaders",
 ]
 
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -68,6 +69,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+
 ]
 # Media files
 MEDIA_URL = "/media/"
@@ -112,6 +114,17 @@ STATIC_URL = "static/"
 
 AUTH_USER_MODEL = "obeeomaapp.User"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# CORS settings
+CORS_ALLOW_ALL_ORIGINS = True  
+
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",     
+]
+CORS_ALLOW_ALL_ORIGINS = True
+
+
 
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/overview/"
