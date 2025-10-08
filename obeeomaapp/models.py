@@ -4,6 +4,8 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.auth.models import User
 from django.conf import settings
 
+User = settings.AUTH_USER_MODEL
+
 # --- User & Authentication ---
 class User(AbstractUser):
     ROLE_CHOICES = (
@@ -411,3 +413,6 @@ class MentalHealthAssessment(models.Model):
             self.phq9_severity = self.calculate_phq9_severity()
             
         super().save(*args, **kwargs)
+
+
+
