@@ -1,6 +1,7 @@
 
 # serializers.py
 from rest_framework.exceptions import AuthenticationFailed
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -82,6 +83,16 @@ class LoginSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         return validated_data
+    
+    # Logout Serializer
+class LogoutSerializer(serializers.Serializer):
+     refresh = serializers.CharField()
+
+     def validate_refresh(self, value):
+        if not value:
+            raise serializers.ValidationError("Refresh token is required.")
+        return value
+
 
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -372,3 +383,4 @@ class MentalHealthAssessmentListSerializer(serializers.ModelSerializer):
             'id', 'assessment_type', 'gad7_total', 'phq9_total', 
             'gad7_severity', 'phq9_severity', 'assessment_date'
         ]
+
