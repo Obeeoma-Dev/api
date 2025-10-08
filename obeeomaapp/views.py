@@ -1,5 +1,7 @@
 from django.http import JsonResponse
 from rest_framework.decorators import action
+from .serializers import LogoutSerializer
+from drf_spectacular.utils import extend_schema
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate, get_user_model
 from rest_framework import status, permissions, viewsets
@@ -63,7 +65,35 @@ class LoginView(APIView):
                 "username": user.username,
             })
         return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+    
 
+# LOGOUT VIEW
+
+@extend_schema(
+    tags=["Authentication"],
+    request=LogoutSerializer,
+    responses={205: {"description": "Logged out successfully"}, 400: {"description": "Invalid or expired token"}},
+)
+class LogoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = LogoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        refresh_token = serializer.validated_data["refresh"]
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return Response(
+                {"message": "Logged out successfully."},
+                status=status.HTTP_205_RESET_CONTENT
+            )
+        except Exception:
+            return Response(
+                {"error": "Invalid or expired token."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 class PasswordResetView(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
