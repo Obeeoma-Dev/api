@@ -212,7 +212,7 @@ class PasswordResetConfirmView(viewsets.ViewSet):
             return Response({"error": "Token is required"}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            # Find the reset token
+            # This part checks if token and code are valid
             reset_token = PasswordResetToken.objects.get(
                 token=token,
                 code=code,
