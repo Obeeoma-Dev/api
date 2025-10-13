@@ -465,6 +465,34 @@ class Assessment(models.Model):
         ordering = ["-created_at"]
 
 
+class PasswordResetToken(models.Model):
+    """Model to store password reset tokens"""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="password_reset_tokens")
+    token = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=6)  # 6-digit verification code
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Password reset token for {self.user.email}"
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["token"]), models.Index(fields=["code"])]
+
+    def is_expired(self):
+        from django.utils import timezone
+        return timezone.now() > self.expires_at
+
+    def mark_as_used(self):
+        from django.utils import timezone
+        self.is_used = True
+        self.used_at = timezone.now()
+        self.save()
+
+
 
 
 
