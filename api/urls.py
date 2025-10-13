@@ -14,9 +14,9 @@ from rest_framework_simplejwt.views import (
 )
 
 urlpatterns = [
-    path("admin/", admin.site.urls),                     # enable /admin/
-    path("", include("obeeomaapp.urls")),               # root → your app (so / works)
-    path("api/v1/", include("obeeomaapp.urls", namespace="v1")),        # versioned paths with namespace
+    path("admin/", admin.site.urls),                    
+    path("", include("obeeomaapp.urls")),              
+    path("api/v1/", include("obeeomaapp.urls", namespace="v1")),       
     path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("auth/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
