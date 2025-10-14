@@ -5,23 +5,10 @@ from drf_yasg.views import get_schema_view
 from .views import LogoutView
 from drf_yasg import openapi
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-    TokenVerifyView,
-)
-from obeeomaapp.views import (
-    SignupView, LoginView, PasswordResetView, PasswordChangeView,
-    OverviewView, TrendsView, EmployeeEngagementView, FeaturesUsageView,
-    BillingView, InviteView, UsersView, ReportsView,
-    CrisisInsightsView, home, EmployeeProfileView, AvatarProfileView,
-    WellnessHubView, MoodCheckInView, AssessmentResultView,
-    SelfHelpResourceView, EducationalResourceView, CrisisTriggerView,
-    NotificationView, EngagementTrackerView, FeedbackView,
-    ChatSessionView, ChatMessageView, RecommendationLogView,
-    MentalHealthAssessmentViewSet,
-    MyBadgesView, MyStreaksView, EmployerViewSet, InvitationAcceptView
-)
+from rest_framework_simplejwt.views import *
+
+from obeeomaapp.views import *
+
 
 app_name = "obeeomaapp"
 
