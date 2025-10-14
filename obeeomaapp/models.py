@@ -464,7 +464,22 @@ class Assessment(models.Model):
     class Meta:
         ordering = ["-created_at"]
 
-
+# ----Educational Resources Models----
+class ResourceCategory(models.Model):
+    """Categories for organizing mental health resources (e.g., Stress Management, Anxiety, Depression)"""
+    name = models.CharField(max_length=100, help_text="e.g., Stress Management, Anxiety Relief, Sleep Help")
+    description = models.TextField(blank=True, help_text="Brief description of what this category covers")
+    icon = models.CharField(max_length=50, blank=True, help_text="Emoji or icon name")
+    color_code = models.CharField(max_length=7, default="#667eea", help_text="Hex color for UI theming")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        verbose_name = "Resource Category"
+        verbose_name_plural = "Resource Categories"
+        ordering = ['name']
+    
+    def __str__(self):
+        return f"{self.icon} {self.name}" if self.icon else self.name
 
 
 
