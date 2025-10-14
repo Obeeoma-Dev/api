@@ -29,6 +29,7 @@ from django.template.loader import render_to_string
 from django.core.mail import EmailMultiAlternatives
 import logging
 
+
 # Set up logging
 logger = logging.getLogger(__name__)
 from obeeomaapp.serializers import (
