@@ -17,10 +17,23 @@ from obeeomaapp.models import (
     Subscription, RecentActivity, SelfAssessment, MoodCheckIn, SelfHelpResource, ChatbotInteraction,
     UserBadge, EngagementStreak, EmployeeProfile, AvatarProfile, WellnessHub,
     AssessmentResult, EducationalResource, CrisisTrigger, Notification, EngagementTracker,
-    Feedback, ChatSession, ChatMessage, RecommendationLog, EmployeeInvitation
+    Feedback, ChatSession, ChatMessage, RecommendationLog, EmployeeInvitation, PasswordResetToken
 )
+from django.core.mail import send_mail
+from django.conf import settings
+from django.utils import timezone
+from datetime import timedelta
+import secrets
+import string
+from django.template.loader import render_to_string
+from django.core.mail import EmailMultiAlternatives
+import logging
+
+
+# Set up logging
+logger = logging.getLogger(__name__)
 from obeeomaapp.serializers import (
-    SignupSerializer, LoginSerializer, PasswordResetSerializer, PasswordChangeSerializer, 
+    SignupSerializer, LoginSerializer, PasswordResetSerializer, PasswordResetConfirmSerializer, PasswordChangeSerializer, 
     EmployerSerializer, EmployeeSerializer, AIManagementSerializer, HotlineActivitySerializer,
     EmployeeEngagementSerializer, SubscriptionSerializer, RecentActivitySerializer, SelfAssessmentSerializer,
     MoodCheckInSerializer, SelfHelpResourceSerializer, ChatbotInteractionSerializer,
@@ -97,6 +110,9 @@ class LogoutView(APIView):
                 {"error": "Invalid or expired token."},
                 status=status.HTTP_400_BAD_REQUEST
             )
+  # password reset request view
+
+logger = logging.getLogger(__name__)
 
 class PasswordResetView(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
@@ -105,8 +121,124 @@ class PasswordResetView(viewsets.ViewSet):
     def create(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data['email']
-        return Response({"message": f"Password reset link sent to {email}"})
+        email = serializer.validated_data.get("email")
+
+        
+        user = User.objects.filter(email=email).first()
+        if not user:
+            
+            return Response(
+                {"message": f"If an account exists for {email}, a reset code has been sent."},
+                status=status.HTTP_200_OK
+            )
+
+        
+        try:
+            code = ''.join(secrets.choice(string.digits) for _ in range(6))
+            token = secrets.token_urlsafe(32)
+            expires_at = timezone.now() + timedelta(minutes=15)
+
+            
+            PasswordResetToken.objects.filter(user=user).delete()
+
+            reset_token = PasswordResetToken.objects.create(
+                user=user,
+                token=token,
+                code=code,
+                expires_at=expires_at
+            )
+        except Exception as e:
+            logger.error("Error generating password reset token: %s", str(e))
+            return Response(
+                {"error": "Something went wrong while generating reset token."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        # Step 3: Send email safely
+        try:
+            subject = "Password Reset Verification Code - Obeeoma"
+            message = f"""
+Hello {user.username},
+
+You requested a password reset for your Obeeoma account.
+
+Your verification code is: {code}
+
+This code will expire in 15 minutes.
+
+If you did not request this password reset, please ignore this email.
+
+Best regards,
+Obeeoma Team
+"""
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False,
+            )
+
+            return Response(
+                {
+                    "message": f"If an account exists for {email}, a reset code has been sent.",
+                    "token": token
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            logger.error("Error sending password reset email: %s", str(e))
+            reset_token.delete()  
+            return Response(
+                {"error": "Failed to send email. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+# Confirm Password Reset View
+class PasswordResetConfirmView(viewsets.ViewSet):
+    permission_classes = [permissions.AllowAny]
+    serializer_class = PasswordResetConfirmSerializer
+
+    def create(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        code = serializer.validated_data['code']
+        new_password = serializer.validated_data['new_password']
+        
+        # Get token from request headers or body
+        token = request.data.get('token')
+        if not token:
+            return Response({"error": "Token is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # This part checks if token and code are valid
+            reset_token = PasswordResetToken.objects.get(
+                token=token,
+                code=code,
+                is_used=False
+            )
+            
+            # This part checks if token is expired
+            if reset_token.is_expired():
+                reset_token.delete()
+                return Response({"error": "Verification code has expired"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # This helps in Updating user password
+            user = reset_token.user
+            user.set_password(new_password)
+            user.save()
+            
+            # Mark token as used
+            reset_token.mark_as_used()
+            
+            return Response({
+                "message": "Password reset successfully"
+            }, status=status.HTTP_200_OK)
+            
+        except PasswordResetToken.DoesNotExist:
+            return Response({"error": "Invalid verification code"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PasswordChangeView(viewsets.ViewSet):
@@ -203,6 +335,25 @@ class CrisisInsightsView(viewsets.ReadOnlyModelViewSet):
 
 def home(request):
     return JsonResponse({"status": "ok", "app": "obeeomaapp"})
+
+
+class EmailConfigCheckView(APIView):
+    """Debug endpoint to check email configuration"""
+    permission_classes = [permissions.AllowAny]
+    
+    def get(self, request):
+        config = {
+            "email_backend": settings.EMAIL_BACKEND,
+            "email_host": settings.EMAIL_HOST,
+            "email_port": settings.EMAIL_PORT,
+            "email_use_tls": settings.EMAIL_USE_TLS,
+            "email_use_ssl": settings.EMAIL_USE_SSL,
+            "email_host_user": settings.EMAIL_HOST_USER,
+            "default_from_email": settings.DEFAULT_FROM_EMAIL,
+            "debug_mode": settings.DEBUG,
+            "has_email_password": bool(settings.EMAIL_HOST_PASSWORD),
+        }
+        return Response(config)
 
 
 # --- Employee App ---

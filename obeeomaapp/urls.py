@@ -6,8 +6,7 @@ from .views import LogoutView
 from drf_yasg import openapi
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import *
-
-from obeeomaapp.views import *
+from obeeomaapp.views import*
 
 
 app_name = "obeeomaapp"
@@ -34,12 +33,16 @@ router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 urlpatterns = [
     # Home
     path("", home, name="home"),
+    
+    # Debug endpoints
+    path("debug/email-config/", EmailConfigCheckView.as_view(), name="email-config-check"),
 
     # Authentication
     path("auth/signup/", SignupView.as_view({'post': 'create'}), name="signup"),
     path("auth/login/", LoginView.as_view(), name="login"),
      path("auth/logout/", LogoutView.as_view(), name="logout"),
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
+    path("auth/reset-password/confirm/", PasswordResetConfirmView.as_view({'post': 'create'}), name="password-reset-confirm"),
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
 
     # Dashboard
@@ -68,15 +71,18 @@ urlpatterns = [
     path('sana/sessions/', ChatSessionView.as_view({'get': 'list', 'post': 'create'}), name='chat-sessions'),
     path('sana/sessions/<int:session_id>/messages/', ChatMessageView.as_view({'get': 'list', 'post': 'create'}), name='chat-messages'),
     path('employee/recommendations/', RecommendationLogView.as_view({'get': 'list', 'post': 'create'}), name='recommendation-log'),
+    
     # Invitation acceptance (public)
     path('auth/accept-invite/', InvitationAcceptView.as_view({'post': 'create'}), name='accept-invite'),
 
     # Include router URLs
     path("", include(router.urls)),
+
     # JWT Authentication
     path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("auth/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
+
     # API Schema
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
