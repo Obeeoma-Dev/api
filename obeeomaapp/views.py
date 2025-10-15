@@ -10,15 +10,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
-from obeeomaapp.models import MentalHealthAssessment
-from obeeomaapp.serializers import MentalHealthAssessmentSerializer
-from obeeomaapp.models import (
-    Employer, Employee, AIManagement, HotlineActivity, EmployeeEngagement,
-    Subscription, RecentActivity, SelfAssessment, MoodCheckIn, SelfHelpResource, ChatbotInteraction,
-    UserBadge, EngagementStreak, EmployeeProfile, AvatarProfile, WellnessHub,
-    AssessmentResult, EducationalResource, CrisisTrigger, Notification, EngagementTracker,
-    Feedback, ChatSession, ChatMessage, RecommendationLog, EmployeeInvitation, PasswordResetToken
-)
+from obeeomaapp.serializers import *
+from obeeomaapp.models import *
 from django.core.mail import send_mail
 from django.conf import settings
 from django.utils import timezone
@@ -28,21 +21,14 @@ import string
 from django.template.loader import render_to_string
 from django.core.mail import EmailMultiAlternatives
 import logging
+from .serializers import (ResourceCategorySerializer)
+from .models import (ResourceCategory)
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
 
 
 # Set up logging
 logger = logging.getLogger(__name__)
-from obeeomaapp.serializers import (
-    SignupSerializer, LoginSerializer, PasswordResetSerializer, PasswordResetConfirmSerializer, PasswordChangeSerializer, 
-    EmployerSerializer, EmployeeSerializer, AIManagementSerializer, HotlineActivitySerializer,
-    EmployeeEngagementSerializer, SubscriptionSerializer, RecentActivitySerializer, SelfAssessmentSerializer,
-    MoodCheckInSerializer, SelfHelpResourceSerializer, ChatbotInteractionSerializer,
-    UserBadgeSerializer, EngagementStreakSerializer, EmployeeProfileSerializer, AvatarProfileSerializer,
-    WellnessHubSerializer, AssessmentResultSerializer, EducationalResourceSerializer,
-    CrisisTriggerSerializer, NotificationSerializer, EngagementTrackerSerializer,
-    FeedbackSerializer, ChatSessionSerializer, ChatMessageSerializer, RecommendationLogSerializer,
-    MentalHealthAssessmentListSerializer, AssessmentResponseSerializer, EmployeeInvitationCreateSerializer, EmployeeInvitationAcceptSerializer,
-        )
+from obeeomaapp.serializers import *
 
 
 User = get_user_model()
@@ -711,3 +697,11 @@ class InvitationAcceptView(viewsets.ViewSet):
         return Response({'message': 'Account created successfully', 'access': str(refresh.access_token), 'refresh': str(refresh)}, status=status.HTTP_201_CREATED)
 
 
+class ResourceCategoryViewSet(viewsets.ModelViewSet):
+    """Mental health resource categories (Stress, Anxiety, Sleep, etc.)"""
+    queryset = ResourceCategory.objects.all()
+    serializer_class = ResourceCategorySerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'description']
+    ordering_fields = ['name', 'created_at']
