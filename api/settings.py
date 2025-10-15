@@ -197,7 +197,7 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 EMAIL_SUBJECT_PREFIX = '[Obeeoma] '
-EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '10 minutes'))  
+EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '10'))  # seconds
 
 
 # Safety Checks
