@@ -709,3 +709,5 @@ class InvitationAcceptView(viewsets.ViewSet):
         user = serializer.save()
         refresh = RefreshToken.for_user(user)
         return Response({'message': 'Account created successfully', 'access': str(refresh.access_token), 'refresh': str(refresh)}, status=status.HTTP_201_CREATED)
+
+
