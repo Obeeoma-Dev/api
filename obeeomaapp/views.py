@@ -17,6 +17,8 @@ from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 import secrets
+from rest_framework import filters
+
 import string
 from django.template.loader import render_to_string
 from django.core.mail import EmailMultiAlternatives
@@ -184,7 +186,7 @@ Obeeoma Team
 # Confirm Password Reset View
 class PasswordResetConfirmView(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
-    serializer_class = PasswordResetConfirmSerializer
+    serializer_class = PasswordResetSerializer
 
     def create(self, request):
         serializer = self.serializer_class(data=request.data)
