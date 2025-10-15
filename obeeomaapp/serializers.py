@@ -6,14 +6,8 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
-from obeeomaapp.models import (
-    User, Employer, Employee, AIManagement, HotlineActivity, EmployeeEngagement,
-    Subscription, RecentActivity, SelfAssessment, MoodCheckIn, SelfHelpResource, ChatbotInteraction,
-    UserBadge, EngagementStreak, EmployeeProfile, AvatarProfile, WellnessHub,
-    AssessmentResult, EducationalResource, CrisisTrigger, Notification, EngagementTracker,
-    Feedback, ChatSession, ChatMessage, RecommendationLog, MentalHealthAssessment, EmployeeInvitation
-    )
-
+from obeeomaapp.models import *
+from .models import (ResourceCategory)
 User = get_user_model()
 
 # signup serializer
@@ -90,19 +84,6 @@ class LogoutSerializer(serializers.Serializer):
 
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
-
-    def create(self, validated_data):
-        return validated_data
-
-class PasswordResetConfirmSerializer(serializers.Serializer):
-    code = serializers.CharField(max_length=6, min_length=6)
-    new_password = serializers.CharField(write_only=True, validators=[validate_password])
-    confirm_password = serializers.CharField(write_only=True)
-
-    def validate(self, attrs):
-        if attrs['new_password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
-        return attrs
 
     def create(self, validated_data):
         return validated_data
@@ -448,3 +429,25 @@ class MentalHealthAssessmentListSerializer(serializers.ModelSerializer):
             'gad7_severity', 'phq9_severity', 'assessment_date'
         ]
 
+class ResourceCategorySerializer(serializers.ModelSerializer):
+    total_videos = serializers.SerializerMethodField()
+    total_audios = serializers.SerializerMethodField()
+    total_articles = serializers.SerializerMethodField()
+    total_meditations = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ResourceCategory
+        fields = ['id', 'name', 'description', 'icon', 'color_code', 'total_videos', 
+                  'total_audios', 'total_articles', 'total_meditations', 'created_at']
+    
+    def get_total_videos(self, obj):
+        return obj.educational_videos.filter(is_active=True).count()
+    
+    def get_total_audios(self, obj):
+        return obj.calming_audios.filter(is_active=True).count()
+    
+    def get_total_articles(self, obj):
+        return obj.articles.filter(is_published=True).count()
+    
+    def get_total_meditations(self, obj):
+        return obj.guided_meditations.filter(is_active=True).count()
