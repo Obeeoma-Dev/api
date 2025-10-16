@@ -18,13 +18,12 @@ from django.utils import timezone
 from datetime import timedelta
 import secrets
 from rest_framework import filters
-
 import string
 from django.template.loader import render_to_string
 from django.core.mail import EmailMultiAlternatives
 import logging
-from .serializers import (ResourceCategorySerializer)
-from .models import (ResourceCategory)
+
+
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 
 
