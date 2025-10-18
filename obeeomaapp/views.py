@@ -1,5 +1,5 @@
 from django.http import JsonResponse
-from django.db.models import Avg, Count
+from django.db.models import Avg, Count, Sum
 from rest_framework.decorators import action
 from .serializers import LogoutSerializer
 from drf_spectacular.utils import extend_schema
@@ -706,3 +706,600 @@ class ResourceCategoryViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
+
+
+# New Dashboard Views
+
+class OrganizationOverviewView(viewsets.ViewSet):
+    """Organization overview dashboard data"""
+    permission_classes = [IsCompanyAdmin]
+    
+    def list(self, request):
+        # Get total employees
+        total_employees = Employee.objects.count()
+        
+        # Get total tests
+        total_tests = WellnessTest.objects.count()
+        
+        # Get average score
+        avg_score = WellnessTest.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
+        
+        # Get at-risk departments
+        at_risk_departments = Department.objects.filter(at_risk=True).count()
+        
+        # Get recent activities
+        recent_activities = OrganizationActivity.objects.select_related('employer', 'department', 'employee').order_by('-created_at')[:10]
+        
+        data = {
+            'total_employees': total_employees,
+            'total_tests': total_tests,
+            'average_score': round(avg_score, 2),
+            'at_risk_departments': at_risk_departments,
+            'recent_activities': OrganizationActivitySerializer(recent_activities, many=True).data
+        }
+        
+        return Response(data)
+
+
+class EmployeeManagementView(viewsets.ModelViewSet):
+    """Employee management with search and filtering"""
+    queryset = Employee.objects.select_related('employer', 'department').all()
+    serializer_class = EmployeeManagementSerializer
+    permission_classes = [IsCompanyAdmin]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'email', 'department__name']
+    ordering_fields = ['name', 'email', 'joined_date', 'status']
+    ordering = ['-joined_date']
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        department = self.request.query_params.get('department', None)
+        status = self.request.query_params.get('status', None)
+        
+        if department:
+            queryset = queryset.filter(department__name__icontains=department)
+        if status:
+            queryset = queryset.filter(status=status)
+            
+        return queryset
+
+
+class DepartmentManagementView(viewsets.ModelViewSet):
+    """Department management"""
+    queryset = Department.objects.select_related('employer').all()
+    serializer_class = DepartmentSerializer
+    permission_classes = [IsCompanyAdmin]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name']
+    ordering_fields = ['name', 'created_at']
+    ordering = ['name']
+
+
+class SubscriptionManagementView(viewsets.ModelViewSet):
+    """Subscription management"""
+    queryset = Subscription.objects.select_related('employer', 'plan_details', 'payment_method').all()
+    serializer_class = SubscriptionManagementSerializer
+    permission_classes = [IsCompanyAdmin]
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['start_date', 'amount']
+    ordering = ['-start_date']
+    
+    @action(detail=False, methods=['get'])
+    def current_subscription(self, request):
+        """Get current active subscription"""
+        subscription = self.get_queryset().filter(is_active=True).first()
+        if subscription:
+            return Response(SubscriptionManagementSerializer(subscription).data)
+        return Response({'message': 'No active subscription found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['get'])
+    def available_plans(self, request):
+        """Get available subscription plans"""
+        plans = SubscriptionPlan.objects.filter(is_active=True)
+        return Response(SubscriptionPlanSerializer(plans, many=True).data)
+    
+    @action(detail=False, methods=['get'])
+    def billing_history(self, request):
+        """Get billing history"""
+        billing_history = BillingHistory.objects.select_related('employer').order_by('-billing_date')[:10]
+        return Response(BillingHistorySerializer(billing_history, many=True).data)
+
+
+class WellnessReportsView(viewsets.ViewSet):
+    """Wellness reports and analytics"""
+    permission_classes = [IsCompanyAdmin]
+    
+    def list(self, request):
+        # Get common issues count
+        common_issues = CommonIssue.objects.count()
+        
+        # Get resource engagement count
+        resource_engagement = ResourceEngagement.objects.filter(completed=True).count()
+        
+        # Get average wellbeing trend
+        avg_wellbeing = WellnessTest.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
+        
+        # Get at-risk count
+        at_risk = Department.objects.filter(at_risk=True).count()
+        
+        # Get chat engagement data
+        chat_engagement = ChatEngagement.objects.all()[:5]
+        
+        # Get department contributions
+        department_contributions = DepartmentContribution.objects.select_related('department').all()[:4]
+        
+        # Get recent activities
+        recent_activities = OrganizationActivity.objects.select_related('employer', 'department', 'employee').order_by('-created_at')[:3]
+        
+        data = {
+            'common_issues': common_issues,
+            'resource_engagement': resource_engagement,
+            'average_wellbeing_trend': round(avg_wellbeing, 2),
+            'at_risk': at_risk,
+            'chat_engagement': ChatEngagementSerializer(chat_engagement, many=True).data,
+            'department_contributions': DepartmentContributionSerializer(department_contributions, many=True).data,
+            'recent_activities': OrganizationActivitySerializer(recent_activities, many=True).data
+        }
+        
+        return Response(data)
+
+
+class OrganizationSettingsView(viewsets.ModelViewSet):
+    """Organization settings management"""
+    queryset = OrganizationSettings.objects.select_related('employer').all()
+    serializer_class = OrganizationSettingsSerializer
+    permission_classes = [IsCompanyAdmin]
+    
+    def get_queryset(self):
+        return OrganizationSettings.objects.filter(employer__user=self.request.user)
+    
+    def perform_create(self, serializer):
+        # Get or create employer for the current user
+        employer, created = Employer.objects.get_or_create(
+            name=f"{self.request.user.username}'s Organization"
+        )
+        serializer.save(employer=employer)
+
+
+class TestsByTypeView(viewsets.ViewSet):
+    """Tests by type analytics"""
+    permission_classes = [IsCompanyAdmin]
+    
+    def list(self, request):
+        from django.db.models import Count
+        
+        tests_by_type = WellnessTest.objects.values('test_type').annotate(
+            count=Count('id')
+        ).order_by('-count')
+        
+        return Response(list(tests_by_type))
+
+
+class TestsByDepartmentView(viewsets.ViewSet):
+    """Tests by department analytics"""
+    permission_classes = [IsCompanyAdmin]
+    
+    def list(self, request):
+        from django.db.models import Count
+        
+        tests_by_department = WellnessTest.objects.values(
+            'department__name'
+        ).annotate(
+            count=Count('id')
+        ).order_by('-count')
+        
+        return Response(list(tests_by_department))
+
+
+# System Admin Views
+
+class SystemAdminOverviewView(viewsets.ViewSet):
+    """System Admin dashboard overview"""
+    permission_classes = [IsCompanyAdmin]
+    
+    def list(self, request):
+        # Get platform metrics
+        try:
+            latest_metrics = PlatformMetrics.objects.first()
+            if not latest_metrics:
+                # Create default metrics if none exist
+                latest_metrics = PlatformMetrics.objects.create(
+                    total_organizations=Employer.objects.count(),
+                    total_clients=Employee.objects.count(),
+                    monthly_revenue=0.00,
+                    hotline_calls_today=0
+                )
+        except Exception:
+            # Fallback if PlatformMetrics doesn't exist yet
+            latest_metrics = type('obj', (object,), {
+                'total_organizations': Employer.objects.count(),
+                'total_clients': Employee.objects.count(),
+                'monthly_revenue': 0.00,
+                'hotline_calls_today': 0,
+                'organizations_this_month': 0,
+                'clients_this_month': 0,
+                'revenue_growth_percentage': 0.00,
+                'hotline_growth_percentage': 0.00
+            })()
+        
+        # Get platform usage data
+        try:
+            platform_usage = PlatformUsage.objects.all()[:6]
+        except Exception:
+            platform_usage = []
+        
+        # Get subscription revenue data
+        try:
+            subscription_revenue = SubscriptionRevenue.objects.all()[:9]
+        except Exception:
+            subscription_revenue = []
+        
+        # Get recent system activities
+        try:
+            recent_activities = SystemActivity.objects.select_related('organization').order_by('-created_at')[:5]
+        except Exception:
+            recent_activities = []
+        
+        data = {
+            'total_organizations': latest_metrics.total_organizations,
+            'total_clients': latest_metrics.total_clients,
+            'monthly_revenue': latest_metrics.monthly_revenue,
+            'hotline_calls_today': latest_metrics.hotline_calls_today,
+            'organizations_this_month': latest_metrics.organizations_this_month,
+            'clients_this_month': latest_metrics.clients_this_month,
+            'revenue_growth_percentage': latest_metrics.revenue_growth_percentage,
+            'hotline_growth_percentage': latest_metrics.hotline_growth_percentage,
+            'platform_usage': PlatformUsageSerializer(platform_usage, many=True).data,
+            'subscription_revenue': SubscriptionRevenueSerializer(subscription_revenue, many=True).data,
+            'recent_activities': SystemActivitySerializer(recent_activities, many=True).data
+        }
+        
+        return Response(data)
+
+
+class OrganizationsManagementView(viewsets.ModelViewSet):
+    """Organizations management for system admin"""
+    queryset = Employer.objects.all()
+    serializer_class = OrganizationsManagementSerializer
+    permission_classes = [IsCompanyAdmin]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name']
+    ordering_fields = ['name', 'joined_date']
+    ordering = ['-joined_date']
+    
+    @action(detail=False, methods=['get'])
+    def growth_chart(self, request):
+        """Get organization growth chart data"""
+        from django.db.models import Count
+        from datetime import datetime, timedelta
+        
+        # Get last 9 months of data
+        months = []
+        for i in range(9):
+            date = datetime.now() - timedelta(days=30*i)
+            months.append(date.strftime('%b'))
+        
+        # Get organization counts by month
+        growth_data = []
+        for i in range(9):
+            date = datetime.now() - timedelta(days=30*i)
+            count = Employer.objects.filter(joined_date__lte=date).count()
+            growth_data.append(count)
+        
+        return Response({
+            'months': list(reversed(months)),
+            'counts': list(reversed(growth_data))
+        })
+    
+    @action(detail=False, methods=['get'])
+    def client_distribution(self, request):
+        """Get client distribution by organization"""
+        from django.db.models import Count
+        
+        distribution = Employer.objects.annotate(
+            client_count=Count('employees')
+        ).values('name', 'client_count').order_by('-client_count')[:6]
+        
+        return Response(list(distribution))
+
+
+class HotlineActivityView(viewsets.ViewSet):
+    """Hotline activity management for system admin"""
+    permission_classes = [IsCompanyAdmin]
+    
+    def list(self, request):
+        # Get today's calls
+        try:
+            today_calls = HotlineCall.objects.filter(call_date__date=timezone.now().date()).count()
+        except Exception:
+            today_calls = 0
+        
+        # Get average duration
+        try:
+            avg_duration = HotlineCall.objects.aggregate(
+                avg_duration=Avg('duration_minutes')
+            )['avg_duration'] or 0
+        except Exception:
+            avg_duration = 0
+        
+        # Get active operators (mock data for now)
+        active_operators = 8
+        
+        # Get hourly volume data (mock data)
+        hourly_volume = [2, 4, 6, 8, 12, 15, 18, 20, 16, 14, 10, 8, 6, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7]
+        
+        # Get call reasons distribution
+        try:
+            from django.db.models import Count
+            call_reasons = HotlineCall.objects.values('reason').annotate(
+                count=Count('id')
+            ).order_by('-count')
+        except Exception:
+            call_reasons = []
+        
+        # Get recent calls
+        try:
+            recent_calls = HotlineCall.objects.select_related('organization').order_by('-call_date')[:10]
+        except Exception:
+            recent_calls = []
+        
+        # Get critical cases
+        try:
+            critical_cases = HotlineCall.objects.filter(
+                urgency='critical'
+            ).select_related('organization').order_by('-call_date')[:5]
+        except Exception:
+            critical_cases = []
+        
+        # Get operator performance (mock data)
+        operator_performance = [
+            {'name': 'John Smith', 'calls': 12, 'resolution_rate': 92},
+            {'name': 'Emily Johnson', 'calls': 9, 'resolution_rate': 88},
+            {'name': 'Michael Brown', 'calls': 10, 'resolution_rate': 85},
+            {'name': 'Sarah Davis', 'calls': 11, 'resolution_rate': 90}
+        ]
+        
+        data = {
+            'today_calls': today_calls,
+            'average_duration': f"{int(avg_duration//60):02d}:{int(avg_duration%60):02d}",
+            'active_operators': active_operators,
+            'hourly_volume': hourly_volume,
+            'call_reasons': list(call_reasons),
+            'recent_calls': HotlineCallSerializer(recent_calls, many=True).data,
+            'critical_cases': HotlineCallSerializer(critical_cases, many=True).data,
+            'operator_performance': operator_performance
+        }
+        
+        return Response(data)
+
+
+class AIManagementView(viewsets.ViewSet):
+    """AI Management dashboard for system admin"""
+    permission_classes = [IsCompanyAdmin]
+    
+    def list(self, request):
+        # Get total recommendations
+        try:
+            total_recommendations = AIResource.objects.aggregate(
+                total=Sum('recommended_count')
+            )['total'] or 0
+        except Exception:
+            total_recommendations = 0
+        
+        # Get average engagement rate
+        try:
+            avg_engagement = AIResource.objects.aggregate(
+                avg_rate=Avg('engagement_rate')
+            )['avg_rate'] or 0
+        except Exception:
+            avg_engagement = 0
+        
+        # Get AI accuracy score
+        try:
+            ai_accuracy = AIResource.objects.aggregate(
+                avg_accuracy=Avg('effectiveness_score')
+            )['avg_accuracy'] or 0
+        except Exception:
+            ai_accuracy = 0
+        
+        # Get effectiveness by resource type
+        try:
+            effectiveness_by_type = AIResource.objects.values('resource_type').annotate(
+                avg_effectiveness=Avg('effectiveness_score')
+            ).order_by('-avg_effectiveness')
+        except Exception:
+            effectiveness_by_type = []
+        
+        # Get weekly recommendations (mock data)
+        weekly_recommendations = [120, 130, 120, 140, 145, 135]
+        
+        # Get resources
+        try:
+            resources = AIResource.objects.all()[:10]
+        except Exception:
+            resources = []
+        
+        # Get top anxiety triggers (mock data)
+        top_anxiety_triggers = [
+            {'trigger': 'Work-related stress', 'percentage': 78},
+            {'trigger': 'Social situations', 'percentage': 65},
+            {'trigger': 'Health concerns', 'percentage': 58},
+            {'trigger': 'Financial pressure', 'percentage': 52},
+            {'trigger': 'Family relationships', 'percentage': 46}
+        ]
+        
+        data = {
+            'total_recommendations': total_recommendations,
+            'average_engagement_rate': round(avg_engagement, 2),
+            'ai_accuracy_score': round(ai_accuracy, 2),
+            'effectiveness_by_type': list(effectiveness_by_type),
+            'weekly_recommendations': weekly_recommendations,
+            'resources': AIResourceSerializer(resources, many=True).data,
+            'top_anxiety_triggers': top_anxiety_triggers
+        }
+        
+        return Response(data)
+
+
+class ClientEngagementView(viewsets.ViewSet):
+    """Client engagement and rewards dashboard"""
+    permission_classes = [IsCompanyAdmin]
+    
+    def list(self, request):
+        # Get average daily engagement
+        try:
+            avg_engagement = ClientEngagement.objects.aggregate(
+                avg_engagement=Avg('engagement_rate')
+            )['avg_engagement'] or 0
+        except Exception:
+            avg_engagement = 0
+        
+        # Get active reward programs
+        try:
+            active_rewards = RewardProgram.objects.filter(is_active=True).count()
+        except Exception:
+            active_rewards = 0
+        
+        # Get total points awarded
+        try:
+            total_points = ClientEngagement.objects.aggregate(
+                total_points=Sum('total_points')
+            )['total_points'] or 0
+        except Exception:
+            total_points = 0
+        
+        # Get weekly engagement data (mock data)
+        weekly_engagement = [65, 70, 68, 75, 80, 85, 78]
+        
+        # Get reward redemptions (mock data)
+        reward_redemptions = [25, 30, 35, 40, 45, 40]
+        
+        # Get clients
+        try:
+            clients = ClientEngagement.objects.select_related('organization').all()[:10]
+        except Exception:
+            clients = []
+        
+        # Get top rewards
+        try:
+            top_rewards = RewardProgram.objects.filter(is_active=True).order_by('-redemption_count')[:3]
+        except Exception:
+            top_rewards = []
+        
+        # Get engagement trends (mock data)
+        engagement_trends = [
+            {'trend': 'Morning Sessions', 'percentage': 68},
+            {'trend': 'Evening Sessions', 'percentage': 42},
+            {'trend': 'Weekend Activity', 'percentage': 55}
+        ]
+        
+        # Get streak statistics
+        streak_stats = [
+            {'streak': '7+ Day Streak', 'active_users': 324},
+            {'streak': '14+ Day Streak', 'active_users': 186},
+            {'streak': '30+ Day Streak', 'active_users': 78}
+        ]
+        
+        data = {
+            'average_daily_engagement': round(avg_engagement, 2),
+            'active_reward_programs': active_rewards,
+            'total_points_awarded': total_points,
+            'weekly_engagement': weekly_engagement,
+            'reward_redemptions': reward_redemptions,
+            'clients': ClientEngagementSerializer(clients, many=True).data,
+            'top_rewards': RewardProgramSerializer(top_rewards, many=True).data,
+            'engagement_trends': engagement_trends,
+            'streak_statistics': streak_stats
+        }
+        
+        return Response(data)
+
+
+class ReportsAnalyticsView(viewsets.ViewSet):
+    """Reports and analytics for system admin"""
+    permission_classes = [IsCompanyAdmin]
+    
+    def list(self, request):
+        # Get platform usage chart data (mock data)
+        platform_usage_chart = [60, 70, 80, 90, 100, 110, 120, 130, 140]
+        
+        # Get health conditions distribution (mock data)
+        health_conditions = [
+            {'condition': 'Anxiety', 'percentage': 33},
+            {'condition': 'Depression', 'percentage': 28},
+            {'condition': 'PTSD', 'percentage': 12},
+            {'condition': 'Bipolar', 'percentage': 8},
+            {'condition': 'ADHD', 'percentage': 6},
+            {'condition': 'OCD', 'percentage': 5},
+            {'condition': 'Other', 'percentage': 5}
+        ]
+        
+        # Get available reports
+        try:
+            available_reports = Report.objects.filter(is_active=True).order_by('-generated_date')[:5]
+        except Exception:
+            available_reports = []
+        
+        # Get custom report options
+        custom_report_types = [
+            'Platform Usage',
+            'Health Conditions',
+            'Treatment Outcomes',
+            'Organization Performance'
+        ]
+        
+        date_ranges = [
+            'Last 7 Days',
+            'Last 30 Days',
+            'Last 3 Months',
+            'Last 6 Months',
+            'Last Year'
+        ]
+        
+        formats = ['PDF', 'Excel', 'CSV']
+        
+        data = {
+            'platform_usage_chart': platform_usage_chart,
+            'health_conditions_distribution': health_conditions,
+            'available_reports': ReportSerializer(available_reports, many=True).data,
+            'custom_report_types': custom_report_types,
+            'date_ranges': date_ranges,
+            'formats': formats
+        }
+        
+        return Response(data)
+
+
+class SystemSettingsView(viewsets.ModelViewSet):
+    """System settings management"""
+    queryset = SystemSettings.objects.all()
+    serializer_class = SystemSettingsSerializer
+    permission_classes = [IsCompanyAdmin]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['setting_name']
+    ordering_fields = ['setting_name', 'updated_at']
+    ordering = ['setting_name']
+
+
+class FeatureFlagsView(viewsets.ModelViewSet):
+    """Feature flags management"""
+    queryset = FeatureFlag.objects.all()
+    serializer_class = FeatureFlagSerializer
+    permission_classes = [IsCompanyAdmin]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'description']
+    ordering_fields = ['name', 'category', 'is_enabled']
+    ordering = ['category', 'name']
+    
+    @action(detail=False, methods=['get'])
+    def by_category(self, request):
+        """Get feature flags grouped by category"""
+        from django.db.models import Count
+        from django.db import models
+        
+        categories = FeatureFlag.objects.values('category').annotate(
+            count=Count('id'),
+            enabled_count=Count('id', filter=models.Q(is_enabled=True))
+        ).order_by('category')
+        
+        return Response(list(categories))
