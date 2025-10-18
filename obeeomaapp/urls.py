@@ -30,6 +30,26 @@ router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'resource-categories', ResourceCategoryViewSet, basename='resource-category')
 
+# Dashboard routers (Employer Dashboard)
+router.register(r'dashboard/organization-overview', OrganizationOverviewView, basename='organization-overview')
+router.register(r'dashboard/employees', EmployeeManagementView, basename='employee-management')
+router.register(r'dashboard/departments', DepartmentManagementView, basename='department-management')
+router.register(r'dashboard/subscriptions', SubscriptionManagementView, basename='subscription-management')
+router.register(r'dashboard/wellness-reports', WellnessReportsView, basename='wellness-reports')
+router.register(r'dashboard/settings', OrganizationSettingsView, basename='organization-settings')
+router.register(r'dashboard/tests-by-type', TestsByTypeView, basename='tests-by-type')
+router.register(r'dashboard/tests-by-department', TestsByDepartmentView, basename='tests-by-department')
+
+# System Admin routers
+router.register(r'admin/overview', SystemAdminOverviewView, basename='system-admin-overview')
+router.register(r'admin/organizations', OrganizationsManagementView, basename='organizations-management')
+router.register(r'admin/hotline-activity', HotlineActivityView, basename='hotline-activity')
+router.register(r'admin/ai-management', AIManagementView, basename='ai-management')
+router.register(r'admin/client-engagement', ClientEngagementView, basename='client-engagement')
+router.register(r'admin/reports-analytics', ReportsAnalyticsView, basename='reports-analytics')
+router.register(r'admin/system-settings', SystemSettingsView, basename='system-settings')
+router.register(r'admin/feature-flags', FeatureFlagsView, basename='feature-flags')
+
 urlpatterns = [
     # Home
     path("", home, name="home"),
@@ -49,12 +69,22 @@ urlpatterns = [
     path("dashboard/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),
     path("dashboard/trends/", TrendsView.as_view({'get': 'list'}), name="trends"),
     path("dashboard/employee-engagement/", EmployeeEngagementView.as_view({'get': 'list', 'post': 'create'}), name="employee-engagement"),
-    path("dashboard/features-usage/", FeaturesUsageView.as_view({'get': 'list', 'post': 'create'}), name="features-usage"),
-    path("dashboard/billing/", BillingView.as_view({'get': 'list', 'post': 'create'}), name="billing"),
+    path("dashboard/features-usage/", FeaturesUsageView.as_view({'get': 'list', }), name="features-usage"),
+    path("dashboard/billing/", BillingView.as_view({'get': 'list', 'post': 'create', }), name="billing"),
     path("dashboard/invites/", InviteView.as_view({'get': 'list', 'post': 'create'}), name="invites"),
     path("dashboard/users/", UsersView.as_view({'get': 'list', 'post': 'create'}), name="users"),
     path("dashboard/reports/", ReportsView.as_view({'get': 'list'}), name="reports"),
     path("dashboard/crisis-insights/", CrisisInsightsView.as_view({'get': 'list'}), name="crisis-insights"),
+    
+    # New Dashboard Endpoints
+    path("dashboard/subscriptions/current/", SubscriptionManagementView.as_view({'get': 'current_subscription'}), name="current-subscription"),
+    path("dashboard/subscriptions/plans/", SubscriptionManagementView.as_view({'get': 'available_plans'}), name="available-plans"),
+    path("dashboard/subscriptions/billing-history/", SubscriptionManagementView.as_view({'get': 'billing_history'}), name="billing-history"),
+    
+    # System Admin Endpoints
+    path("admin/organizations/growth-chart/", OrganizationsManagementView.as_view({'get': 'growth_chart'}), name="organizations-growth-chart"),
+    path("admin/organizations/client-distribution/", OrganizationsManagementView.as_view({'get': 'client_distribution'}), name="organizations-client-distribution"),
+    path("admin/feature-flags/by-category/", FeatureFlagsView.as_view({'get': 'by_category'}), name="feature-flags-by-category"),
 
     # Employee endpoints
     path('employee/profile/', EmployeeProfileView.as_view({'get': 'list', 'post': 'create'}), name='employee-profile'),
