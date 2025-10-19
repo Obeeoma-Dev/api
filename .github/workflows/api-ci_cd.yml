@@ -72,5 +72,5 @@ jobs:
           curl -X POST \
             -H "Authorization: Bearer $RENDER_API_KEY" \
             -H "Content-Type: application/json" \
-            -d '{"serviceId":"service-xxxx","branch":"main"}' \
-            https://api.render.com/v1/services/service-xxxx/deploys
+            -d '{"serviceId":"${{ secrets.RENDER_SERVICE_ID }}","branch":"main"}' \
+            https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys
