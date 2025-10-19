@@ -75,7 +75,6 @@ urlpatterns = [
     path("dashboard/users/", UsersView.as_view({'get': 'list', 'post': 'create'}), name="users"),
     path("dashboard/reports/", ReportsView.as_view({'get': 'list'}), name="reports"),
     path("dashboard/crisis-insights/", CrisisInsightsView.as_view({'get': 'list'}), name="crisis-insights"),
-    
     # New Dashboard Endpoints
     path("dashboard/subscriptions/current/", SubscriptionManagementView.as_view({'get': 'current_subscription'}), name="current-subscription"),
     path("dashboard/subscriptions/plans/", SubscriptionManagementView.as_view({'get': 'available_plans'}), name="available-plans"),
