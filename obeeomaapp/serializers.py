@@ -135,7 +135,7 @@ class EmployeeEngagementSerializer(serializers.ModelSerializer):
         model = EmployeeEngagement
         fields = ['id', 'employer', 'engagement_rate', 'month', 'notes']
 
-
+# subcription serializer
 class SubscriptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subscription
@@ -489,7 +489,7 @@ class BillingHistorySerializer(serializers.ModelSerializer):
         model = BillingHistory
         fields = ['id', 'employer', 'employer_name', 'invoice_number', 'amount', 'plan_name', 'billing_date', 'status', 'created_at']
 
-
+# --- Payment Method Serializer ---
 class PaymentMethodSerializer(serializers.ModelSerializer):
     class Meta:
         model = PaymentMethod
@@ -565,7 +565,7 @@ class EmployeeManagementSerializer(serializers.ModelSerializer):
         model = Employee
         fields = ['id', 'name', 'email', 'department', 'department_name', 'status', 'status_display', 'joined_date', 'avatar']
 
-
+# subscription Management Serializer
 class SubscriptionManagementSerializer(serializers.ModelSerializer):
     plan_details = SubscriptionPlanSerializer(read_only=True)
     payment_method = PaymentMethodSerializer(read_only=True)
@@ -599,7 +599,7 @@ class PlatformUsageSerializer(serializers.ModelSerializer):
         model = PlatformUsage
         fields = '__all__'
 
-
+# subscription Revenue Serializer
 class SubscriptionRevenueSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubscriptionRevenue
