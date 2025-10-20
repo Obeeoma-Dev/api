@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
-from .models import (ResourceCategory)
+from .models import (ResourceCategory, EducationalVideo, UserVideoInteraction,)
 User = get_user_model()
 
 # signup serializer
@@ -659,10 +659,10 @@ class RewardProgramSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class FeatureFlagSerializer(serializers.ModelSerializer):
+"""class FeatureFlagSerializer(serializers.ModelSerializer):
     class Meta:
         model = FeatureFlag
-        fields = '__all__'
+        fields = '__all__'  """
 
 
 class SystemSettingsSerializer(serializers.ModelSerializer):
