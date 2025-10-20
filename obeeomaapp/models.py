@@ -509,5 +509,24 @@ class ResourceCategory(models.Model):
         return f"{self.icon} {self.name}" if self.icon else self.name
 
 
-
+class EducationalVideo(models.Model):
+    """Educational videos about mental health topics"""
+    title = models.CharField(max_length=200, help_text="Video title")
+    description = models.TextField(help_text="What viewers will learn from this video")
+    youtube_url = models.URLField(help_text="YouTube video URL")
+    thumbnail = models.URLField(blank=True, null=True)
+    resource_category = models.ForeignKey(ResourceCategory, on_delete=models.CASCADE, related_name='educational_videos')
+    duration = models.CharField(max_length=20, blank=True, help_text="e.g., 10:30")
+    views_count = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Educational Video"
+        verbose_name_plural = "Educational Videos"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return self.title
 
