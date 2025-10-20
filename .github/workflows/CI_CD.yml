@@ -29,14 +29,14 @@ jobs:
 
     - name: Lint with flake8
       run: |
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistic
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
     - name: Run Django Tests
       env:
         DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY_CI }}
         DEBUG: True
-        DATABASE_URL: ep-delicate-wildflower-a1mikrhi-pooler.ap-southeast-1.aws.neon.tech
+        DATABASE_URL: ${{ secrets.DATABASE_URL_CI }}
       run: |
         python manage.py test
 
