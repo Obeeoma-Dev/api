@@ -756,3 +756,118 @@ class ReportsAnalyticsSerializer(serializers.Serializer):
     custom_report_types = serializers.ListField()
     date_ranges = serializers.ListField()
     formats = serializers.ListField()
+
+
+    # serializers.py
+from rest_framework import serializers
+from .models import EducationalVideo, UserVideoInteraction, ResourceCategory
+
+class ResourceCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ResourceCategory
+        fields = ['id', 'name', 'description', 'icon']
+
+class EducationalVideoSerializer(serializers.ModelSerializer):
+    resource_category_name = serializers.CharField(source='resource_category.name', read_only=True)
+    is_saved = serializers.SerializerMethodField()
+    is_helpful_marked = serializers.SerializerMethodField()
+    youtube_embed_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = EducationalVideo
+        fields = [
+            'id', 'title', 'description', 'youtube_url', 'youtube_embed_url',
+            'thumbnail', 'resource_category', 'resource_category_name',
+            'duration', 'views_count', 'helpful_count', 'saved_count',
+            'target_mood', 'intensity_level', 'crisis_support_text',
+            'is_professionally_reviewed', 'reviewed_by', 'review_date',
+            'is_active', 'created_at', 'updated_at',
+            'is_saved', 'is_helpful_marked'
+        ]
+        read_only_fields = [
+            'views_count', 'helpful_count', 'saved_count', 'created_at', 'updated_at'
+        ]
+    
+    def get_is_saved(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return UserVideoInteraction.objects.filter(
+                user=request.user,
+                video=obj,
+                saved_for_later=True
+            ).exists()
+        return False
+    
+    def get_is_helpful_marked(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return UserVideoInteraction.objects.filter(
+                user=request.user,
+                video=obj,
+                marked_helpful=True
+            ).exists()
+        return False
+    
+    def get_youtube_embed_url(self, obj):
+        """Convert YouTube URL to embed URL"""
+        if 'youtube.com' in obj.youtube_url:
+            video_id = obj.youtube_url.split('v=')[1]
+            return f'https://www.youtube.com/embed/{video_id}'
+        elif 'youtu.be' in obj.youtube_url:
+            video_id = obj.youtube_url.split('/')[-1]
+            return f'https://www.youtube.com/embed/{video_id}'
+        return obj.youtube_url
+    
+    def validate_youtube_url(self, value):
+        """Validate that the URL is a valid YouTube URL"""
+        if 'youtube.com' not in value and 'youtu.be' not in value:
+            raise serializers.ValidationError("Please provide a valid YouTube URL")
+        return value
+    
+    def validate(self, data):
+        """Additional validation for mental health content"""
+        if data.get('crisis_support_text') and data.get('intensity_level', 1) != 1:
+            raise serializers.ValidationError(
+                "Crisis support videos should have gentle intensity level (1)"
+            )
+        return data
+
+class UserVideoInteractionSerializer(serializers.ModelSerializer):
+    video_title = serializers.CharField(source='video.title', read_only=True)
+    video_target_mood = serializers.CharField(source='video.target_mood', read_only=True)
+    video_thumbnail = serializers.URLField(source='video.thumbnail', read_only=True)
+    video_duration = serializers.CharField(source='video.duration', read_only=True)
+    
+    class Meta:
+        model = UserVideoInteraction
+        fields = [
+            'id', 'video', 'video_title', 'video_target_mood', 'video_thumbnail', 'video_duration',
+            'mood_before', 'mood_after', 'watched_full_video', 'marked_helpful',
+            'saved_for_later', 'watched_at'
+        ]
+        read_only_fields = ['user', 'watched_at']
+    
+    def validate(self, data):
+        """Validate mood tracking"""
+        mood_before = data.get('mood_before')
+        mood_after = data.get('mood_after')
+        
+        if mood_before and mood_after:
+            if int(mood_after) < int(mood_before):
+                # This is okay - sometimes people feel worse, but we might want to flag for support
+                pass
+        
+        return data
+
+class VideoRecommendationSerializer(serializers.ModelSerializer):
+    resource_category_name = serializers.CharField(source='resource_category.name', read_only=True)
+    mood_display = serializers.CharField(source='get_target_mood_display', read_only=True)
+    intensity_display = serializers.CharField(source='get_intensity_level_display', read_only=True)
+    
+    class Meta:
+        model = EducationalVideo
+        fields = [
+            'id', 'title', 'description', 'thumbnail', 'duration',
+            'views_count', 'helpful_count', 'resource_category_name',
+            'target_mood', 'mood_display', 'intensity_level', 'intensity_display'
+        ]
