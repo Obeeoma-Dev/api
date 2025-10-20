@@ -1,4 +1,3 @@
-
 # serializers.py
 from rest_framework.exceptions import AuthenticationFailed
 
@@ -41,7 +40,7 @@ class SignupSerializer(serializers.ModelSerializer):
 
 
 
-
+# Login Serializer
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
@@ -72,7 +71,8 @@ class LoginSerializer(serializers.Serializer):
     def create(self, validated_data):
         return validated_data
     
-    # Logout Serializer
+    
+# Logout Serializer
 class LogoutSerializer(serializers.Serializer):
      refresh = serializers.CharField()
 
