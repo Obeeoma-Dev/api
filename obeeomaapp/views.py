@@ -1298,3 +1298,60 @@ class SystemSettingsView(viewsets.ModelViewSet):
         ).order_by('category')
         
         return Response(list(categories))"""
+
+from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from .models import EducationalVideo, UserVideoInteraction, ResourceCategory
+from .serializers import (
+    EducationalVideoSerializer, 
+    UserVideoInteractionSerializer,
+    ResourceCategorySerializer
+)
+
+class EducationalVideoViewSet(viewsets.ModelViewSet):
+    queryset = EducationalVideo.objects.filter(is_active=True)
+    serializer_class = EducationalVideoSerializer
+    permission_classes = [AllowAny]
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated()]
+        return [AllowAny()]
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def mark_helpful(self, request, pk=None):
+        video = self.get_object()
+        video.helpful_count += 1
+        video.save()
+        return Response({'status': 'marked helpful', 'helpful_count': video.helpful_count})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def save_video(self, request, pk=None):
+        video = self.get_object()
+        video.saved_count += 1
+        video.save()
+        return Response({'status': 'video saved', 'saved_count': video.saved_count})
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.views_count += 1
+        instance.save()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+class UserVideoInteractionViewSet(viewsets.ModelViewSet):
+    serializer_class = UserVideoInteractionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return UserVideoInteraction.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = ResourceCategory.objects.all()
+    serializer_class = ResourceCategorySerializer
+    permission_classes = [AllowAny]
