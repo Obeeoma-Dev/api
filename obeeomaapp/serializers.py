@@ -659,10 +659,10 @@ class RewardProgramSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class FeatureFlagSerializer(serializers.ModelSerializer):
+"""class FeatureFlagSerializer(serializers.ModelSerializer):
     class Meta:
         model = FeatureFlag
-        fields = '__all__'
+        fields = '__all__'  """
 
 
 class SystemSettingsSerializer(serializers.ModelSerializer):
