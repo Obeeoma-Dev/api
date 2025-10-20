@@ -706,3 +706,100 @@ class ResourceCategoryViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
+
+    # views.py - SIMPLIFIED VERSION
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from django.shortcuts import get_object_or_404
+from django.db.models import Count
+from .models import EducationalVideo, UserVideoInteraction, ResourceCategory
+from .serializers import (
+    EducationalVideoSerializer, 
+    UserVideoInteractionSerializer,
+    ResourceCategorySerializer
+)
+
+class EducationalVideoViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing educational videos with mental health focus
+    """
+    queryset = EducationalVideo.objects.filter(is_active=True)
+    serializer_class = EducationalVideoSerializer
+    permission_classes = [AllowAny]  # Allow anyone to view videos
+
+    def get_permissions(self):
+        """
+        Allow anyone to view videos, but only authenticated users for certain actions
+        """
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated()]
+        return [AllowAny()]
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def mark_helpful(self, request, pk=None):
+        """Mark a video as helpful"""
+        video = self.get_object()
+        video.helpful_count += 1
+        video.save()
+        
+        interaction, created = UserVideoInteraction.objects.get_or_create(
+            user=request.user,
+            video=video
+        )
+        interaction.marked_helpful = True
+        interaction.save()
+        
+        return Response({
+            'status': 'marked helpful',
+            'helpful_count': video.helpful_count
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def save_video(self, request, pk=None):
+        """Save video to user's profile"""
+        video = self.get_object()
+        video.saved_count += 1
+        video.save()
+        
+        interaction, created = UserVideoInteraction.objects.get_or_create(
+            user=request.user,
+            video=video
+        )
+        interaction.saved_for_later = True
+        interaction.save()
+        
+        return Response({
+            'status': 'video saved',
+            'saved_count': video.saved_count
+        })
+
+    def retrieve(self, request, *args, **kwargs):
+        """Override retrieve to increment view count"""
+        instance = self.get_object()
+        instance.views_count += 1
+        instance.save()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+class UserVideoInteractionViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing user interactions with videos
+    """
+    serializer_class = UserVideoInteractionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return UserVideoInteraction.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing resource categories
+    """
+    queryset = ResourceCategory.objects.all()
+    serializer_class = ResourceCategorySerializer
+    permission_classes = [AllowAny]

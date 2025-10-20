@@ -508,16 +508,65 @@ class ResourceCategory(models.Model):
     def __str__(self):
         return f"{self.icon} {self.name}" if self.icon else self.name
 
-
 class EducationalVideo(models.Model):
     """Educational videos about mental health topics"""
+    
+    # Basic information
     title = models.CharField(max_length=200, help_text="Video title")
     description = models.TextField(help_text="What viewers will learn from this video")
     youtube_url = models.URLField(help_text="YouTube video URL")
     thumbnail = models.URLField(blank=True, null=True)
     resource_category = models.ForeignKey(ResourceCategory, on_delete=models.CASCADE, related_name='educational_videos')
     duration = models.CharField(max_length=20, blank=True, help_text="e.g., 10:30")
+    
+    # Mental health specific fields
+    MOOD_CHOICES = [
+        ('anxiety', 'Anxiety Relief'),
+        ('depression', 'Depression Support'),
+        ('stress', 'Stress Management'),
+        ('mindfulness', 'Mindfulness & Meditation'),
+        ('self_esteem', 'Self-Esteem Building'),
+        ('coping', 'Coping Skills'),
+        ('sleep', 'Sleep Improvement'),
+        ('anger', 'Anger Management'),
+        ('grief', 'Grief & Loss'),
+        ('general', 'General Wellness'),
+    ]
+    
+    INTENSITY_LEVEL = [
+        (1, 'Gentle - For difficult moments'),
+        (2, 'Moderate - Daily practice'),
+        (3, 'Deep - Intensive work'),
+    ]
+    
+    target_mood = models.CharField(
+        max_length=50, 
+        choices=MOOD_CHOICES,
+        help_text="What mental health challenge does this video address?"
+    )
+    
+    intensity_level = models.IntegerField(
+        choices=INTENSITY_LEVEL,
+        default=1,
+        help_text="How intense is this content?"
+    )
+    
+    # Emergency resources
+    crisis_support_text = models.TextField(
+        blank=True,
+        help_text="Crisis resources to show after video (hotlines, emergency contacts)"
+    )
+    
+    # Engagement tracking for mental health impact
     views_count = models.IntegerField(default=0)
+    helpful_count = models.IntegerField(default=0, help_text="Number of users who found this helpful")
+    saved_count = models.IntegerField(default=0, help_text="Number of users who saved this video")
+    
+    # Content quality assurance
+    is_professionally_reviewed = models.BooleanField(default=False)
+    reviewed_by = models.CharField(max_length=100, blank=True, help_text="Professional who reviewed this")
+    review_date = models.DateField(blank=True, null=True)
+    
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -526,7 +575,54 @@ class EducationalVideo(models.Model):
         verbose_name = "Educational Video"
         verbose_name_plural = "Educational Videos"
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['target_mood', 'intensity_level']),
+            models.Index(fields=['is_active', 'is_professionally_reviewed']),
+        ]
     
     def __str__(self):
         return self.title
+    
+    def get_absolute_url(self):
+        return reverse('video_detail', kwargs={'pk': self.pk})
+    
+    def mark_as_helpful(self):
+        """Increment helpful counter"""
+        self.helpful_count += 1
+        self.save()
+    
+    def save_to_user_profile(self, user):
+        """Method to save video to user's profile"""
+        # This would work with a UserVideoInteraction model
+        pass
 
+class UserVideoInteraction(models.Model):
+    """Track how users interact with mental health videos"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    video = models.ForeignKey(EducationalVideo, on_delete=models.CASCADE)
+    
+    MOOD_BEFORE = [
+        (1, 'Very distressed'),
+        (2, 'Somewhat distressed'),
+        (3, 'Neutral'),
+        (4, 'Somewhat calm'),
+        (5, 'Very calm'),
+    ]
+    
+    MOOD_AFTER = [
+        (1, 'Much worse'),
+        (2, 'Slightly worse'),
+        (3, 'No change'),
+        (4, 'Slightly better'),
+        (5, 'Much better'),
+    ]
+    
+    mood_before = models.IntegerField(choices=MOOD_BEFORE, blank=True, null=True)
+    mood_after = models.IntegerField(choices=MOOD_AFTER, blank=True, null=True)
+    watched_full_video = models.BooleanField(default=False)
+    marked_helpful = models.BooleanField(default=False)
+    saved_for_later = models.BooleanField(default=False)
+    watched_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['user', 'video']

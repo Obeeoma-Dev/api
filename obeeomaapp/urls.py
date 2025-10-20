@@ -7,7 +7,7 @@ from drf_yasg import openapi
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import *
 from obeeomaapp.views import*
-
+from . import views
 
 app_name = "obeeomaapp"
 
@@ -29,6 +29,9 @@ router.register(r'employers', EmployerViewSet, basename='employer')
 router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'resource-categories', ResourceCategoryViewSet, basename='resource-category')
+router.register(r'videos', views.EducationalVideoViewSet, basename='videos')
+router.register(r'video-interactions', views.UserVideoInteractionViewSet, basename='video-interactions')
+router.register(r'categories', views.ResourceCategoryViewSet, basename='categories')
 
 urlpatterns = [
     # Home
