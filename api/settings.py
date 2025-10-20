@@ -1,8 +1,8 @@
 import os
-
 from pathlib import Path
 from urllib.parse import urlparse, parse_qsl
 from dotenv import load_dotenv
+from datetime import timedelta
 
 load_dotenv()
 
@@ -14,11 +14,10 @@ DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 PORT = os.getenv("PORT", "8000")
 ALLOWED_HOSTS = ['127.0.0.1', 'api-0904.onrender.com', 'localhost']
 
-# CSRF Trusted Origins (important for HTTPS in production)
+# CSRF Trusted Origins
 CSRF_TRUSTED_ORIGINS = [
     "https://api-0904.onrender.com",
 ]
-
 
 # Database
 tmpPostgres = urlparse(os.getenv("DATABASE_URL", ""))
@@ -34,13 +33,10 @@ DATABASES = {
         "OPTIONS": {
             "sslmode": os.environ.get("PGSSLMODE", "require"),
         },
-        "CONN_MAX_AGE": 600,  # Connection pooling (10 minutes)
-        "CONN_HEALTH_CHECKS": True,  # Check connection health before reusing
+        "CONN_MAX_AGE": 600,
+        "CONN_HEALTH_CHECKS": True,
     }
 }
-    
-
-
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -58,7 +54,6 @@ INSTALLED_APPS = [
     'corsheaders',
 ]
 
-
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
@@ -69,12 +64,11 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-
 ]
+
 # Media files
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
-
 
 ROOT_URLCONF = "api.urls"
 
@@ -94,7 +88,6 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "api.wsgi.application"
-
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -116,16 +109,13 @@ AUTH_USER_MODEL = "obeeomaapp.User"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # CORS settings
-CORS_ALLOW_ALL_ORIGINS = True  
-
-
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173", 
-    "http://obeeoma.onrender.com",    
-]
 CORS_ALLOW_ALL_ORIGINS = True
 
-
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://obeeoma.onrender.com",
+]
+CORS_ALLOW_ALL_ORIGINS = True
 
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/overview/"
@@ -147,8 +137,6 @@ SPECTACULAR_SETTINGS = {
 }
 
 # JWT Settings
-from datetime import timedelta
-
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
@@ -157,64 +145,14 @@ SIMPLE_JWT = {
     'UPDATE_LAST_LOGIN': True,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
-    'VERIFYING_KEY': None,
-    'AUDIENCE': None,
-    'ISSUER': None,
-    'JWK_URL': None,
-    'LEEWAY': 0,
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
-    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    'TOKEN_TYPE_CLAIM': 'token_type',
-    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
-    'JTI_CLAIM': 'jti',
-    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
-    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
-    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
 }
 
-
-
-
-# Email Backend Configuration
-
-EMAIL_BACKEND = os.getenv(
-    'EMAIL_BACKEND',
-    'django.core.mail.backends.smtp.EmailBackend' if not DEBUG else 'django.core.mail.backends.console.EmailBackend'
-)
-
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')  
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))        
-
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 't')
-EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False').lower() in ('true', '1', 't')
-
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
-EMAIL_SUBJECT_PREFIX = '[Obeeoma] '
-EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '10'))  # seconds
-
-
-# Safety Checks
-if EMAIL_USE_TLS and EMAIL_USE_SSL:
-    raise ValueError("EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be True.")
-
-if not DEBUG and (not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD):
-    raise ValueError("EMAIL_HOST_USER and EMAIL_HOST_PASSWORD must be set in production.")
-
-
-# Development Fallback
-if DEBUG and not EMAIL_HOST_USER:
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-
-
 # Logging Configuration
-
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -258,3 +196,16 @@ LOGGING = {
         },
     },
 }
+# EMAIL CONFIGURATION SETTINGS
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI" , default="https://developers.google.com/oauthplayground"
+)
+
+# OAuth Scopes for Gmail API (for the authorization flow)
+GMAIL_SCOPES = [
+    "https://mail.google.com/",  # Full Gmail access (includes send)
+]
+
