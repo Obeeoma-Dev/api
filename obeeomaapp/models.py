@@ -892,8 +892,7 @@ class RewardProgram(models.Model):
         ordering = ['points_required']
 
 
-class FeatureFlag(models.Model):
-    """Feature flags for system admin settings"""
+"""class FeatureFlag(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField()
     is_enabled = models.BooleanField(default=False)
@@ -905,7 +904,7 @@ class FeatureFlag(models.Model):
         return f"{self.name} - {'Enabled' if self.is_enabled else 'Disabled'}"
 
     class Meta:
-        ordering = ['category', 'name']
+        ordering = ['category', 'name']"""
 
 
 class SystemSettings(models.Model):

@@ -1281,8 +1281,7 @@ class SystemSettingsView(viewsets.ModelViewSet):
     ordering = ['setting_name']
 
 
-class FeatureFlagsView(viewsets.ModelViewSet):
-    """Feature flags management"""
+"""class FeatureFlagsView(viewsets.ModelViewSet):
     queryset = FeatureFlag.objects.all()
     serializer_class = FeatureFlagSerializer
     permission_classes = [IsCompanyAdmin]
@@ -1292,14 +1291,10 @@ class FeatureFlagsView(viewsets.ModelViewSet):
     ordering = ['category', 'name']
     
     @action(detail=False, methods=['get'])
-    def by_category(self, request):
-        """Get feature flags grouped by category"""
-        from django.db.models import Count
-        from django.db import models
-        
+    def by_category(self, request):   
         categories = FeatureFlag.objects.values('category').annotate(
             count=Count('id'),
             enabled_count=Count('id', filter=models.Q(is_enabled=True))
         ).order_by('category')
         
-        return Response(list(categories))
+        return Response(list(categories))"""

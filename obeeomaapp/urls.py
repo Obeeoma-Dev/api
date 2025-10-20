@@ -7,7 +7,7 @@ from drf_yasg import openapi
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import *
 from obeeomaapp.views import*
-
+from . import views
 
 app_name = "obeeomaapp"
 
@@ -29,6 +29,9 @@ router.register(r'employers', EmployerViewSet, basename='employer')
 router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'resource-categories', ResourceCategoryViewSet, basename='resource-category')
+router.register(r'videos', views.EducationalVideoViewSet, basename='videos')
+router.register(r'video-interactions', views.UserVideoInteractionViewSet, basename='video-interactions')
+router.register(r'categories', views.ResourceCategoryViewSet, basename='categories')
 
 # Dashboard routers (Employer Dashboard)
 router.register(r'dashboard/organization-overview', OrganizationOverviewView, basename='organization-overview')
@@ -48,7 +51,6 @@ router.register(r'admin/ai-management', AIManagementView, basename='ai-managemen
 router.register(r'admin/client-engagement', ClientEngagementView, basename='client-engagement')
 router.register(r'admin/reports-analytics', ReportsAnalyticsView, basename='reports-analytics')
 router.register(r'admin/system-settings', SystemSettingsView, basename='system-settings')
-router.register(r'admin/feature-flags', FeatureFlagsView, basename='feature-flags')
 
 urlpatterns = [
     # Home
@@ -66,24 +68,21 @@ urlpatterns = [
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
 
     # Dashboard
-    path("dashboard/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),
-    path("dashboard/trends/", TrendsView.as_view({'get': 'list'}), name="trends"),
-    path("dashboard/employee-engagement/", EmployeeEngagementView.as_view({'get': 'list', 'post': 'create'}), name="employee-engagement"),
-    path("dashboard/features-usage/", FeaturesUsageView.as_view({'get': 'list', }), name="features-usage"),
-    path("dashboard/billing/", BillingView.as_view({'get': 'list', 'post': 'create', }), name="billing"),
-    path("dashboard/invites/", InviteView.as_view({'get': 'list', 'post': 'create'}), name="invites"),
-    path("dashboard/users/", UsersView.as_view({'get': 'list', 'post': 'create'}), name="users"),
-    path("dashboard/reports/", ReportsView.as_view({'get': 'list'}), name="reports"),
-    path("dashboard/crisis-insights/", CrisisInsightsView.as_view({'get': 'list'}), name="crisis-insights"),
-    # New Dashboard Endpoints
-    path("dashboard/subscriptions/current/", SubscriptionManagementView.as_view({'get': 'current_subscription'}), name="current-subscription"),
-    path("dashboard/subscriptions/plans/", SubscriptionManagementView.as_view({'get': 'available_plans'}), name="available-plans"),
-    path("dashboard/subscriptions/billing-history/", SubscriptionManagementView.as_view({'get': 'billing_history'}), name="billing-history"),
+    path("admin/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),
+    path("admin/trends/", TrendsView.as_view({'get': 'list'}), name="trends"),
+    path("admin/employee-engagement/", EmployeeEngagementView.as_view({'get': 'list', 'post': 'create'}), name="employee-engagement"),
+    path("admin/billing/", BillingView.as_view({'get': 'list', 'post': 'create', }), name="billing"),
+    path("admin/invites/", InviteView.as_view({'get': 'list', 'post': 'create'}), name="invites"),
+    path("admin/users/", UsersView.as_view({'get': 'list', 'post': 'create'}), name="users"),
+    path("admin/reports/", ReportsView.as_view({'get': 'list'}), name="reports"),
+    path("admin/crisis-insights/", CrisisInsightsView.as_view({'get': 'list'}), name="crisis-insights"),
+    path("admin/subscriptions/current/", SubscriptionManagementView.as_view({'get': 'current_subscription'}), name="current-subscription"),
+    path("admin/subscriptions/plans/", SubscriptionManagementView.as_view({'get': 'available_plans'}), name="available-plans"),
+    path("admin/subscriptions/billing-history/", SubscriptionManagementView.as_view({'get': 'billing_history'}), name="billing-history"),
     
     # System Admin Endpoints
     path("admin/organizations/growth-chart/", OrganizationsManagementView.as_view({'get': 'growth_chart'}), name="organizations-growth-chart"),
     path("admin/organizations/client-distribution/", OrganizationsManagementView.as_view({'get': 'client_distribution'}), name="organizations-client-distribution"),
-    path("admin/feature-flags/by-category/", FeatureFlagsView.as_view({'get': 'by_category'}), name="feature-flags-by-category"),
 
     # Employee endpoints
     path('employee/profile/', EmployeeProfileView.as_view({'get': 'list', 'post': 'create'}), name='employee-profile'),
