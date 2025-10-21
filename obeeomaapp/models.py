@@ -368,6 +368,14 @@ class ChatSession(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
 
+class Progress(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    date = models.DateField()
+    mood_score = models.IntegerField()
+    notes = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.date}"
 
 class ChatMessage(models.Model):
     ROLE_CHOICES = [
