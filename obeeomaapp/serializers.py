@@ -586,6 +586,11 @@ class WellnessReportsSerializer(serializers.Serializer):
     recent_activities = OrganizationActivitySerializer(many=True)
 
 
+class ProgressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Progress
+        fields = '__all__'
+
 # System Admin Serializers
 
 class PlatformMetricsSerializer(serializers.ModelSerializer):
