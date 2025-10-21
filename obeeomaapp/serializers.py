@@ -548,6 +548,10 @@ class OrganizationActivitySerializer(serializers.ModelSerializer):
         fields = ['id', 'activity_type', 'description', 'department', 'department_name', 'employee', 'employee_name', 'created_at']
 
 
+class ProgressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Progress
+        fields = '__all__'
 # Dashboard Overview Serializers
 class OrganizationOverviewSerializer(serializers.Serializer):
     total_employees = serializers.IntegerField()
