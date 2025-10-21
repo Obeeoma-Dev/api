@@ -697,7 +697,6 @@ class InvitationAcceptView(viewsets.ViewSet):
         refresh = RefreshToken.for_user(user)
         return Response({'message': 'Account created successfully', 'access': str(refresh.access_token), 'refresh': str(refresh)}, status=status.HTTP_201_CREATED)
 
-
 class ProgressViewSet(viewsets.ModelViewSet):
     queryset = Progress.objects.all()
     serializer_class = ProgressSerializer
@@ -707,7 +706,7 @@ class ProgressViewSet(viewsets.ModelViewSet):
     def analytics(self, request):
         data = {
             "average_mood": Progress.objects.aggregate(Avg('mood_score'))['mood_score__avg'],
-            "total_users": User.objects.count(),
+            "total_users": UserProfile.objects.count(),
             "progress_entries": Progress.objects.count(),
         }
         return Response(data)
