@@ -698,6 +698,19 @@ class InvitationAcceptView(viewsets.ViewSet):
         return Response({'message': 'Account created successfully', 'access': str(refresh.access_token), 'refresh': str(refresh)}, status=status.HTTP_201_CREATED)
 
 
+class ProgressViewSet(viewsets.ModelViewSet):
+    queryset = Progress.objects.all()
+    serializer_class = ProgressSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAdminUser])
+    def analytics(self, request):
+        data = {
+            "average_mood": Progress.objects.aggregate(Avg('mood_score'))['mood_score__avg'],
+            "total_users": User.objects.count(),
+            "progress_entries": Progress.objects.count(),
+        }
+        return Response(data)
 class ResourceCategoryViewSet(viewsets.ModelViewSet):
     """Mental health resource categories (Stress, Anxiety, Sleep, etc.)"""
     queryset = ResourceCategory.objects.all()
