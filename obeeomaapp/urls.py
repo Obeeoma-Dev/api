@@ -25,24 +25,15 @@ schema_view = get_schema_view(
 
 # --- Router setup ---
 router = DefaultRouter()
-router.register(
-    r"mental-health/assessments",
-    MentalHealthAssessmentViewSet,
-    basename="mental-health-assessment",
-)
-router.register(r"employers", EmployerViewSet, basename="employer")
-router.register(r"me/badges", MyBadgesView, basename="my-badges")
-router.register(r"me/streaks", MyStreaksView, basename="my-streaks")
-router.register(
-    r"resource-categories", ResourceCategoryViewSet, basename="resource-category"
-)
-router.register(r"videos", views.EducationalVideoViewSet, basename="videos")
-router.register(
-    r"video-interactions",
-    views.UserVideoInteractionViewSet,
-    basename="video-interactions",
-)
-router.register(r"categories", views.ResourceCategoryViewSet, basename="categories")
+router.register(r'mental-health/assessments', MentalHealthAssessmentViewSet, basename='mental-health-assessment')
+router.register(r'employers', EmployerViewSet, basename='employer')
+router.register(r'me/badges', MyBadgesView, basename='my-badges')
+router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
+router.register(r'progress', ProgressViewSet)
+router.register(r'resource-categories', ResourceCategoryViewSet, basename='resource-category')
+router.register(r'videos', views.EducationalVideoViewSet, basename='videos')
+router.register(r'video-interactions', views.UserVideoInteractionViewSet, basename='video-interactions')
+router.register(r'categories', views.ResourceCategoryViewSet, basename='categories')
 
 # Dashboard routers (Employer Dashboard)
 router.register(
