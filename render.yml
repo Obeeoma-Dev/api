@@ -1,9 +1,29 @@
+# This configuration file tells Render how to deploy your Django (Python) web app.
+# It defines your service type, how to install dependencies, and how to start the server.
+# --------------------------------------------
+
 services:
-  - type: web
-    name: obeeoma-api
-    env: python
+  # ------------------------------
+  # Define a list of services Render will manage
+  # ------------------------------
+  - type: web                      # The type of service. 'web' means it's a web app that receives HTTP requests.
+    name: obeeoma-api              # The name of the service (as it will appear on Render’s dashboard).
+    env: python                    # This specifies that the environment will run Python (Render provides a Python runtime).
+
+    # ------------------------------
+    # Build Command: This runs when Render is building your app before deployment.
+    # Then installs all your Python dependencies so the app can run properly.
+    # ------------------------------
     buildCommand: |
-      pip install --upgrade pip
-      pip install -r requirements.txt
-      pip install gunicorn
-    startCommand: gunicorn api.wsgi:application --bind 0.0.0.0:$PORT
+      pip install --upgrade pip               # Upgrades pip (Python’s package manager) to the latest version.
+      pip install -r requirements.txt         # Installs all the packages listed in your requirements.txt file.
+      pip install gunicorn                    # Installs Gunicorn (a production-grade WSGI web server for Django).
+
+    # ------------------------------
+    # Start Command: This runs when Render starts your app.
+    # This also tells Render how to launch your Django app.
+    # ------------------------------
+    startCommand: gunicorn api.wsgi:application --bind 0.0.0.0:$PORT  
+    # gunicorn api.wsgi:application → Runs your Django app using the WSGI entry point.
+    # --bind 0.0.0.0:$PORT → Binds the app to all network interfaces (0.0.0.0)
+    # and uses the PORT variable Render automatically provides.
