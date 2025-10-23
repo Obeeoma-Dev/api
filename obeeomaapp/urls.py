@@ -33,6 +33,7 @@ schema_view = get_schema_view(
 )
 
 # --- Router setup ---
+# --- Router setup ---
 router = DefaultRouter()
 router.register(r'mental-health/assessments', MentalHealthAssessmentViewSet, basename='mental-health-assessment')
 router.register(r'employers', EmployerViewSet, basename='employer')
@@ -67,6 +68,7 @@ router.register(r'admin/client-engagement', ClientEngagementView, basename='clie
 router.register(r'admin/reports-analytics', ReportsAnalyticsView, basename='reports-analytics')
 router.register(r'admin/system-settings', SystemSettingsView, basename='system-settings')
 router.register(r'admin/feature-flags', FeaturesUsageView, basename='feature-flags')
+
 
 urlpatterns = [
     # Home
