@@ -26,7 +26,7 @@ from .models import (
     OrganizationSettings, PlatformMetrics, PlatformUsage,
     SubscriptionRevenue, SystemActivity, HotlineCall, AIResource,
     ClientEngagement, RewardProgram, Report, SystemSettings,
-    PasswordResetToken, User, EducationalVideo, UserVideoInteraction
+    PasswordResetToken, User, EducationalVideo, UserVideoInteraction, AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
 )
 
 from .serializers import (
@@ -52,7 +52,8 @@ from .serializers import (
     SignupSerializer, LoginSerializer, PasswordResetSerializer, PasswordChangeSerializer,
     EmployeeInvitationCreateSerializer, EmployeeInvitationAcceptSerializer,
     EmployeeManagementSerializer, SubscriptionManagementSerializer,
-    EducationalVideoSerializer, UserVideoInteractionSerializer
+    EducationalVideoSerializer, UserVideoInteractionSerializer, AnxietyDistressMasterySerializer,
+    DepressionOvercomeSerializer, ClassicalArticleSerializer, CustomerGeneratedContentSerializer
 )
 from django.core.mail import send_mail
 from django.conf import settings
