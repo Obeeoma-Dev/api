@@ -362,7 +362,15 @@ class Feedback(models.Model):
     comment = models.TextField()
     submitted_on = models.DateTimeField(auto_now_add=True)
 
+class Progress(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    date = models.DateField()
+    mood_score = models.IntegerField()
+    notes = models.TextField(blank=True, null=True)
 
+    def __str__(self):
+        return f"{self.user.username} - {self.date}"
+    
 class ChatSession(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE, related_name="chat_sessions")
     started_at = models.DateTimeField(auto_now_add=True)
