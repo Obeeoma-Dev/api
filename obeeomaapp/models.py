@@ -1064,3 +1064,48 @@ class UserVideoInteraction(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.video.title}"        
+
+from django.db import models
+from django.contrib.auth.models import User
+from django.db import models
+from django.conf import settings  # <-- import this
+
+class AnxietyDistressMastery(models.Model):
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.title
+
+
+class DepressionOvercome(models.Model):
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.title
+
+
+class ClassicalArticle(models.Model):
+    title = models.CharField(max_length=200)
+    author = models.CharField(max_length=100)
+    body = models.TextField()
+    published_date = models.DateField(auto_now_add=True)
+
+    def __str__(self):
+        return self.title
+
+
+class CustomerGeneratedContent(models.Model):
+    customer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    approved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.customer.username} - {self.title}"

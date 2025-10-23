@@ -10,8 +10,47 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
-from obeeomaapp.serializers import *
-from obeeomaapp.models import *
+from .models import (
+    RecentActivity, HotlineActivity, EmployeeProfile, AvatarProfile, 
+    WellnessHub, MoodCheckIn, AssessmentResult, SelfHelpResource,
+    EducationalResource, CrisisTrigger, Notification, EngagementTracker,
+    Feedback, ChatSession, ChatMessage, RecommendationLog,
+    MentalHealthAssessment, UserBadge, EngagementStreak, Employer,
+    Employee, Subscription, AIManagement, EmployeeEngagement,
+    Progress, ResourceCategory, Department, OrganizationActivity,
+    SubscriptionPlan, BillingHistory, CommonIssue, ResourceEngagement,
+    WellnessTest, ChatEngagement, DepartmentContribution,
+    OrganizationSettings, PlatformMetrics, PlatformUsage,
+    SubscriptionRevenue, SystemActivity, HotlineCall, AIResource,
+    ClientEngagement, RewardProgram, Report, SystemSettings,
+    PasswordResetToken, User, EducationalVideo, UserVideoInteraction
+)
+
+from .serializers import (
+    RecentActivitySerializer, HotlineActivitySerializer, EmployeeProfileSerializer,
+    AvatarProfileSerializer, WellnessHubSerializer, MoodCheckInSerializer,
+    AssessmentResultSerializer, SelfHelpResourceSerializer,
+    EducationalResourceSerializer, CrisisTriggerSerializer, NotificationSerializer,
+    EngagementTrackerSerializer, FeedbackSerializer, ChatSessionSerializer,
+    ChatMessageSerializer, RecommendationLogSerializer,
+    MentalHealthAssessmentSerializer, MentalHealthAssessmentListSerializer,
+    AssessmentResponseSerializer, UserBadgeSerializer, EngagementStreakSerializer,
+    EmployerSerializer, EmployeeSerializer, SubscriptionSerializer,
+    AIManagementSerializer, EmployeeEngagementSerializer,
+    ProgressSerializer, ResourceCategorySerializer, DepartmentSerializer,
+    OrganizationActivitySerializer, SubscriptionPlanSerializer,
+    BillingHistorySerializer, ChatEngagementSerializer,
+    DepartmentContributionSerializer, OrganizationSettingsSerializer,
+    PlatformMetricsSerializer, PlatformUsageSerializer,
+    SubscriptionRevenueSerializer, SystemActivitySerializer,
+    OrganizationsManagementSerializer, HotlineCallSerializer,
+    AIResourceSerializer, ClientEngagementSerializer,
+    RewardProgramSerializer, ReportSerializer, SystemSettingsSerializer,
+    SignupSerializer, LoginSerializer, PasswordResetSerializer, PasswordChangeSerializer,
+    EmployeeInvitationCreateSerializer, EmployeeInvitationAcceptSerializer,
+    EmployeeManagementSerializer, SubscriptionManagementSerializer,
+    EducationalVideoSerializer, UserVideoInteractionSerializer
+)
 from django.core.mail import send_mail
 from django.conf import settings
 from django.utils import timezone
@@ -19,8 +58,8 @@ from datetime import timedelta
 import secrets
 from rest_framework import filters
 import string
-from django.template.loader import render_to_string
-from django.core.mail import EmailMultiAlternatives
+# from django.template.loader import render_to_string
+# from django.core.mail import EmailMultiAlternatives
 import logging
 
 
@@ -29,7 +68,7 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 
 # Set up logging
 logger = logging.getLogger(__name__)
-from obeeomaapp.serializers import *
+
 
 
 User = get_user_model()
@@ -706,7 +745,7 @@ class ProgressViewSet(viewsets.ModelViewSet):
     def analytics(self, request):
         data = {
             "average_mood": Progress.objects.aggregate(Avg('mood_score'))['mood_score__avg'],
-            "total_users": UserProfile.objects.count(),
+            "total_users": User.objects.count(),
             "progress_entries": Progress.objects.count(),
         }
         return Response(data)
@@ -1151,61 +1190,42 @@ class AIManagementView(viewsets.ViewSet):
         }
         
         return Response(data)
-
-
 class ClientEngagementView(viewsets.ViewSet):
     """Client engagement and rewards dashboard"""
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
-        # Get average daily engagement
         try:
             avg_engagement = ClientEngagement.objects.aggregate(
                 avg_engagement=Avg('engagement_rate')
             )['avg_engagement'] or 0
         except Exception:
             avg_engagement = 0
-        
-        # Get active reward programs
         try:
             active_rewards = RewardProgram.objects.filter(is_active=True).count()
         except Exception:
             active_rewards = 0
-        
-        # Get total points awarded
         try:
             total_points = ClientEngagement.objects.aggregate(
                 total_points=Sum('total_points')
             )['total_points'] or 0
         except Exception:
             total_points = 0
-        
-        # Get weekly engagement data (mock data)
         weekly_engagement = [65, 70, 68, 75, 80, 85, 78]
-        
-        # Get reward redemptions (mock data)
         reward_redemptions = [25, 30, 35, 40, 45, 40]
-        
-        # Get clients
         try:
             clients = ClientEngagement.objects.select_related('organization').all()[:10]
         except Exception:
             clients = []
-        
-        # Get top rewards
         try:
             top_rewards = RewardProgram.objects.filter(is_active=True).order_by('-redemption_count')[:3]
         except Exception:
             top_rewards = []
-        
-        # Get engagement trends (mock data)
         engagement_trends = [
             {'trend': 'Morning Sessions', 'percentage': 68},
             {'trend': 'Evening Sessions', 'percentage': 42},
             {'trend': 'Weekend Activity', 'percentage': 55}
         ]
-        
-        # Get streak statistics
         streak_stats = [
             {'streak': '7+ Day Streak', 'active_users': 324},
             {'streak': '14+ Day Streak', 'active_users': 186},
@@ -1225,8 +1245,6 @@ class ClientEngagementView(viewsets.ViewSet):
         }
         
         return Response(data)
-
-
 class ReportsAnalyticsView(viewsets.ViewSet):
     """Reports and analytics for system admin"""
     permission_classes = [IsCompanyAdmin]
@@ -1245,8 +1263,7 @@ class ReportsAnalyticsView(viewsets.ViewSet):
             {'condition': 'OCD', 'percentage': 5},
             {'condition': 'Other', 'percentage': 5}
         ]
-        
-        # Get available reports
+    
         try:
             available_reports = Report.objects.filter(is_active=True).order_by('-generated_date')[:5]
         except Exception:
@@ -1313,14 +1330,9 @@ class SystemSettingsView(viewsets.ModelViewSet):
 
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.response import Response
+
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from .models import EducationalVideo, UserVideoInteraction, ResourceCategory
-from .serializers import (
-    EducationalVideoSerializer, 
-    UserVideoInteractionSerializer,
-    ResourceCategorySerializer
-)
+
 
 class EducationalVideoViewSet(viewsets.ModelViewSet):
     queryset = EducationalVideo.objects.filter(is_active=True)
@@ -1367,3 +1379,152 @@ class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ResourceCategory.objects.all()
     serializer_class = ResourceCategorySerializer
     permission_classes = [AllowAny]
+
+
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from django.db.models import Q
+from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
+from .serializers import (
+    AnxietyDistressMasterySerializer, 
+    DepressionOvercomeSerializer, 
+    ClassicalArticleSerializer, 
+    CustomerGeneratedContentSerializer
+)
+
+# Anxiety Distress Mastery API
+class AnxietyDistressMasteryViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = AnxietyDistressMasterySerializer
+    
+    def get_queryset(self):
+        return AnxietyDistressMastery.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def mark_completed(self, request, pk=None):
+        mastery = self.get_object()
+        mastery.progress_status = 'completed'
+        mastery.save()
+        serializer = self.get_serializer(mastery)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def progress_stats(self, request):
+        queryset = self.get_queryset()
+        total = queryset.count()
+        completed = queryset.filter(progress_status='completed').count()
+        in_progress = queryset.filter(progress_status='in_progress').count()
+        
+        return Response({
+            'total': total,
+            'completed': completed,
+            'in_progress': in_progress,
+            'completion_rate': (completed / total * 100) if total > 0 else 0
+        })
+
+# Depression Overcome API
+class DepressionOvercomeViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = DepressionOvercomeSerializer
+    
+    def get_queryset(self):
+        return DepressionOvercome.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def complete_activity(self, request, pk=None):
+        activity = self.get_object()
+        mood_change = request.data.get('mood_change', 0)
+        
+        activity.is_completed = True
+        activity.actual_mood_change = mood_change
+        activity.save()
+        
+        serializer = self.get_serializer(activity)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def by_type(self, request):
+        activity_type = request.query_params.get('type', None)
+        if activity_type:
+            queryset = self.get_queryset().filter(activity_type=activity_type)
+            serializer = self.get_serializer(queryset, many=True)
+            return Response(serializer.data)
+        return Response({"error": "Type parameter required"}, status=400)
+
+# Classical Articles API
+class ClassicalArticleViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    serializer_class = ClassicalArticleSerializer
+    queryset = ClassicalArticle.objects.all()
+    
+    @action(detail=False, methods=['get'])
+    def featured(self, request):
+        featured_articles = self.get_queryset().filter(is_featured=True)
+        serializer = self.get_serializer(featured_articles, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def by_category(self, request):
+        category = request.query_params.get('category', None)
+        if category:
+            articles = self.get_queryset().filter(category=category)
+            serializer = self.get_serializer(articles, many=True)
+            return Response(serializer.data)
+        return Response({"error": "Category parameter required"}, status=400)
+    
+    @action(detail=True, methods=['get'])
+    def similar(self, request, pk=None):
+        article = self.get_object()
+        similar_articles = self.get_queryset().filter(
+            category=article.category
+        ).exclude(id=article.id)[:5]
+        serializer = self.get_serializer(similar_articles, many=True)
+        return Response(serializer.data)
+
+# Customer Generated Content API
+class CustomerGeneratedContentViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    serializer_class = CustomerGeneratedContentSerializer
+    
+    def get_queryset(self):
+        if self.request.user.is_authenticated:
+            # Users can see their own content + approved public content
+            return CustomerGeneratedContent.objects.filter(
+                Q(user=self.request.user) | Q(is_approved=True)
+            )
+        else:
+            # Anonymous users can only see approved content
+            return CustomerGeneratedContent.objects.filter(is_approved=True)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def like(self, request, pk=None):
+        content = self.get_object()
+        content.likes += 1
+        content.save()
+        return Response({'likes': content.likes})
+    
+    @action(detail=False, methods=['get'])
+    def my_content(self, request):
+        if not request.user.is_authenticated:
+            return Response({"error": "Authentication required"}, status=401)
+        
+        user_content = CustomerGeneratedContent.objects.filter(user=request.user)
+        serializer = self.get_serializer(user_content, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def featured(self, request):
+        featured_content = self.get_queryset().filter(is_featured=True, is_approved=True)
+        serializer = self.get_serializer(featured_content, many=True)
+        return Response(serializer.data)    

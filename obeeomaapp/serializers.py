@@ -875,3 +875,50 @@ class VideoRecommendationSerializer(serializers.ModelSerializer):
             'views_count', 'helpful_count', 'resource_category_name',
             'target_mood', 'mood_display', 'intensity_level', 'intensity_display'
         ]
+
+
+from rest_framework import serializers
+from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
+
+class AnxietyDistressMasterySerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField(read_only=True)
+    
+    class Meta:
+        model = AnxietyDistressMastery
+        fields = '__all__'
+        read_only_fields = ['user', 'created_at', 'updated_at']
+
+class DepressionOvercomeSerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField(read_only=True)
+    activity_type_display = serializers.CharField(source='get_activity_type_display', read_only=True)
+    
+    class Meta:
+        model = DepressionOvercome
+        fields = '__all__'
+        read_only_fields = ['user', 'created_at']
+
+class ClassicalArticleSerializer(serializers.ModelSerializer):
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    
+    class Meta:
+        model = ClassicalArticle
+        fields = '__all__'
+
+class CustomerGeneratedContentSerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField(read_only=True)
+    content_type_display = serializers.CharField(source='get_content_type_display', read_only=True)
+    user_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = CustomerGeneratedContent
+        fields = '__all__'
+        read_only_fields = ['user', 'likes', 'created_at', 'updated_at']
+    
+    def get_user_name(self, obj):
+        if obj.is_anonymous:
+            return "Anonymous"
+        return obj.user.get_full_name() or obj.user.username
+    
+    def create(self, validated_data):
+        validated_data['user'] = self.context['request'].user
+        return super().create(validated_data)
