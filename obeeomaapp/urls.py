@@ -7,6 +7,7 @@ from drf_yasg import openapi
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import *
 from obeeomaapp.views import*
+from . import views
 
 
 app_name = "obeeomaapp"

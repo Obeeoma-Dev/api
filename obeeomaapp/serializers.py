@@ -5,7 +5,23 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
-from obeeomaapp.models import *
+from obeeomaapp.models import (SelfAssessment, MoodCheckIn, SelfHelpResource, ChatbotInteraction,
+                              UserBadge, EngagementStreak, EmployeeInvitation, Employee,
+                              Employer, AIManagement, HotlineActivity, EmployeeEngagement,
+                              Subscription, RecentActivity, MentalHealthAssessment,
+                              ResourceCategory, Department, OrganizationSettings,
+                              SubscriptionPlan, BillingHistory, PaymentMethod,
+                              WellnessTest, ResourceEngagement, CommonIssue,
+                              ChatEngagement, DepartmentContribution, OrganizationActivity,
+                              Progress, PlatformMetrics, PlatformUsage,
+                              SubscriptionRevenue, SystemActivity, HotlineCall,
+                              AIResource, ClientEngagement, RewardProgram,
+                              SystemSettings, Report,
+                              EmployeeProfile, AvatarProfile, WellnessHub,
+                              AssessmentResult, EducationalResource,
+                              CrisisTrigger, Notification, EngagementTracker,
+                              Feedback, ChatSession, ChatMessage,
+                              RecommendationLog, AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent)
 User = get_user_model()
 
 # signup serializer
