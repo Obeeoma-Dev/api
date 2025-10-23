@@ -197,7 +197,9 @@ LOGGING = {
     },
 }
 # EMAIL CONFIGURATION SETTINGS
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
+EMAIL_BACKEND = ("django.core.mail.backends.console.EmailBackend")
+DEFAULT_EMAIL_FROM = os.getenv("DEFAULT_EMAIL_FROM", default="Obeeoma2025@gmail.com")
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", default="obeeoma2025@gmail.com")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
