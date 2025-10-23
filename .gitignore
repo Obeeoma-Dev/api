@@ -207,4 +207,4 @@ marimo/_lsp/
 __marimo__/
 
 # Tinyllama_model files.
-# sana_ai/tinyllama_model/
+sana_ai/tinyllama_model/
