@@ -7,7 +7,7 @@ from drf_yasg import openapi
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import *
 from obeeomaapp.views import*
-from . import views
+
 
 
 app_name = "obeeomaapp"
@@ -31,13 +31,13 @@ router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'progress', ProgressViewSet)
 router.register(r'resource-categories', ResourceCategoryViewSet, basename='resource-category')
-router.register(r'videos', views.EducationalVideoViewSet, basename='videos')
-router.register(r'video-interactions', views.UserVideoInteractionViewSet, basename='video-interactions')
-router.register(r'anxiety-mastery', views.AnxietyDistressMasteryViewSet, basename='anxiety-mastery')
-router.register(r'depression-activities', views.DepressionOvercomeViewSet, basename='depression-activities')
-router.register(r'classical-articles', views.ClassicalArticleViewSet, basename='classical-articles')
-router.register(r'user-content', views.CustomerGeneratedContentViewSet, basename='user-content')
-router.register(r'categories', views.ResourceCategoryViewSet, basename='categories')
+router.register(r'videos', EducationalVideoViewSet, basename='videos')
+router.register(r'video-interactions', UserVideoInteractionViewSet, basename='video-interactions')
+router.register(r'anxiety-mastery', AnxietyDistressMasteryViewSet, basename='anxiety-mastery')
+router.register(r'depression-activities', DepressionOvercomeViewSet, basename='depression-activities')
+router.register(r'classical-articles', ClassicalArticleViewSet, basename='classical-articles')
+router.register(r'user-content', CustomerGeneratedContentViewSet, basename='user-content')
+router.register(r'categories', ResourceCategoryViewSet, basename='categories')
 
 # Dashboard routers (Employer Dashboard)
 router.register(r'dashboard/organization-overview', OrganizationOverviewView, basename='organization-overview')
