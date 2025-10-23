@@ -12,7 +12,7 @@ from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
 from obeeomaapp.serializers import *
 from obeeomaapp.models import *
-from django.core.mail import send_mail
+from obeeomaapp.utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
@@ -29,7 +29,7 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 
 # Set up logging
 logger = logging.getLogger(__name__)
-from obeeomaapp.serializers import *
+
 
 
 User = get_user_model()
@@ -101,6 +101,14 @@ class LogoutView(APIView):
 
 logger = logging.getLogger(__name__)
 
+# obeeomaapp/views.py
+import secrets
+import string
+
+
+logger = logging.getLogger(__name__)
+
+
 class PasswordResetView(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = PasswordResetSerializer
@@ -110,79 +118,62 @@ class PasswordResetView(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data.get("email")
 
-        
         user = User.objects.filter(email=email).first()
         if not user:
-            
+            logger.info(f"Password reset requested for non-existent email: {email}")
             return Response(
                 {"message": f"If an account exists for {email}, a reset code has been sent."},
                 status=status.HTTP_200_OK
             )
 
-        
         try:
             code = ''.join(secrets.choice(string.digits) for _ in range(6))
             token = secrets.token_urlsafe(32)
             expires_at = timezone.now() + timedelta(minutes=15)
 
-            
             PasswordResetToken.objects.filter(user=user).delete()
-
             reset_token = PasswordResetToken.objects.create(
-                user=user,
-                token=token,
-                code=code,
-                expires_at=expires_at
+                user=user, token=token, code=code, expires_at=expires_at
             )
         except Exception as e:
-            logger.error("Error generating password reset token: %s", str(e))
+            logger.error(f"Error generating password reset token for {email}: {str(e)}")
             return Response(
                 {"error": "Something went wrong while generating reset token."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        # Step 3: Send email safely
         try:
             subject = "Password Reset Verification Code - Obeeoma"
-            message = f"""
-Hello {user.username},
-
-You requested a password reset for your Obeeoma account.
-
-Your verification code is: {code}
-
-This code will expire in 15 minutes.
-
-If you did not request this password reset, please ignore this email.
-
-Best regards,
-Obeeoma Team
-"""
-            send_mail(
-                subject=subject,
-                message=message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=False,
+            message = (
+                f"Hello {user.username},\n\n"
+                f"You requested a password reset for your Obeeoma account.\n\n"
+                f"Your verification code is: {code}\n\n"
+                f"This code will expire in 15 minutes.\n\n"
+                f"If you did not request this password reset, please ignore this email.\n\n"
+                f"Best regards,\nObeeoma Team"
             )
 
+            email_sent = send_gmail_api_email(to_email=email, subject=subject, body=message)
+            if not email_sent:
+                reset_token.delete()
+                return Response(
+                    {"error": "Failed to send email. Please try again later."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+            logger.info(f"Password reset email sent to {email}")
             return Response(
-                {
-                    "message": f"If an account exists for {email}, a reset code has been sent.",
-                    "token": token
-                },
+                {"message": f"If an account exists for {email}, a reset code has been sent.", "token": token},
                 status=status.HTTP_200_OK
             )
 
         except Exception as e:
-            logger.error("Error sending password reset email: %s", str(e))
-            reset_token.delete()  
+            logger.error(f"Error sending password reset email to {email}: {str(e)}")
+            reset_token.delete()
             return Response(
                 {"error": "Failed to send email. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-# Confirm Password Reset View
 class PasswordResetConfirmView(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = PasswordResetSerializer
@@ -190,40 +181,26 @@ class PasswordResetConfirmView(viewsets.ViewSet):
     def create(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
         code = serializer.validated_data['code']
         new_password = serializer.validated_data['new_password']
-        
-        # Get token from request headers or body
         token = request.data.get('token')
+
         if not token:
             return Response({"error": "Token is required"}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
-            # This part checks if token and code are valid
-            reset_token = PasswordResetToken.objects.get(
-                token=token,
-                code=code,
-                is_used=False
-            )
-            
-            # This part checks if token is expired
+            reset_token = PasswordResetToken.objects.get(token=token, code=code, is_used=False)
             if reset_token.is_expired():
                 reset_token.delete()
                 return Response({"error": "Verification code has expired"}, status=status.HTTP_400_BAD_REQUEST)
-            
-            # This helps in Updating user password
+
             user = reset_token.user
             user.set_password(new_password)
             user.save()
-            
-            # Mark token as used
             reset_token.mark_as_used()
-            
-            return Response({
-                "message": "Password reset successfully"
-            }, status=status.HTTP_200_OK)
-            
+
+            return Response({"message": "Password reset successfully"}, status=status.HTTP_200_OK)
+
         except PasswordResetToken.DoesNotExist:
             return Response({"error": "Invalid verification code"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -243,7 +220,6 @@ class PasswordChangeView(viewsets.ViewSet):
         user.set_password(serializer.validated_data['new_password'])
         user.save()
         return Response({"message": "Password updated successfully"})
-
 
 # --- Admin Dashboard ---
 class OverviewView(viewsets.ViewSet):
@@ -275,10 +251,29 @@ class EmployeeEngagementView(viewsets.ModelViewSet):
     permission_classes = [IsCompanyAdmin]
 
 
+from rest_framework.decorators import action
+from rest_framework.response import Response
+
 class FeaturesUsageView(viewsets.ModelViewSet):
     queryset = AIManagement.objects.select_related("employer").order_by("-created_at")
     serializer_class = AIManagementSerializer
     permission_classes = [IsCompanyAdmin]
+
+    @action(detail=False, methods=['get'], url_path='by-category')
+    def by_category(self, request):
+        """
+        Get AI features usage grouped by category
+        """
+        # Your implementation here
+        # Example: Group by category and count usage
+        from django.db.models import Count
+        usage_by_category = (
+            AIManagement.objects
+            .values('category')  # Make sure your model has a 'category' field
+            .annotate(total_usage=Count('id'))
+            .order_by('-total_usage')
+        )
+        return Response(usage_by_category)
 
 
 class BillingView(viewsets.ModelViewSet):
@@ -1354,4 +1349,4 @@ class UserVideoInteractionViewSet(viewsets.ModelViewSet):
 class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ResourceCategory.objects.all()
     serializer_class = ResourceCategorySerializer
-    permission_classes = [AllowAny]
+    permission_classes = [AllowAny] 

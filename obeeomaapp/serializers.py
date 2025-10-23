@@ -6,7 +6,6 @@ from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
-from .models import (ResourceCategory, EducationalVideo, UserVideoInteraction,)
 User = get_user_model()
 
 # signup serializer
@@ -87,6 +86,20 @@ class PasswordResetSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         return validated_data
+    
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    code = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True, validators=[validate_password])
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        if attrs['new_password'] != attrs['confirm_password']:
+            raise serializers.ValidationError({"confirm_password": "Passwords don’t match."})
+        return attrs
+
+    def create(self, validated_data):
+        return validated_data
+
 
 class PasswordChangeSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
@@ -871,3 +884,80 @@ class VideoRecommendationSerializer(serializers.ModelSerializer):
             'views_count', 'helpful_count', 'resource_category_name',
             'target_mood', 'mood_display', 'intensity_level', 'intensity_display'
         ]
+
+
+
+
+
+
+
+        # Add these to your serializers.py
+
+class OverviewResponseSerializer(serializers.Serializer):
+    employer_count = serializers.IntegerField()
+    employee_count = serializers.IntegerField()
+    active_subscriptions = serializers.IntegerField()
+    recent_activities = RecentActivitySerializer(many=True)
+
+class OrganizationOverviewResponseSerializer(serializers.Serializer):
+    total_employees = serializers.IntegerField()
+    total_tests = serializers.IntegerField()
+    average_score = serializers.FloatField()
+    at_risk_departments = serializers.IntegerField()
+    recent_activities = OrganizationActivitySerializer(many=True)
+
+class WellnessReportsResponseSerializer(serializers.Serializer):
+    common_issues = serializers.IntegerField()
+    resource_engagement = serializers.IntegerField()
+    average_wellbeing_trend = serializers.FloatField()
+    at_risk = serializers.IntegerField()
+    chat_engagement = ChatEngagementSerializer(many=True)
+    department_contributions = DepartmentContributionSerializer(many=True)
+    recent_activities = OrganizationActivitySerializer(many=True)
+
+class TestsByTypeResponseSerializer(serializers.Serializer):
+    test_type = serializers.CharField()
+    count = serializers.IntegerField()
+
+class TestsByDepartmentResponseSerializer(serializers.Serializer):
+    department__name = serializers.CharField()
+    count = serializers.IntegerField()
+
+class AIManagementResponseSerializer(serializers.Serializer):
+    total_recommendations = serializers.IntegerField()
+    average_engagement_rate = serializers.FloatField()
+    ai_accuracy_score = serializers.FloatField()
+    effectiveness_by_type = serializers.ListField()
+    weekly_recommendations = serializers.ListField()
+    resources = AIResourceSerializer(many=True)
+    top_anxiety_triggers = serializers.ListField()
+
+class ClientEngagementResponseSerializer(serializers.Serializer):
+    average_daily_engagement = serializers.FloatField()
+    active_reward_programs = serializers.IntegerField()
+    total_points_awarded = serializers.IntegerField()
+    weekly_engagement = serializers.ListField()
+    reward_redemptions = serializers.ListField()
+    clients = ClientEngagementSerializer(many=True)
+    top_rewards = RewardProgramSerializer(many=True)
+    engagement_trends = serializers.ListField()
+    streak_statistics = serializers.ListField()
+
+class HotlineActivityResponseSerializer(serializers.Serializer):
+    today_calls = serializers.IntegerField()
+    average_duration = serializers.CharField()
+    active_operators = serializers.IntegerField()
+    hourly_volume = serializers.ListField()
+    call_reasons = serializers.ListField()
+    recent_calls = HotlineCallSerializer(many=True)
+    critical_cases = HotlineCallSerializer(many=True)
+    operator_performance = serializers.ListField()
+
+class ReportsAnalyticsResponseSerializer(serializers.Serializer):
+    platform_usage_chart = serializers.ListField()
+    health_conditions_distribution = serializers.ListField()
+    available_reports = ReportSerializer(many=True)
+    custom_report_types = serializers.ListField()
+    date_ranges = serializers.ListField()
+    formats = serializers.ListField()
+
