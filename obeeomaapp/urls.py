@@ -6,8 +6,17 @@ from .views import LogoutView
 from drf_yasg import openapi
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import *
-from obeeomaapp.views import*
-
+from obeeomaapp.views import ( MentalHealthAssessmentViewSet,ResourceCategoryViewSet,
+    EducationalVideoViewSet, UserVideoInteractionViewSet, AnxietyDistressMasteryViewSet, DepressionOvercomeViewSet,
+    ClassicalArticleViewSet,CustomerGeneratedContentViewSet,OrganizationOverviewView,EmployeeManagementView,
+    DepartmentManagementView,SubscriptionManagementView,WellnessReportsView,OrganizationSettingsView,TestsByTypeView,
+    TestsByDepartmentView, SystemAdminOverviewView, OrganizationsManagementView, HotlineActivityView,AIManagementView, ClientEngagementView,
+    ReportsAnalyticsView,SystemSettingsView,FeaturesUsageView,EmployerViewSet,MyBadgesView,MyStreaksView,ProgressViewSet, EmailConfigCheckView,
+    SignupView, LoginView, LogoutView, PasswordResetView, PasswordResetConfirmView, PasswordChangeView,OverviewView,
+    TrendsView,EmployeeEngagementView,BillingView,InviteView,UsersView,ReportsView,CrisisInsightsView,EmployeeProfileView,
+    AvatarProfileView,WellnessHubView,MoodCheckInView,AssessmentResultView,SelfHelpResourceView,EducationalResourceView,CrisisTriggerView,
+    NotificationView, EngagementTrackerView, FeedbackView, ChatSessionView, ChatMessageView, RecommendationLogView,InvitationAcceptView, home
+)
 
 
 app_name = "obeeomaapp"
@@ -32,7 +41,6 @@ router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'progress', ProgressViewSet)
 router.register(r'resource-categories', ResourceCategoryViewSet, basename='resource-category')
 router.register(r'videos', EducationalVideoViewSet, basename='videos')
-
 router.register(r'video-interactions', UserVideoInteractionViewSet, basename='video-interactions')
 router.register(r'anxiety-mastery', AnxietyDistressMasteryViewSet, basename='anxiety-mastery')
 router.register(r'depression-activities', DepressionOvercomeViewSet, basename='depression-activities')
