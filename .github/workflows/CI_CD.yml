@@ -7,7 +7,6 @@ on:
     branches: [ "main" ]
 
 jobs:
- 
   build:
     runs-on: ubuntu-latest
 
@@ -25,12 +24,18 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-       
+        pip install flake8
+
+    - name: Setup Database
+      run: |
+        python manage.py migrate
 
     - name: Lint with flake8
       run: |
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        # Critical errors (will fail if issues found)
+        flake8 --count --select=E9,F63,F7,F82 --show-source --statistics .
+        # Style warnings (won't fail the build)
+        flake8 --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics .
 
     - name: Run Django Tests
       env:
@@ -38,7 +43,7 @@ jobs:
         DEBUG: True
         DATABASE_URL: ${{ secrets.DATABASE_URL_CI }}
       run: |
-        python manage.py test
+        python manage.py test --verbosity=2
 
   deploy:
     needs: build
@@ -46,5 +51,8 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-      - name: Trigger Render Deploy
-        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Trigger Render Deploy
+      run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
