@@ -2,22 +2,32 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
-from .views import LogoutView
 from drf_yasg import openapi
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import *
-from obeeomaapp.views import ( MentalHealthAssessmentViewSet,ResourceCategoryViewSet,
-    EducationalVideoViewSet, UserVideoInteractionViewSet, AnxietyDistressMasteryViewSet, DepressionOvercomeViewSet,
-    ClassicalArticleViewSet,CustomerGeneratedContentViewSet,OrganizationOverviewView,EmployeeManagementView,
-    DepartmentManagementView,SubscriptionManagementView,WellnessReportsView,OrganizationSettingsView,TestsByTypeView,
-    TestsByDepartmentView, SystemAdminOverviewView, OrganizationsManagementView, HotlineActivityView,AIManagementView, ClientEngagementView,
-    ReportsAnalyticsView,SystemSettingsView,FeaturesUsageView,EmployerViewSet,MyBadgesView,MyStreaksView,ProgressViewSet, EmailConfigCheckView,
-    SignupView, LoginView, LogoutView, PasswordResetView, PasswordResetConfirmView, PasswordChangeView,OverviewView,
-    TrendsView,EmployeeEngagementView,BillingView,InviteView,UsersView,ReportsView,CrisisInsightsView,EmployeeProfileView,
-    AvatarProfileView,WellnessHubView,MoodCheckInView,AssessmentResultView,SelfHelpResourceView,EducationalResourceView,CrisisTriggerView,
-    NotificationView, EngagementTrackerView, FeedbackView, ChatSessionView, ChatMessageView, RecommendationLogView,InvitationAcceptView, home
+from obeeomaapp.views import (
+    MentalHealthAssessmentViewSet, ResourceCategoryViewSet,
+    EducationalVideoViewSet, UserVideoInteractionViewSet, 
+    AnxietyDistressMasteryViewSet, DepressionOvercomeViewSet,
+    ClassicalArticleViewSet, CustomerGeneratedContentViewSet,
+    OrganizationOverviewView, EmployeeManagementView,
+    DepartmentManagementView, SubscriptionManagementView,
+    WellnessReportsView, OrganizationSettingsView, TestsByTypeView,
+    TestsByDepartmentView, SystemAdminOverviewView, 
+    OrganizationsManagementView, HotlineActivityView,
+    AIManagementView, ClientEngagementView,
+    ReportsAnalyticsView, SystemSettingsView, FeaturesUsageView,
+    EmployerViewSet, MyBadgesView, MyStreaksView, ProgressViewSet, 
+    EmailConfigCheckView, SignupView, LoginView, LogoutView, 
+    PasswordResetView, PasswordResetConfirmView, PasswordChangeView,
+    OverviewView, TrendsView, EmployeeEngagementView, BillingView,
+    InviteView, UsersView, ReportsView, CrisisInsightsView,
+    EmployeeProfileView, AvatarProfileView, WellnessHubView,
+    MoodCheckInView, AssessmentResultView, SelfHelpResourceView,
+    EducationalResourceView, CrisisTriggerView, NotificationView, 
+    EngagementTrackerView, FeedbackView, ChatSessionView, 
+    ChatMessageView, RecommendationLogView, InvitationAcceptView, home
 )
-from . import views
 
 app_name = "obeeomaapp"
 
@@ -32,7 +42,6 @@ schema_view = get_schema_view(
     permission_classes=(permissions.AllowAny,),
 )
 
-# --- Router setup ---
 # --- Router setup ---
 router = DefaultRouter()
 router.register(r'mental-health/assessments', MentalHealthAssessmentViewSet, basename='mental-health-assessment')
@@ -69,7 +78,6 @@ router.register(r'admin/reports-analytics', ReportsAnalyticsView, basename='repo
 router.register(r'admin/system-settings', SystemSettingsView, basename='system-settings')
 router.register(r'admin/feature-flags', FeaturesUsageView, basename='feature-flags')
 
-
 urlpatterns = [
     # Home
     path("", home, name="home"),
@@ -80,7 +88,7 @@ urlpatterns = [
     # Authentication
     path("auth/signup/", SignupView.as_view({'post': 'create'}), name="signup"),
     path("auth/login/", LoginView.as_view(), name="login"),
-     path("auth/logout/", LogoutView.as_view(), name="logout"),
+    path("auth/logout/", LogoutView.as_view(), name="logout"),
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
     path("auth/reset-password/confirm/", PasswordResetConfirmView.as_view({'post': 'create'}), name="password-reset-confirm"),
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
@@ -89,12 +97,13 @@ urlpatterns = [
     path("dashboard/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),
     path("dashboard/trends/", TrendsView.as_view({'get': 'list'}), name="trends"),
     path("dashboard/employee-engagement/", EmployeeEngagementView.as_view({'get': 'list', 'post': 'create'}), name="employee-engagement"),
-    path("dashboard/features-usage/", FeaturesUsageView.as_view({'get': 'list', }), name="features-usage"),
-    path("dashboard/billing/", BillingView.as_view({'get': 'list', 'post': 'create', }), name="billing"),
+    path("dashboard/features-usage/", FeaturesUsageView.as_view({'get': 'list'}), name="features-usage"),
+    path("dashboard/billing/", BillingView.as_view({'get': 'list', 'post': 'create'}), name="billing"),
     path("dashboard/invites/", InviteView.as_view({'get': 'list', 'post': 'create'}), name="invites"),
     path("dashboard/users/", UsersView.as_view({'get': 'list', 'post': 'create'}), name="users"),
     path("dashboard/reports/", ReportsView.as_view({'get': 'list'}), name="reports"),
     path("dashboard/crisis-insights/", CrisisInsightsView.as_view({'get': 'list'}), name="crisis-insights"),
+    
     # New Dashboard Endpoints
     path("dashboard/subscriptions/current/", SubscriptionManagementView.as_view({'get': 'current_subscription'}), name="current-subscription"),
     path("dashboard/subscriptions/plans/", SubscriptionManagementView.as_view({'get': 'available_plans'}), name="available-plans"),
