@@ -15,7 +15,8 @@ from obeeomaapp.views import ( MentalHealthAssessmentViewSet,ResourceCategoryVie
     SignupView, LoginView, LogoutView, PasswordResetView, PasswordResetConfirmView, PasswordChangeView,OverviewView,
     TrendsView,EmployeeEngagementView,BillingView,InviteView,UsersView,ReportsView,CrisisInsightsView,EmployeeProfileView,
     AvatarProfileView,WellnessHubView,MoodCheckInView,AssessmentResultView,SelfHelpResourceView,EducationalResourceView,CrisisTriggerView,
-    NotificationView, EngagementTrackerView, FeedbackView, ChatSessionView, ChatMessageView, RecommendationLogView,InvitationAcceptView, home
+    NotificationView, EngagementTrackerView, FeedbackView, ChatSessionView, ChatMessageView, RecommendationLogView,InvitationAcceptView, home, CustomTokenObtainPairView
+
 )
 
 
@@ -128,7 +129,7 @@ urlpatterns = [
     path("", include(router.urls)),
 
     # JWT Authentication
-    path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("auth/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("auth/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
 

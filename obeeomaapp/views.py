@@ -68,6 +68,8 @@ import logging
 
 
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework_simplejwt.views import TokenObtainPairView
+from .serializers import CustomTokenObtainPairSerializer
 
 
 # Set up logging
@@ -92,7 +94,7 @@ class SignupView(viewsets.ModelViewSet):
     serializer_class = SignupSerializer
     permission_classes = [permissions.AllowAny]
 
-
+# login view
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = LoginSerializer
@@ -100,18 +102,28 @@ class LoginView(APIView):
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
+        
         user = authenticate(
             username=serializer.validated_data['username'],
             password=serializer.validated_data['password']
         )
+        
         if user:
             refresh = RefreshToken.for_user(user)
             return Response({
                 "refresh": str(refresh),
                 "access": str(refresh.access_token),
                 "username": user.username,
+                "role": user.role  # <-- just add this line
             })
+        
         return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    
+# matching view for custom token obtain pair serializer
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
     
 
 # LOGOUT VIEW
