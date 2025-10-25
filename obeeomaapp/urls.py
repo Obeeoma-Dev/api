@@ -18,7 +18,7 @@ from obeeomaapp.views import ( MentalHealthAssessmentViewSet,ResourceCategoryVie
     NotificationView, EngagementTrackerView, FeedbackView, ChatSessionView, ChatMessageView, RecommendationLogView,InvitationAcceptView, home, CustomTokenObtainPairView
 
 )
-
+from . import views
 
 app_name = "obeeomaapp"
 
