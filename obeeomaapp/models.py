@@ -362,12 +362,28 @@ class Feedback(models.Model):
     comment = models.TextField()
     submitted_on = models.DateTimeField(auto_now_add=True)
 
+class Progress(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    date = models.DateField()
+    mood_score = models.IntegerField()
+    notes = models.TextField(blank=True, null=True)
 
+    def __str__(self):
+        return f"{self.user.username} - {self.date}"
+    
 class ChatSession(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE, related_name="chat_sessions")
     started_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
 
+class Progress(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    date = models.DateField()
+    mood_score = models.IntegerField()
+    notes = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.date}"
 
 class ChatMessage(models.Model):
     ROLE_CHOICES = [
@@ -956,3 +972,103 @@ class Report(models.Model):
 
     class Meta:
         ordering = ['-generated_date']
+
+
+# models.py
+
+
+class ResourceCategory(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    icon = models.CharField(max_length=50, blank=True)
+    
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        verbose_name_plural = "Resource Categories"
+
+class EducationalVideo(models.Model):
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    youtube_url = models.URLField()
+    thumbnail = models.URLField(blank=True, null=True)
+    resource_category = models.ForeignKey(ResourceCategory, on_delete=models.CASCADE, related_name='educational_videos')
+    duration = models.CharField(max_length=20, blank=True)
+    
+    MOOD_CHOICES = [
+        ('anxiety', 'Anxiety Relief'),
+        ('depression', 'Depression Support'),
+        ('stress', 'Stress Management'),
+        ('mindfulness', 'Mindfulness & Meditation'),
+        ('self_esteem', 'Self-Esteem Building'),
+        ('coping', 'Coping Skills'),
+        ('sleep', 'Sleep Improvement'),
+        ('anger', 'Anger Management'),
+        ('grief', 'Grief & Loss'),
+        ('general', 'General Wellness'),
+    ]
+    
+    INTENSITY_LEVEL = [
+        (1, 'Gentle - For difficult moments'),
+        (2, 'Moderate - Daily practice'),
+        (3, 'Deep - Intensive work'),
+    ]
+    
+    target_mood = models.CharField(max_length=50, choices=MOOD_CHOICES, default='general')
+    intensity_level = models.IntegerField(choices=INTENSITY_LEVEL, default=1)
+    crisis_support_text = models.TextField(blank=True)
+    
+    views_count = models.IntegerField(default=0)
+    helpful_count = models.IntegerField(default=0)
+    saved_count = models.IntegerField(default=0)
+    
+    is_professionally_reviewed = models.BooleanField(default=False)
+    reviewed_by = models.CharField(max_length=100, blank=True)
+    review_date = models.DateField(blank=True, null=True)
+    
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Educational Video"
+        verbose_name_plural = "Educational Videos"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return self.title
+
+# ADD THIS MODEL - UserVideoInteraction
+class UserVideoInteraction(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    video = models.ForeignKey(EducationalVideo, on_delete=models.CASCADE)
+    
+    MOOD_BEFORE = [
+        (1, 'Very distressed'),
+        (2, 'Somewhat distressed'),
+        (3, 'Neutral'),
+        (4, 'Somewhat calm'),
+        (5, 'Very calm'),
+    ]
+    
+    MOOD_AFTER = [
+        (1, 'Much worse'),
+        (2, 'Slightly worse'),
+        (3, 'No change'),
+        (4, 'Slightly better'),
+        (5, 'Much better'),
+    ]
+    
+    mood_before = models.IntegerField(choices=MOOD_BEFORE, blank=True, null=True)
+    mood_after = models.IntegerField(choices=MOOD_AFTER, blank=True, null=True)
+    watched_full_video = models.BooleanField(default=False)
+    marked_helpful = models.BooleanField(default=False)
+    saved_for_later = models.BooleanField(default=False)
+    watched_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['user', 'video']
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.video.title}"        
