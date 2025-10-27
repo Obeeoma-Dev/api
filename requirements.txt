@@ -61,7 +61,6 @@ djangorestframework_simplejwt==5.5.1
 drf-spectacular==0.28.0
 drf-yasg==1.21.11
 google-api-core==2.26.0
-google-api-python-client==2.185.0
 google-auth==2.41.1
 google-auth-httplib2==0.2.0
 google-auth-oauthlib==1.2.2
