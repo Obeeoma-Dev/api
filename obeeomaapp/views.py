@@ -32,7 +32,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from django.db.models import Q
-from .models import UserProfile, Employer, Employee, Subscription, RecentActivity, HotlineActivity, EmployeeEngagement, AIManagement, PasswordResetToken
+from .models import User, Employer, Employee, Subscription, RecentActivity, HotlineActivity, EmployeeEngagement, AIManagement, PasswordResetToken
 from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
 from .serializers import (
     AnxietyDistressMasterySerializer, 
@@ -731,7 +731,7 @@ class ProgressViewSet(viewsets.ModelViewSet):
     def analytics(self, request):
         data = {
             "average_mood": Progress.objects.aggregate(Avg('mood_score'))['mood_score__avg'],
-            "total_users": UserProfile.objects.count(),
+            "total_users": User.objects.count(),
             "progress_entries": Progress.objects.count(),
         }
         return Response(data)
