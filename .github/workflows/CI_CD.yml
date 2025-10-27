@@ -7,57 +7,6 @@ on:
     branches: [ "main" ]
 
 jobs:
- 
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Python 
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-        cache: 'pip' 
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-       
-
-    - name: Lint with flake8
-      run: |
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
-    - name: Run Django Tests
-      env:
-        DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY_CI }}
-        DEBUG: True
-        DATABASE_URL: ${{ secrets.DATABASE_URL_CI }}
-      run: |
-        python manage.py test
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Trigger Render Deploy
-        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-
-name: CI/CD Pipeline
-
-on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-
-jobs:
   build:
     runs-on: ubuntu-latest
 
@@ -77,20 +26,14 @@ jobs:
         pip install -r requirements.txt
         pip install flake8
 
-    - name: Setup Database
-      run: |
-        python manage.py migrate
-
     - name: Lint with flake8
       run: |
-        # Critical errors (will fail if issues found)
-        flake8 --count --select=E9,F63,F7,F82 --show-source --statistics .
-        # Style warnings (won't fail the build)
-        flake8 --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics .
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
     - name: Run Django Tests
       env:
-        DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY_CI }}
+        SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY_CI }}
         DEBUG: True
         DATABASE_URL: ${{ secrets.DATABASE_URL_CI }}
       run: |
@@ -107,51 +50,3 @@ jobs:
 
     - name: Trigger Render Deploy
       run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-  name: Django CI
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-      
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      
-      - name: Run migrations
-        env:
-          PGDATABASE: ${{ secrets.PGDATABASE }}
-          PGUSER: ${{ secrets.PGUSER }}
-          PGPASSWORD: ${{ secrets.PGPASSWORD }}
-          PGHOST: ${{ secrets.PGHOST }}
-          PGPORT: ${{ secrets.PGPORT }}
-          PGSSLMODE: ${{ secrets.PGSSLMODE }}
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
-        run: |
-          python manage.py migrate
-      
-      - name: Run tests
-        env:
-          PGDATABASE: ${{ secrets.PGDATABASE }}
-          PGUSER: ${{ secrets.PGUSER }}
-          PGPASSWORD: ${{ secrets.PGPASSWORD }}
-          PGHOST: ${{ secrets.PGHOST }}
-          PGPORT: ${{ secrets.PGPORT }}
-          PGSSLMODE: ${{ secrets.PGSSLMODE }}
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
-        run: |
-          python manage.py test
