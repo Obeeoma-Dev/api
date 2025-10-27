@@ -70,6 +70,18 @@ import logging
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import CustomTokenObtainPairSerializer
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from django.db.models import Q
+from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
+from .serializers import (
+    AnxietyDistressMasterySerializer, 
+    DepressionOvercomeSerializer, 
+    ClassicalArticleSerializer, 
+    CustomerGeneratedContentSerializer
+)
 
 
 # Set up logging
@@ -1392,20 +1404,6 @@ class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ResourceCategorySerializer
     permission_classes = [AllowAny] 
     permission_classes = [AllowAny]
-
-
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
-from django.db.models import Q
-from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
-from .serializers import (
-    AnxietyDistressMasterySerializer, 
-    DepressionOvercomeSerializer, 
-    ClassicalArticleSerializer, 
-    CustomerGeneratedContentSerializer
-)
 
 # Anxiety Distress Mastery API
 class AnxietyDistressMasteryViewSet(viewsets.ModelViewSet):
