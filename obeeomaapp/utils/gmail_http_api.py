@@ -1,73 +1,55 @@
-import base64
-import logging
-import email.utils
-from email.mime.text import MIMEText
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from django.conf import settings
-from .gmail_oauth_backend import token_manager
+from email.mime.text import MIMEText
+import base64
+import os
+import logging
 
 logger = logging.getLogger(__name__)
 
-def create_message(sender, to, subject, message_text):
-    """
-    Create a MIME email message and encode it for Gmail API
-    """
-    try:
-        msg = MIMEText(message_text, _charset='utf-8')
-        msg['To'] = to
-        msg['From'] = sender
-        msg['Subject'] = subject
-        msg['Reply-To'] = sender
-        msg['Message-ID'] = email.utils.make_msgid()
+# Single scope for sending emails
+SCOPES = ['https://mail.google.com/', 'https://www.googleapis.com/auth/gmail.send']
 
-        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-        return {'raw': raw}
+def get_gmail_service():
+    """Create Gmail API service instance"""
+    try:
+        creds = Credentials.from_authorized_user_info({
+            'client_id': os.getenv('GOOGLE_CLIENT_ID'),
+            'client_secret': os.getenv('GOOGLE_CLIENT_SECRET'),
+            'refresh_token': os.getenv('REFRESH_TOKEN')
+        }, SCOPES)
+        
+        return build('gmail', 'v1', credentials=creds, cache_discovery=False)
     except Exception as e:
-        logger.error(f"Error creating email message: {str(e)}")
+        logger.error(f"Failed to create Gmail service: {str(e)}")
         return None
 
 def send_gmail_api_email(to_email, subject, body):
-    """
-    Send email using Gmail API with OAuth2 and automatic token refresh
-    """
+    """Send email using Gmail API"""
     try:
-        logger.info(f"Attempting to send email to: {to_email}")
-        service = token_manager.get_gmail_service()
+        service = get_gmail_service()
         if not service:
-            logger.error("Gmail service not available - check OAuth configuration")
+            logger.error("Gmail service not available")
             return False
-
-        message = create_message(settings.EMAIL_HOST_USER, to_email, subject, body)
-        if not message:
-            logger.error("Failed to create email message")
-            return False
-
-        sent_message = service.users().messages().send(userId="me", body=message).execute()
-        logger.info(f"Email sent successfully to {to_email}. Message ID: {sent_message.get('id')}")
+            
+        message = MIMEText(body)
+        message['to'] = to_email
+        message['subject'] = subject
+        message['from'] = os.getenv('EMAIL_HOST_USER', 'obeeoma256@gmail.com')
+        
+        # Create message
+        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        
+        # Send message
+        service.users().messages().send(
+            userId='me',
+            body={'raw': raw}
+        ).execute()
+        
+        logger.info(f"Email sent successfully to {to_email}")
         return True
-
-    except HttpError as error:
-        logger.error(f"Gmail API error: {error.resp.status} - {error._get_reason()}")
-        if error.resp.status in [401, 403]:
-            from django.core.cache import cache
-            cache.delete('gmail_oauth_token')
-            logger.info("Cleared OAuth token cache due to authentication error")
-        return False
+        
     except Exception as e:
-        logger.error(f"Unexpected error sending email: {str(e)}")
-        return False
-
-def test_gmail_connection():
-    """
-    Test Gmail API connection and log the authenticated email address
-    """
-    try:
-        service = token_manager.get_gmail_service()
-        if service:
-            profile = service.users().getProfile(userId='me').execute()
-            logger.info(f"Gmail connection test successful for: {profile.get('emailAddress')}")
-            return True
-        return False
-    except Exception as e:
-        logger.error(f"Gmail connection test failed: {str(e)}")
+        logger.error(f"Error sending email to {to_email}: {str(e)}")
         return False
