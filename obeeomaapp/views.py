@@ -305,6 +305,10 @@ class FeaturesUsageView(viewsets.ModelViewSet):
     serializer_class = AIManagementSerializer
     permission_classes = [IsCompanyAdmin]
 
+    @action(detail=False, methods=['get'])
+    def by_category(self, request):
+        # Replace this with your actual logic
+        return Response({"message": "Feature flags grouped by category"})
 
 class BillingView(viewsets.ModelViewSet):
     queryset = Subscription.objects.select_related("employer").all()
