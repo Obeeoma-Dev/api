@@ -8,8 +8,8 @@ from django.utils import timezone
 from datetime import timedelta
 import json
 
-from .serializers import *
-from .models import *
+from obeeomaapp.serializers import *
+from obeeomaapp.models import *
 
 User = get_user_model()
 
