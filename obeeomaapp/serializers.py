@@ -6,23 +6,8 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
-from obeeomaapp.models import (SelfAssessment, MoodCheckIn, SelfHelpResource, ChatbotInteraction,
-                              UserBadge, EngagementStreak, EmployeeInvitation, Employee,
-                              Employer, AIManagement, HotlineActivity, EmployeeEngagement,
-                              Subscription, RecentActivity, MentalHealthAssessment,
-                              ResourceCategory, Department, OrganizationSettings,
-                              SubscriptionPlan, BillingHistory, PaymentMethod,
-                              WellnessTest, ResourceEngagement, CommonIssue,
-                              ChatEngagement, DepartmentContribution, OrganizationActivity,
-                              Progress, PlatformMetrics, PlatformUsage,
-                              SubscriptionRevenue, SystemActivity, HotlineCall,
-                              AIResource, ClientEngagement, RewardProgram,
-                              SystemSettings, Report,
-                              EmployeeProfile, AvatarProfile, WellnessHub,
-                              AssessmentResult, EducationalResource,
-                              CrisisTrigger, Notification, EngagementTracker,
-                              Feedback, ChatSession, ChatMessage,
-                              RecommendationLog, AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent)
+from obeeomaapp.models import *
+from .models import (ResourceCategory, EducationalVideo, UserVideoInteraction,)
 User = get_user_model()
 
 # signup serializer
@@ -115,20 +100,6 @@ class PasswordResetSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         return validated_data
-    
-class PasswordResetConfirmSerializer(serializers.Serializer):
-    code = serializers.CharField(write_only=True)
-    new_password = serializers.CharField(write_only=True, validators=[validate_password])
-    confirm_password = serializers.CharField(write_only=True)
-
-    def validate(self, attrs):
-        if attrs['new_password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({"confirm_password": "Passwords don’t match."})
-        return attrs
-
-    def create(self, validated_data):
-        return validated_data
-
 
 class PasswordChangeSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
@@ -922,127 +893,3 @@ class VideoRecommendationSerializer(serializers.ModelSerializer):
             'views_count', 'helpful_count', 'resource_category_name',
             'target_mood', 'mood_display', 'intensity_level', 'intensity_display'
         ]
-
-
-from rest_framework import serializers
-from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
-
-class AnxietyDistressMasterySerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
-    
-    class Meta:
-        model = AnxietyDistressMastery
-        fields = '__all__'
-        read_only_fields = ['user', 'created_at', 'updated_at']
-
-class DepressionOvercomeSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
-    activity_type_display = serializers.CharField(source='get_activity_type_display', read_only=True)
-    
-    class Meta:
-        model = DepressionOvercome
-        fields = '__all__'
-        read_only_fields = ['user', 'created_at']
-
-class ClassicalArticleSerializer(serializers.ModelSerializer):
-    category_display = serializers.CharField(source='get_category_display', read_only=True)
-    
-    class Meta:
-        model = ClassicalArticle
-        fields = '__all__'
-
-class CustomerGeneratedContentSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
-    content_type_display = serializers.CharField(source='get_content_type_display', read_only=True)
-    user_name = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = CustomerGeneratedContent
-        fields = '__all__'
-        read_only_fields = ['user', 'likes', 'created_at', 'updated_at']
-    
-    def get_user_name(self, obj):
-        if obj.is_anonymous:
-            return "Anonymous"
-        return obj.user.get_full_name() or obj.user.username
-    
-    def create(self, validated_data):
-        validated_data['user'] = self.context['request'].user
-        return super().create(validated_data)
-
-
-
-
-
-
-
-        # Add these to your serializers.py
-
-class OverviewResponseSerializer(serializers.Serializer):
-    employer_count = serializers.IntegerField()
-    employee_count = serializers.IntegerField()
-    active_subscriptions = serializers.IntegerField()
-    recent_activities = RecentActivitySerializer(many=True)
-
-class OrganizationOverviewResponseSerializer(serializers.Serializer):
-    total_employees = serializers.IntegerField()
-    total_tests = serializers.IntegerField()
-    average_score = serializers.FloatField()
-    at_risk_departments = serializers.IntegerField()
-    recent_activities = OrganizationActivitySerializer(many=True)
-
-class WellnessReportsResponseSerializer(serializers.Serializer):
-    common_issues = serializers.IntegerField()
-    resource_engagement = serializers.IntegerField()
-    average_wellbeing_trend = serializers.FloatField()
-    at_risk = serializers.IntegerField()
-    chat_engagement = ChatEngagementSerializer(many=True)
-    department_contributions = DepartmentContributionSerializer(many=True)
-    recent_activities = OrganizationActivitySerializer(many=True)
-
-class TestsByTypeResponseSerializer(serializers.Serializer):
-    test_type = serializers.CharField()
-    count = serializers.IntegerField()
-
-class TestsByDepartmentResponseSerializer(serializers.Serializer):
-    department__name = serializers.CharField()
-    count = serializers.IntegerField()
-
-class AIManagementResponseSerializer(serializers.Serializer):
-    total_recommendations = serializers.IntegerField()
-    average_engagement_rate = serializers.FloatField()
-    ai_accuracy_score = serializers.FloatField()
-    effectiveness_by_type = serializers.ListField()
-    weekly_recommendations = serializers.ListField()
-    resources = AIResourceSerializer(many=True)
-    top_anxiety_triggers = serializers.ListField()
-
-class ClientEngagementResponseSerializer(serializers.Serializer):
-    average_daily_engagement = serializers.FloatField()
-    active_reward_programs = serializers.IntegerField()
-    total_points_awarded = serializers.IntegerField()
-    weekly_engagement = serializers.ListField()
-    reward_redemptions = serializers.ListField()
-    clients = ClientEngagementSerializer(many=True)
-    top_rewards = RewardProgramSerializer(many=True)
-    engagement_trends = serializers.ListField()
-    streak_statistics = serializers.ListField()
-
-class HotlineActivityResponseSerializer(serializers.Serializer):
-    today_calls = serializers.IntegerField()
-    average_duration = serializers.CharField()
-    active_operators = serializers.IntegerField()
-    hourly_volume = serializers.ListField()
-    call_reasons = serializers.ListField()
-    recent_calls = HotlineCallSerializer(many=True)
-    critical_cases = HotlineCallSerializer(many=True)
-    operator_performance = serializers.ListField()
-
-class ReportsAnalyticsResponseSerializer(serializers.Serializer):
-    platform_usage_chart = serializers.ListField()
-    health_conditions_distribution = serializers.ListField()
-    available_reports = ReportSerializer(many=True)
-    custom_report_types = serializers.ListField()
-    date_ranges = serializers.ListField()
-    formats = serializers.ListField()
-

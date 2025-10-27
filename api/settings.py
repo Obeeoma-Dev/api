@@ -22,21 +22,34 @@ CSRF_TRUSTED_ORIGINS = [
 # Database
 tmpPostgres = urlparse(os.getenv("DATABASE_URL", ""))
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("PGDATABASE", "neondb"),
-        "USER": os.environ.get("PGUSER", "neondb_owner"),
-        "PASSWORD": os.environ.get("PGPASSWORD"),
-        "HOST": os.environ.get("PGHOST"),
-        "PORT": os.environ.get("PGPORT", "5432"),
-        "OPTIONS": {
-            "sslmode": os.environ.get("PGSSLMODE", "require"),
-        },
-        "CONN_MAX_AGE": 600,
-        "CONN_HEALTH_CHECKS": True,
+# Database configuration
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL and DATABASE_URL.startswith("sqlite"):
+    # Use SQLite for testing/CI
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
     }
-}
+else:
+    # Use PostgreSQL for production
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.environ.get("PGDATABASE", "neondb"),
+            "USER": os.environ.get("PGUSER", "neondb_owner"),
+            "PASSWORD": os.environ.get("PGPASSWORD"),
+            "HOST": os.environ.get("PGHOST"),
+            "PORT": os.environ.get("PGPORT", "5432"),
+            "OPTIONS": {
+                "sslmode": os.environ.get("PGSSLMODE", "require"),
+            },
+            "CONN_MAX_AGE": 600,
+            "CONN_HEALTH_CHECKS": True,
+        }
+    }
 
 INSTALLED_APPS = [
     "django.contrib.admin",

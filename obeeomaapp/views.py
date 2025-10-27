@@ -12,49 +12,6 @@ from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
 from obeeomaapp.serializers import *
 from obeeomaapp.models import *
-from obeeomaapp.utils.gmail_http_api import send_gmail_api_email
-from .models import (
-    RecentActivity, HotlineActivity, EmployeeProfile, AvatarProfile, 
-    WellnessHub, MoodCheckIn, AssessmentResult, SelfHelpResource,
-    EducationalResource, CrisisTrigger, Notification, EngagementTracker,
-    Feedback, ChatSession, ChatMessage, RecommendationLog,
-    MentalHealthAssessment, UserBadge, EngagementStreak, Employer,
-    Employee, Subscription, AIManagement, EmployeeEngagement,
-    Progress, ResourceCategory, Department, OrganizationActivity,
-    SubscriptionPlan, BillingHistory, CommonIssue, ResourceEngagement,
-    WellnessTest, ChatEngagement, DepartmentContribution,
-    OrganizationSettings, PlatformMetrics, PlatformUsage,
-    SubscriptionRevenue, SystemActivity, HotlineCall, AIResource,
-    ClientEngagement, RewardProgram, Report, SystemSettings,
-    PasswordResetToken, User, EducationalVideo, UserVideoInteraction, AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
-)
-
-from .serializers import (
-    RecentActivitySerializer, HotlineActivitySerializer, EmployeeProfileSerializer,
-    AvatarProfileSerializer, WellnessHubSerializer, MoodCheckInSerializer,
-    AssessmentResultSerializer, SelfHelpResourceSerializer,
-    EducationalResourceSerializer, CrisisTriggerSerializer, NotificationSerializer,
-    EngagementTrackerSerializer, FeedbackSerializer, ChatSessionSerializer,
-    ChatMessageSerializer, RecommendationLogSerializer,
-    MentalHealthAssessmentSerializer, MentalHealthAssessmentListSerializer,
-    AssessmentResponseSerializer, UserBadgeSerializer, EngagementStreakSerializer,
-    EmployerSerializer, EmployeeSerializer, SubscriptionSerializer,
-    AIManagementSerializer, EmployeeEngagementSerializer,
-    ProgressSerializer, ResourceCategorySerializer, DepartmentSerializer,
-    OrganizationActivitySerializer, SubscriptionPlanSerializer,
-    BillingHistorySerializer, ChatEngagementSerializer,
-    DepartmentContributionSerializer, OrganizationSettingsSerializer,
-    PlatformMetricsSerializer, PlatformUsageSerializer,
-    SubscriptionRevenueSerializer, SystemActivitySerializer,
-    OrganizationsManagementSerializer, HotlineCallSerializer,
-    AIResourceSerializer, ClientEngagementSerializer,
-    RewardProgramSerializer, ReportSerializer, SystemSettingsSerializer,
-    SignupSerializer, LoginSerializer, PasswordResetSerializer, PasswordChangeSerializer,
-    EmployeeInvitationCreateSerializer, EmployeeInvitationAcceptSerializer,
-    EmployeeManagementSerializer, SubscriptionManagementSerializer,
-    EducationalVideoSerializer, UserVideoInteractionSerializer, AnxietyDistressMasterySerializer,
-    DepressionOvercomeSerializer, ClassicalArticleSerializer, CustomerGeneratedContentSerializer
-)
 from django.core.mail import send_mail
 from django.conf import settings
 from django.utils import timezone
@@ -62,8 +19,8 @@ from datetime import timedelta
 import secrets
 from rest_framework import filters
 import string
-# from django.template.loader import render_to_string
-# from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
+from django.core.mail import EmailMultiAlternatives
 import logging
 
 
@@ -86,8 +43,7 @@ from .serializers import (
 
 # Set up logging
 logger = logging.getLogger(__name__)
-
-
+from obeeomaapp.serializers import *
 
 
 User = get_user_model()
@@ -169,14 +125,6 @@ class LogoutView(APIView):
 
 logger = logging.getLogger(__name__)
 
-# obeeomaapp/views.py
-import secrets
-import string
-
-
-logger = logging.getLogger(__name__)
-
-
 class PasswordResetView(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = PasswordResetSerializer
@@ -186,62 +134,79 @@ class PasswordResetView(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data.get("email")
 
+        
         user = User.objects.filter(email=email).first()
         if not user:
-            logger.info(f"Password reset requested for non-existent email: {email}")
+            
             return Response(
                 {"message": f"If an account exists for {email}, a reset code has been sent."},
                 status=status.HTTP_200_OK
             )
 
+        
         try:
             code = ''.join(secrets.choice(string.digits) for _ in range(6))
             token = secrets.token_urlsafe(32)
             expires_at = timezone.now() + timedelta(minutes=15)
 
+            
             PasswordResetToken.objects.filter(user=user).delete()
+
             reset_token = PasswordResetToken.objects.create(
-                user=user, token=token, code=code, expires_at=expires_at
+                user=user,
+                token=token,
+                code=code,
+                expires_at=expires_at
             )
         except Exception as e:
-            logger.error(f"Error generating password reset token for {email}: {str(e)}")
+            logger.error("Error generating password reset token: %s", str(e))
             return Response(
                 {"error": "Something went wrong while generating reset token."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+        # Step 3: Send email safely
         try:
             subject = "Password Reset Verification Code - Obeeoma"
-            message = (
-                f"Hello {user.username},\n\n"
-                f"You requested a password reset for your Obeeoma account.\n\n"
-                f"Your verification code is: {code}\n\n"
-                f"This code will expire in 15 minutes.\n\n"
-                f"If you did not request this password reset, please ignore this email.\n\n"
-                f"Best regards,\nObeeoma Team"
+            message = f"""
+Hello {user.username},
+
+You requested a password reset for your Obeeoma account.
+
+Your verification code is: {code}
+
+This code will expire in 15 minutes.
+
+If you did not request this password reset, please ignore this email.
+
+Best regards,
+Obeeoma Team
+"""
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False,
             )
 
-            email_sent = send_gmail_api_email(to_email=email, subject=subject, body=message)
-            if not email_sent:
-                reset_token.delete()
-                return Response(
-                    {"error": "Failed to send email. Please try again later."},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-
-            logger.info(f"Password reset email sent to {email}")
             return Response(
-                {"message": f"If an account exists for {email}, a reset code has been sent.", "token": token},
+                {
+                    "message": f"If an account exists for {email}, a reset code has been sent.",
+                    "token": token
+                },
                 status=status.HTTP_200_OK
             )
 
         except Exception as e:
-            logger.error(f"Error sending password reset email to {email}: {str(e)}")
-            reset_token.delete()
+            logger.error("Error sending password reset email: %s", str(e))
+            reset_token.delete()  
             return Response(
                 {"error": "Failed to send email. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+# Confirm Password Reset View
 class PasswordResetConfirmView(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = PasswordResetSerializer
@@ -249,26 +214,40 @@ class PasswordResetConfirmView(viewsets.ViewSet):
     def create(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
+        
         code = serializer.validated_data['code']
         new_password = serializer.validated_data['new_password']
+        
+        # Get token from request headers or body
         token = request.data.get('token')
-
         if not token:
             return Response({"error": "Token is required"}, status=status.HTTP_400_BAD_REQUEST)
-
+        
         try:
-            reset_token = PasswordResetToken.objects.get(token=token, code=code, is_used=False)
+            # This part checks if token and code are valid
+            reset_token = PasswordResetToken.objects.get(
+                token=token,
+                code=code,
+                is_used=False
+            )
+            
+            # This part checks if token is expired
             if reset_token.is_expired():
                 reset_token.delete()
                 return Response({"error": "Verification code has expired"}, status=status.HTTP_400_BAD_REQUEST)
-
+            
+            # This helps in Updating user password
             user = reset_token.user
             user.set_password(new_password)
             user.save()
+            
+            # Mark token as used
             reset_token.mark_as_used()
-
-            return Response({"message": "Password reset successfully"}, status=status.HTTP_200_OK)
-
+            
+            return Response({
+                "message": "Password reset successfully"
+            }, status=status.HTTP_200_OK)
+            
         except PasswordResetToken.DoesNotExist:
             return Response({"error": "Invalid verification code"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -288,6 +267,7 @@ class PasswordChangeView(viewsets.ViewSet):
         user.set_password(serializer.validated_data['new_password'])
         user.save()
         return Response({"message": "Password updated successfully"})
+
 
 # --- Admin Dashboard ---
 class OverviewView(viewsets.ViewSet):
@@ -319,29 +299,10 @@ class EmployeeEngagementView(viewsets.ModelViewSet):
     permission_classes = [IsCompanyAdmin]
 
 
-from rest_framework.decorators import action
-from rest_framework.response import Response
-
 class FeaturesUsageView(viewsets.ModelViewSet):
     queryset = AIManagement.objects.select_related("employer").order_by("-created_at")
     serializer_class = AIManagementSerializer
     permission_classes = [IsCompanyAdmin]
-
-    @action(detail=False, methods=['get'], url_path='by-category')
-    def by_category(self, request):
-        """
-        Get AI features usage grouped by category
-        """
-        # Your implementation here
-        # Example: Group by category and count usage
-        from django.db.models import Count
-        usage_by_category = (
-            AIManagement.objects
-            .values('category')  # Make sure your model has a 'category' field
-            .annotate(total_usage=Count('id'))
-            .order_by('-total_usage')
-        )
-        return Response(usage_by_category)
 
 
 class BillingView(viewsets.ModelViewSet):
@@ -769,7 +730,7 @@ class ProgressViewSet(viewsets.ModelViewSet):
     def analytics(self, request):
         data = {
             "average_mood": Progress.objects.aggregate(Avg('mood_score'))['mood_score__avg'],
-            "total_users": User.objects.count(),
+            "total_users": UserProfile.objects.count(),
             "progress_entries": Progress.objects.count(),
         }
         return Response(data)
@@ -1214,42 +1175,61 @@ class AIManagementView(viewsets.ViewSet):
         }
         
         return Response(data)
+
+
 class ClientEngagementView(viewsets.ViewSet):
     """Client engagement and rewards dashboard"""
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
+        # Get average daily engagement
         try:
             avg_engagement = ClientEngagement.objects.aggregate(
                 avg_engagement=Avg('engagement_rate')
             )['avg_engagement'] or 0
         except Exception:
             avg_engagement = 0
+        
+        # Get active reward programs
         try:
             active_rewards = RewardProgram.objects.filter(is_active=True).count()
         except Exception:
             active_rewards = 0
+        
+        # Get total points awarded
         try:
             total_points = ClientEngagement.objects.aggregate(
                 total_points=Sum('total_points')
             )['total_points'] or 0
         except Exception:
             total_points = 0
+        
+        # Get weekly engagement data (mock data)
         weekly_engagement = [65, 70, 68, 75, 80, 85, 78]
+        
+        # Get reward redemptions (mock data)
         reward_redemptions = [25, 30, 35, 40, 45, 40]
+        
+        # Get clients
         try:
             clients = ClientEngagement.objects.select_related('organization').all()[:10]
         except Exception:
             clients = []
+        
+        # Get top rewards
         try:
             top_rewards = RewardProgram.objects.filter(is_active=True).order_by('-redemption_count')[:3]
         except Exception:
             top_rewards = []
+        
+        # Get engagement trends (mock data)
         engagement_trends = [
             {'trend': 'Morning Sessions', 'percentage': 68},
             {'trend': 'Evening Sessions', 'percentage': 42},
             {'trend': 'Weekend Activity', 'percentage': 55}
         ]
+        
+        # Get streak statistics
         streak_stats = [
             {'streak': '7+ Day Streak', 'active_users': 324},
             {'streak': '14+ Day Streak', 'active_users': 186},
@@ -1269,6 +1249,8 @@ class ClientEngagementView(viewsets.ViewSet):
         }
         
         return Response(data)
+
+
 class ReportsAnalyticsView(viewsets.ViewSet):
     """Reports and analytics for system admin"""
     permission_classes = [IsCompanyAdmin]
@@ -1287,7 +1269,8 @@ class ReportsAnalyticsView(viewsets.ViewSet):
             {'condition': 'OCD', 'percentage': 5},
             {'condition': 'Other', 'percentage': 5}
         ]
-    
+        
+        # Get available reports
         try:
             available_reports = Report.objects.filter(is_active=True).order_by('-generated_date')[:5]
         except Exception:
@@ -1354,9 +1337,14 @@ class SystemSettingsView(viewsets.ModelViewSet):
 
 from rest_framework import viewsets
 from rest_framework.decorators import action
-
+from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
-
+from .models import EducationalVideo, UserVideoInteraction, ResourceCategory
+from .serializers import (
+    EducationalVideoSerializer, 
+    UserVideoInteractionSerializer,
+    ResourceCategorySerializer
+)
 
 class EducationalVideoViewSet(viewsets.ModelViewSet):
     queryset = EducationalVideo.objects.filter(is_active=True)
