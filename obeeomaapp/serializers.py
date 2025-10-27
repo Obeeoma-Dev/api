@@ -1,5 +1,6 @@
 # serializers.py
 from rest_framework.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
@@ -62,14 +63,26 @@ class LoginSerializer(serializers.Serializer):
                 
             if not user.is_active:
                 raise serializers.ValidationError('Account is disabled.')
-                
+            
+            # Keep original validated data
             attrs['user'] = user
+            # Add role
+            attrs['role'] = user.role
             return attrs
         else:
             raise serializers.ValidationError('Both username and password are required.')
 
     def create(self, validated_data):
         return validated_data
+
+# custom serializer for token obtain pair
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        data['username'] = self.user.username  # keep username
+        data['role'] = getattr(self.user, 'role', None)  # add role
+        return data
+
     
     
 # Logout Serializer

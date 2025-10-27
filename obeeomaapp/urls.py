@@ -130,8 +130,8 @@ from rest_framework_simplejwt.views import *
 from obeeomaapp.views import (
     MentalHealthAssessmentViewSet, ResourceCategoryViewSet,
     EducationalVideoViewSet, UserVideoInteractionViewSet, 
-    AnxietyDistressMasteryViewSet, DepressionOvercomeViewSet,
-    ClassicalArticleViewSet, CustomerGeneratedContentViewSet,
+    # AnxietyDistressMasteryViewSet, DepressionOvercomeViewSet,
+    # ClassicalArticleViewSet, CustomerGeneratedContentViewSet,
     OrganizationOverviewView, EmployeeManagementView,
     DepartmentManagementView, SubscriptionManagementView,
     WellnessReportsView, OrganizationSettingsView, TestsByTypeView,
@@ -174,10 +174,10 @@ router.register(r'progress', ProgressViewSet)
 router.register(r'resource-categories', ResourceCategoryViewSet, basename='resource-category')
 router.register(r'videos', EducationalVideoViewSet, basename='videos')
 router.register(r'video-interactions', UserVideoInteractionViewSet, basename='video-interactions')
-router.register(r'anxiety-mastery', AnxietyDistressMasteryViewSet, basename='anxiety-mastery')
-router.register(r'depression-activities', DepressionOvercomeViewSet, basename='depression-activities')
-router.register(r'classical-articles', ClassicalArticleViewSet, basename='classical-articles')
-router.register(r'user-content', CustomerGeneratedContentViewSet, basename='user-content')
+# router.register(r'anxiety-mastery', AnxietyDistressMasteryViewSet, basename='anxiety-mastery')
+# router.register(r'depression-activities', DepressionOvercomeViewSet, basename='depression-activities')
+# router.register(r'classical-articles', ClassicalArticleViewSet, basename='classical-articles')
+# router.register(r'user-content', CustomerGeneratedContentViewSet, basename='user-content')
 router.register(r'categories', ResourceCategoryViewSet, basename='categories')
 
 # Dashboard routers (Employer Dashboard)
@@ -259,7 +259,7 @@ urlpatterns = [
     path("", include(router.urls)),
 
     # JWT Authentication
-    path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("auth/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("auth/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
 
