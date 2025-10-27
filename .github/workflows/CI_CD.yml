@@ -26,20 +26,14 @@ jobs:
         pip install -r requirements.txt
         pip install flake8
 
-    - name: Setup Database
-      run: |
-        python manage.py migrate
-
     - name: Lint with flake8
       run: |
-        # Critical errors (will fail if issues found)
-        flake8 --count --select=E9,F63,F7,F82 --show-source --statistics .
-        # Style warnings (won't fail the build)
-        flake8 --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics .
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
     - name: Run Django Tests
       env:
-        DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY_CI }}
+        SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY_CI }}
         DEBUG: True
         DATABASE_URL: ${{ secrets.DATABASE_URL_CI }}
       run: |
