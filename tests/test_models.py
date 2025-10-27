@@ -6,6 +6,8 @@ from django.utils import timezone
 from datetime import timedelta
 import json
 
+User = get_user_model()
+
 from obeeomaapp.models import (
     Employer, Employee, EmployeeInvitation, AuthenticationEvent, 
     AdminAction, SystemSetting, SystemStatus, SelfAssessment, MoodCheckIn,
