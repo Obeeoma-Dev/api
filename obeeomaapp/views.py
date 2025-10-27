@@ -33,13 +33,13 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from django.db.models import Q
 from .models import User, Employer, Employee, Subscription, RecentActivity, HotlineActivity, EmployeeEngagement, AIManagement, PasswordResetToken
-from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
-from .serializers import (
-    AnxietyDistressMasterySerializer, 
-    DepressionOvercomeSerializer, 
-    ClassicalArticleSerializer, 
-    CustomerGeneratedContentSerializer
-)
+# from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
+# from .serializers import (
+#     AnxietyDistressMasterySerializer, 
+#     DepressionOvercomeSerializer, 
+#     ClassicalArticleSerializer, 
+#     CustomerGeneratedContentSerializer
+# )
 
 
 # Set up logging
@@ -1394,137 +1394,137 @@ class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [AllowAny] 
     permission_classes = [AllowAny]
 
-# Anxiety Distress Mastery API
-class AnxietyDistressMasteryViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
-    serializer_class = AnxietyDistressMasterySerializer
+# # Anxiety Distress Mastery API
+# class AnxietyDistressMasteryViewSet(viewsets.ModelViewSet):
+#     permission_classes = [IsAuthenticated]
+#     serializer_class = AnxietyDistressMasterySerializer
     
-    def get_queryset(self):
-        return AnxietyDistressMastery.objects.filter(user=self.request.user)
+#     def get_queryset(self):
+#         return AnxietyDistressMastery.objects.filter(user=self.request.user)
     
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+#     def perform_create(self, serializer):
+#         serializer.save(user=self.request.user)
     
-    @action(detail=True, methods=['post'])
-    def mark_completed(self, request, pk=None):
-        mastery = self.get_object()
-        mastery.progress_status = 'completed'
-        mastery.save()
-        serializer = self.get_serializer(mastery)
-        return Response(serializer.data)
+#     @action(detail=True, methods=['post'])
+#     def mark_completed(self, request, pk=None):
+#         mastery = self.get_object()
+#         mastery.progress_status = 'completed'
+#         mastery.save()
+#         serializer = self.get_serializer(mastery)
+#         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'])
-    def progress_stats(self, request):
-        queryset = self.get_queryset()
-        total = queryset.count()
-        completed = queryset.filter(progress_status='completed').count()
-        in_progress = queryset.filter(progress_status='in_progress').count()
+#     @action(detail=False, methods=['get'])
+#     def progress_stats(self, request):
+#         queryset = self.get_queryset()
+#         total = queryset.count()
+#         completed = queryset.filter(progress_status='completed').count()
+#         in_progress = queryset.filter(progress_status='in_progress').count()
         
-        return Response({
-            'total': total,
-            'completed': completed,
-            'in_progress': in_progress,
-            'completion_rate': (completed / total * 100) if total > 0 else 0
-        })
+#         return Response({
+#             'total': total,
+#             'completed': completed,
+#             'in_progress': in_progress,
+#             'completion_rate': (completed / total * 100) if total > 0 else 0
+#         })
 
-# Depression Overcome API
-class DepressionOvercomeViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
-    serializer_class = DepressionOvercomeSerializer
+# # Depression Overcome API
+# class DepressionOvercomeViewSet(viewsets.ModelViewSet):
+#     permission_classes = [IsAuthenticated]
+#     serializer_class = DepressionOvercomeSerializer
     
-    def get_queryset(self):
-        return DepressionOvercome.objects.filter(user=self.request.user)
+#     def get_queryset(self):
+#         return DepressionOvercome.objects.filter(user=self.request.user)
     
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+#     def perform_create(self, serializer):
+#         serializer.save(user=self.request.user)
     
-    @action(detail=True, methods=['post'])
-    def complete_activity(self, request, pk=None):
-        activity = self.get_object()
-        mood_change = request.data.get('mood_change', 0)
+#     @action(detail=True, methods=['post'])
+#     def complete_activity(self, request, pk=None):
+#         activity = self.get_object()
+#         mood_change = request.data.get('mood_change', 0)
         
-        activity.is_completed = True
-        activity.actual_mood_change = mood_change
-        activity.save()
+#         activity.is_completed = True
+#         activity.actual_mood_change = mood_change
+#         activity.save()
         
-        serializer = self.get_serializer(activity)
-        return Response(serializer.data)
+#         serializer = self.get_serializer(activity)
+#         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'])
-    def by_type(self, request):
-        activity_type = request.query_params.get('type', None)
-        if activity_type:
-            queryset = self.get_queryset().filter(activity_type=activity_type)
-            serializer = self.get_serializer(queryset, many=True)
-            return Response(serializer.data)
-        return Response({"error": "Type parameter required"}, status=400)
+#     @action(detail=False, methods=['get'])
+#     def by_type(self, request):
+#         activity_type = request.query_params.get('type', None)
+#         if activity_type:
+#             queryset = self.get_queryset().filter(activity_type=activity_type)
+#             serializer = self.get_serializer(queryset, many=True)
+#             return Response(serializer.data)
+#         return Response({"error": "Type parameter required"}, status=400)
 
-# Classical Articles API
-class ClassicalArticleViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = [IsAuthenticatedOrReadOnly]
-    serializer_class = ClassicalArticleSerializer
-    queryset = ClassicalArticle.objects.all()
+# # Classical Articles API
+# class ClassicalArticleViewSet(viewsets.ReadOnlyModelViewSet):
+#     permission_classes = [IsAuthenticatedOrReadOnly]
+#     serializer_class = ClassicalArticleSerializer
+#     queryset = ClassicalArticle.objects.all()
     
-    @action(detail=False, methods=['get'])
-    def featured(self, request):
-        featured_articles = self.get_queryset().filter(is_featured=True)
-        serializer = self.get_serializer(featured_articles, many=True)
-        return Response(serializer.data)
+#     @action(detail=False, methods=['get'])
+#     def featured(self, request):
+#         featured_articles = self.get_queryset().filter(is_featured=True)
+#         serializer = self.get_serializer(featured_articles, many=True)
+#         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'])
-    def by_category(self, request):
-        category = request.query_params.get('category', None)
-        if category:
-            articles = self.get_queryset().filter(category=category)
-            serializer = self.get_serializer(articles, many=True)
-            return Response(serializer.data)
-        return Response({"error": "Category parameter required"}, status=400)
+#     @action(detail=False, methods=['get'])
+#     def by_category(self, request):
+#         category = request.query_params.get('category', None)
+#         if category:
+#             articles = self.get_queryset().filter(category=category)
+#             serializer = self.get_serializer(articles, many=True)
+#             return Response(serializer.data)
+#         return Response({"error": "Category parameter required"}, status=400)
     
-    @action(detail=True, methods=['get'])
-    def similar(self, request, pk=None):
-        article = self.get_object()
-        similar_articles = self.get_queryset().filter(
-            category=article.category
-        ).exclude(id=article.id)[:5]
-        serializer = self.get_serializer(similar_articles, many=True)
-        return Response(serializer.data)
+#     @action(detail=True, methods=['get'])
+#     def similar(self, request, pk=None):
+#         article = self.get_object()
+#         similar_articles = self.get_queryset().filter(
+#             category=article.category
+#         ).exclude(id=article.id)[:5]
+#         serializer = self.get_serializer(similar_articles, many=True)
+#         return Response(serializer.data)
 
-# Customer Generated Content API
-class CustomerGeneratedContentViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticatedOrReadOnly]
-    serializer_class = CustomerGeneratedContentSerializer
+# # Customer Generated Content API
+# class CustomerGeneratedContentViewSet(viewsets.ModelViewSet):
+#     permission_classes = [IsAuthenticatedOrReadOnly]
+#     serializer_class = CustomerGeneratedContentSerializer
     
-    def get_queryset(self):
-        if self.request.user.is_authenticated:
-            # Users can see their own content + approved public content
-            return CustomerGeneratedContent.objects.filter(
-                Q(user=self.request.user) | Q(is_approved=True)
-            )
-        else:
-            # Anonymous users can only see approved content
-            return CustomerGeneratedContent.objects.filter(is_approved=True)
+#     def get_queryset(self):
+#         if self.request.user.is_authenticated:
+#             # Users can see their own content + approved public content
+#             return CustomerGeneratedContent.objects.filter(
+#                 Q(user=self.request.user) | Q(is_approved=True)
+#             )
+#         else:
+#             # Anonymous users can only see approved content
+#             return CustomerGeneratedContent.objects.filter(is_approved=True)
     
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+#     def perform_create(self, serializer):
+#         serializer.save(user=self.request.user)
     
-    @action(detail=True, methods=['post'])
-    def like(self, request, pk=None):
-        content = self.get_object()
-        content.likes += 1
-        content.save()
-        return Response({'likes': content.likes})
+#     @action(detail=True, methods=['post'])
+#     def like(self, request, pk=None):
+#         content = self.get_object()
+#         content.likes += 1
+#         content.save()
+#         return Response({'likes': content.likes})
     
-    @action(detail=False, methods=['get'])
-    def my_content(self, request):
-        if not request.user.is_authenticated:
-            return Response({"error": "Authentication required"}, status=401)
+#     @action(detail=False, methods=['get'])
+#     def my_content(self, request):
+#         if not request.user.is_authenticated:
+#             return Response({"error": "Authentication required"}, status=401)
         
-        user_content = CustomerGeneratedContent.objects.filter(user=request.user)
-        serializer = self.get_serializer(user_content, many=True)
-        return Response(serializer.data)
+#         user_content = CustomerGeneratedContent.objects.filter(user=request.user)
+#         serializer = self.get_serializer(user_content, many=True)
+#         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'])
-    def featured(self, request):
-        featured_content = self.get_queryset().filter(is_featured=True, is_approved=True)
-        serializer = self.get_serializer(featured_content, many=True)
-        return Response(serializer.data)    
+#     @action(detail=False, methods=['get'])
+#     def featured(self, request):
+#         featured_content = self.get_queryset().filter(is_featured=True, is_approved=True)
+#         serializer = self.get_serializer(featured_content, many=True)
+#         return Response(serializer.data)    
