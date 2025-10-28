@@ -8,12 +8,17 @@ from django.contrib.auth import authenticate, get_user_model
 from rest_framework import status, permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated, BasePermission
+from rest_framework.permissions import (
+    IsAuthenticated,
+    BasePermission,
+    IsAuthenticatedOrReadOnly,
+)
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
 from obeeomaapp.serializers import *
 from obeeomaapp.models import *
-from django.core.mail import send_mail
-from .utils.gmail_http_api import send_gmail_api_email  # Import the Gmail API email sender
+from django.core.mail import send_mail, EmailMultiAlternatives
+from .utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
@@ -21,7 +26,6 @@ import secrets
 from rest_framework import filters
 import string
 from django.template.loader import render_to_string
-from django.core.mail import EmailMultiAlternatives
 import logging
 from django_filters.rest_framework import DjangoFilterBackend
 
@@ -54,10 +58,10 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from django.db.models import Q
 from .models import User, Employer, Employee, Subscription, RecentActivity, HotlineActivity, EmployeeEngagement, AIManagement, PasswordResetToken
-"""from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
-# from .serializers import (
-#     AnxietyDistressMasterySerializer, 
-#     DepressionOvercomeSerializer, 
+""" from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
+from .serializers import (
+     AnxietyDistressMasterySerializer, 
+     DepressionOvercomeSerializer, 
 #     ClassicalArticleSerializer, 
 #     CustomerGeneratedContentSerializer
 # )"""
@@ -65,11 +69,9 @@ from .models import User, Employer, Employee, Subscription, RecentActivity, Hotl
 
 # Set up logging
 logger = logging.getLogger(__name__)
-from obeeomaapp.serializers import *
 
-
+# Get User model
 User = get_user_model()
-
 
 # --- Permission: company admin (is_staff) ---
 class IsCompanyAdmin(BasePermission):
@@ -104,7 +106,7 @@ class LoginView(APIView):
                 "refresh": str(refresh),
                 "access": str(refresh.access_token),
                 "username": user.username,
-                "role": user.role  # <-- just add this line
+                "role": user.role  
             })
         
         return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
@@ -146,10 +148,6 @@ class LogoutView(APIView):
   # password reset request view
 
 logger = logging.getLogger(__name__)
-
-
-logger = logging.getLogger(__name__)
-User = get_user_model()
 
 class PasswordResetView(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
@@ -956,19 +954,21 @@ class TestsByDepartmentView(viewsets.ViewSet):
 class SystemAdminOverviewView(viewsets.ViewSet):
     """System Admin dashboard overview"""
     permission_classes = [IsCompanyAdmin]
+    serializer_class = SystemAdminOverviewSerializer
     
-    def list(self, request):
+    def list(self, request=None):
         # Get platform metrics
         try:
-            latest_metrics = PlatformMetrics.objects.first()
+            latest_metrics = PlatformMetrics.objects.all().first()
             if not latest_metrics:
                 # Create default metrics if none exist
-                latest_metrics = PlatformMetrics.objects.create(
-                    total_organizations=Employer.objects.count(),
-                    total_clients=Employee.objects.count(),
+                latest_metrics = PlatformMetrics(
+                    total_organizations=len(Employer.objects.all()),
+                    total_clients=len(Employee.objects.all()),
                     monthly_revenue=0.00,
                     hotline_calls_today=0
                 )
+                latest_metrics.save()
         except Exception:
             # Fallback if PlatformMetrics doesn't exist yet
             latest_metrics = type('obj', (object,), {
@@ -1066,6 +1066,7 @@ class OrganizationsManagementView(viewsets.ModelViewSet):
 class HotlineActivityView(viewsets.ViewSet):
     """Hotline activity management for system admin"""
     permission_classes = [IsCompanyAdmin]
+    serializer_class = HotlineActivitySerializer
     
     def list(self, request):
         # Get today's calls
@@ -1136,6 +1137,7 @@ class HotlineActivityView(viewsets.ViewSet):
 class AIManagementView(viewsets.ViewSet):
     """AI Management dashboard for system admin"""
     permission_classes = [IsCompanyAdmin]
+    serializer_class = AIManagementSerializer
     
     def list(self, request):
         # Get total recommendations
@@ -1204,6 +1206,7 @@ class AIManagementView(viewsets.ViewSet):
 class ClientEngagementView(viewsets.ViewSet):
     """Client engagement and rewards dashboard"""
     permission_classes = [IsCompanyAdmin]
+    serializer_class = ClientEngagementSerializer
     
     def list(self, request):
         # Get average daily engagement
@@ -1405,11 +1408,10 @@ class UserVideoInteractionViewSet(viewsets.ModelViewSet):
 class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ResourceCategory.objects.all()
     serializer_class = ResourceCategorySerializer
-    permission_classes = [AllowAny] 
     permission_classes = [AllowAny]
 
 # # Anxiety Distress Mastery API
-# class AnxietyDistressMasteryViewSet(viewsets.ModelViewSet):
+"""# class AnxietyDistressMasteryViewSet(viewsets.ModelViewSet):
 #     permission_classes = [IsAuthenticated]
 #     serializer_class = AnxietyDistressMasterySerializer
     
@@ -1541,6 +1543,7 @@ class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
 #     def featured(self, request):
 #         featured_content = self.get_queryset().filter(is_featured=True, is_approved=True)
 #         serializer = self.get_serializer(featured_content, many=True)
+#         return Response(serializer.data) """   
 #         return Response(serializer.data)    
 
 
