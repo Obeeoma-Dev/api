@@ -13,7 +13,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from obeeomaapp.serializers import *
 from obeeomaapp.models import *
 from django.core.mail import send_mail
-from .utils.gmail_http_api import send_gmail_api_email  # Import the Gmail API email sender
+from . utils.gmail_http_api import send_gmail_api_email  # Import the Gmail API email sender
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
@@ -34,10 +34,10 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from django.db.models import Q
 from .models import User, Employer, Employee, Subscription, RecentActivity, HotlineActivity, EmployeeEngagement, AIManagement, PasswordResetToken
-"""from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
-# from .serializers import (
-#     AnxietyDistressMasterySerializer, 
-#     DepressionOvercomeSerializer, 
+""" from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
+from .serializers import (
+     AnxietyDistressMasterySerializer, 
+     DepressionOvercomeSerializer, 
 #     ClassicalArticleSerializer, 
 #     CustomerGeneratedContentSerializer
 # )"""
@@ -1398,7 +1398,7 @@ class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [AllowAny]
 
 # # Anxiety Distress Mastery API
-# class AnxietyDistressMasteryViewSet(viewsets.ModelViewSet):
+"""# class AnxietyDistressMasteryViewSet(viewsets.ModelViewSet):
 #     permission_classes = [IsAuthenticated]
 #     serializer_class = AnxietyDistressMasterySerializer
     
@@ -1530,4 +1530,4 @@ class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
 #     def featured(self, request):
 #         featured_content = self.get_queryset().filter(is_featured=True, is_approved=True)
 #         serializer = self.get_serializer(featured_content, many=True)
-#         return Response(serializer.data)    
+#         return Response(serializer.data) """   
