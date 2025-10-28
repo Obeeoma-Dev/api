@@ -17,9 +17,15 @@ django-extensions==4.1
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
 drf-spectacular==0.28.0
+<<<<<<< HEAD
 drf-yasg==1.21.8
 flake8==7.3.0
 google-api-core==2.27.0
+=======
+drf-yasg==1.21.11
+flake8==7.0.0
+google-api-core==2.26.0
+>>>>>>> dee073bd8a71e9debb1a59c8b06c2cd05cb6efbd
 google-api-python-client==2.185.0
 google-auth==2.41.1
 google-auth-httplib2==0.2.0
@@ -83,6 +89,14 @@ typing_extensions==4.14.1
 tzdata==2025.2
 uritemplate==4.2.0
 urllib3==2.5.0
+<<<<<<< HEAD
 websocket-client==1.8.0
 whitenoise==6.11.0
 wsproto==1.2.0
+=======
+whitenoise==6.8.2
+pytest==8.3.4
+pytest-django==4.9.0
+pytest-cov==6.0.0
+model-bakery==1.20.0
+>>>>>>> dee073bd8a71e9debb1a59c8b06c2cd05cb6efbd

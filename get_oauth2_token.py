@@ -11,7 +11,8 @@ from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 
 # Gmail API scopes
-SCOPES = ["https://mail.google.com/"]
+SCOPES = ["https://mail.google.com/", "https://www.googleapis.com/auth/gmail.send"]
+
 
 
 def get_refresh_token():
@@ -53,8 +54,8 @@ def get_refresh_token():
 
         # Create .env template
         env_content = f"""# Add these to your .env file
-DEFAULT_FROM_EMAIL=obeeoma2025@gmail.com
-EMAIL_HOST_USER=obeeoma2025@gmail.com
+DEFAULT_FROM_EMAIL=obeeoma256@gmail.com
+EMAIL_HOST_USER=obeeoma256@gmail.com
 GOOGLE_CLIENT_ID={creds.client_id}
 GOOGLE_CLIENT_SECRET={creds.client_secret}
 GOOGLE_REFRESH_TOKEN={creds.refresh_token}
