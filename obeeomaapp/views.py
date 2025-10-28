@@ -8,12 +8,17 @@ from django.contrib.auth import authenticate, get_user_model
 from rest_framework import status, permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated, BasePermission
+from rest_framework.permissions import (
+    IsAuthenticated,
+    BasePermission,
+    IsAuthenticatedOrReadOnly,
+)
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
 from obeeomaapp.serializers import *
 from obeeomaapp.models import *
-from django.core.mail import send_mail
-from . utils.gmail_http_api import send_gmail_api_email  # Import the Gmail API email sender
+from django.core.mail import send_mail, EmailMultiAlternatives
+from .utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
@@ -21,12 +26,7 @@ import secrets
 from rest_framework import filters
 import string
 from django.template.loader import render_to_string
-from django.core.mail import EmailMultiAlternatives
 import logging
-
-
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
-from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import CustomTokenObtainPairSerializer
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -45,11 +45,9 @@ from .serializers import (
 
 # Set up logging
 logger = logging.getLogger(__name__)
-from obeeomaapp.serializers import *
 
-
+# Get User model
 User = get_user_model()
-
 
 # --- Permission: company admin (is_staff) ---
 class IsCompanyAdmin(BasePermission):
@@ -126,10 +124,6 @@ class LogoutView(APIView):
   # password reset request view
 
 logger = logging.getLogger(__name__)
-
-
-logger = logging.getLogger(__name__)
-User = get_user_model()
 
 class PasswordResetView(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
@@ -1399,7 +1393,6 @@ class UserVideoInteractionViewSet(viewsets.ModelViewSet):
 class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ResourceCategory.objects.all()
     serializer_class = ResourceCategorySerializer
-    permission_classes = [AllowAny] 
     permission_classes = [AllowAny]
 
 # # Anxiety Distress Mastery API
