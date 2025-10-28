@@ -1,6 +1,7 @@
 # serializers.py
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from drf_spectacular.utils import extend_schema_field
 
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
@@ -723,20 +724,18 @@ class OrganizationsManagementSerializer(serializers.ModelSerializer):
     current_plan = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_is_active_display', read_only=True)
     
+    @extend_schema_field(int)
+    def get_client_count(self, obj) -> int:
+        return obj.employees.count()
+    
+    @extend_schema_field(str)
+    def get_current_plan(self, obj) -> str:
+        active_subscription = obj.subscriptions.filter(is_active=True).first()
+        return active_subscription.plan if active_subscription else "No active plan"
+    
     class Meta:
         model = Employer
         fields = ['id', 'name', 'client_count', 'current_plan', 'is_active', 'status_display', 'joined_date']
-    
-    def get_client_count(self, obj):
-        return obj.employees.count()
-    
-    def get_current_plan(self, obj):
-        # Get the active subscription plan for this employer
-        active_subscription = obj.subscriptions.filter(is_active=True).first()
-        if active_subscription:
-            return active_subscription.plan
-        return "No active plan"
-
 
 class HotlineActivityDashboardSerializer(serializers.Serializer):
     today_calls = serializers.IntegerField()
@@ -810,7 +809,8 @@ class EducationalVideoSerializer(serializers.ModelSerializer):
             'views_count', 'helpful_count', 'saved_count', 'created_at', 'updated_at'
         ]
     
-    def get_is_saved(self, obj):
+    @extend_schema_field(bool)
+    def get_is_saved(self, obj) -> bool:
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return UserVideoInteraction.objects.filter(
@@ -820,7 +820,8 @@ class EducationalVideoSerializer(serializers.ModelSerializer):
             ).exists()
         return False
     
-    def get_is_helpful_marked(self, obj):
+    @extend_schema_field(bool)
+    def get_is_helpful_marked(self, obj) -> bool:
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return UserVideoInteraction.objects.filter(
@@ -830,7 +831,8 @@ class EducationalVideoSerializer(serializers.ModelSerializer):
             ).exists()
         return False
     
-    def get_youtube_embed_url(self, obj):
+    @extend_schema_field(str)
+    def get_youtube_embed_url(self, obj) -> str:
         """Convert YouTube URL to embed URL"""
         if 'youtube.com' in obj.youtube_url:
             video_id = obj.youtube_url.split('v=')[1]
@@ -840,13 +842,13 @@ class EducationalVideoSerializer(serializers.ModelSerializer):
             return f'https://www.youtube.com/embed/{video_id}'
         return obj.youtube_url
     
-    def validate_youtube_url(self, value):
+    def validate_youtube_url(self, value: str) -> str:
         """Validate that the URL is a valid YouTube URL"""
         if 'youtube.com' not in value and 'youtu.be' not in value:
             raise serializers.ValidationError("Please provide a valid YouTube URL")
         return value
     
-    def validate(self, data):
+    def validate(self, data: dict) -> dict:
         """Additional validation for mental health content"""
         if data.get('crisis_support_text') and data.get('intensity_level', 1) != 1:
             raise serializers.ValidationError(
