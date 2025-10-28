@@ -13,6 +13,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from obeeomaapp.serializers import *
 from obeeomaapp.models import *
 from django.core.mail import send_mail
+from . utils.gmail_http_api import send_gmail_api_email  # Import the Gmail API email sender
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
@@ -33,10 +34,10 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from django.db.models import Q
 from .models import User, Employer, Employee, Subscription, RecentActivity, HotlineActivity, EmployeeEngagement, AIManagement, PasswordResetToken
-"""from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
-# from .serializers import (
-#     AnxietyDistressMasterySerializer, 
-#     DepressionOvercomeSerializer, 
+""" from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
+from .serializers import (
+     AnxietyDistressMasterySerializer, 
+     DepressionOvercomeSerializer, 
 #     ClassicalArticleSerializer, 
 #     CustomerGeneratedContentSerializer
 # )"""
@@ -126,6 +127,10 @@ class LogoutView(APIView):
 
 logger = logging.getLogger(__name__)
 
+
+logger = logging.getLogger(__name__)
+User = get_user_model()
+
 class PasswordResetView(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = PasswordResetSerializer
@@ -135,22 +140,18 @@ class PasswordResetView(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data.get("email")
 
-        
         user = User.objects.filter(email=email).first()
         if not user:
-            
             return Response(
                 {"message": f"If an account exists for {email}, a reset code has been sent."},
                 status=status.HTTP_200_OK
             )
 
-        
         try:
             code = ''.join(secrets.choice(string.digits) for _ in range(6))
             token = secrets.token_urlsafe(32)
             expires_at = timezone.now() + timedelta(minutes=15)
 
-            
             PasswordResetToken.objects.filter(user=user).delete()
 
             reset_token = PasswordResetToken.objects.create(
@@ -166,10 +167,9 @@ class PasswordResetView(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        # Step 3: Send email safely
-        try:
-            subject = "Password Reset Verification Code - Obeeoma"
-            message = f"""
+        # ✅ Send email using Gmail API
+        subject = "Password Reset Verification Code - Obeeoma"
+        message = f"""
 Hello {user.username},
 
 You requested a password reset for your Obeeoma account.
@@ -183,13 +183,11 @@ If you did not request this password reset, please ignore this email.
 Best regards,
 Obeeoma Team
 """
-            send_mail(
-                subject=subject,
-                message=message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=False,
-            )
+
+        try:
+            success = send_gmail_api_email(email, subject, message)
+            if not success:
+                raise Exception("Gmail API failed to send email")
 
             return Response(
                 {
@@ -201,11 +199,12 @@ Obeeoma Team
 
         except Exception as e:
             logger.error("Error sending password reset email: %s", str(e))
-            reset_token.delete()  
+            reset_token.delete()
             return Response(
                 {"error": "Failed to send email. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
 
 # Confirm Password Reset View
 class PasswordResetConfirmView(viewsets.ViewSet):
@@ -1404,7 +1403,7 @@ class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [AllowAny]
 
 # # Anxiety Distress Mastery API
-# class AnxietyDistressMasteryViewSet(viewsets.ModelViewSet):
+"""# class AnxietyDistressMasteryViewSet(viewsets.ModelViewSet):
 #     permission_classes = [IsAuthenticated]
 #     serializer_class = AnxietyDistressMasterySerializer
     
@@ -1536,4 +1535,4 @@ class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
 #     def featured(self, request):
 #         featured_content = self.get_queryset().filter(is_featured=True, is_approved=True)
 #         serializer = self.get_serializer(featured_content, many=True)
-#         return Response(serializer.data)    
+#         return Response(serializer.data) """   
