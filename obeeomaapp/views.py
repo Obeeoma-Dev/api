@@ -937,19 +937,21 @@ class TestsByDepartmentView(viewsets.ViewSet):
 class SystemAdminOverviewView(viewsets.ViewSet):
     """System Admin dashboard overview"""
     permission_classes = [IsCompanyAdmin]
+    serializer_class = SystemAdminOverviewSerializer
     
-    def list(self, request):
+    def list(self, request=None):
         # Get platform metrics
         try:
-            latest_metrics = PlatformMetrics.objects.first()
+            latest_metrics = PlatformMetrics.objects.all().first()
             if not latest_metrics:
                 # Create default metrics if none exist
-                latest_metrics = PlatformMetrics.objects.create(
-                    total_organizations=Employer.objects.count(),
-                    total_clients=Employee.objects.count(),
+                latest_metrics = PlatformMetrics(
+                    total_organizations=len(Employer.objects.all()),
+                    total_clients=len(Employee.objects.all()),
                     monthly_revenue=0.00,
                     hotline_calls_today=0
                 )
+                latest_metrics.save()
         except Exception:
             # Fallback if PlatformMetrics doesn't exist yet
             latest_metrics = type('obj', (object,), {
@@ -1047,6 +1049,7 @@ class OrganizationsManagementView(viewsets.ModelViewSet):
 class HotlineActivityView(viewsets.ViewSet):
     """Hotline activity management for system admin"""
     permission_classes = [IsCompanyAdmin]
+    serializer_class = HotlineActivitySerializer
     
     def list(self, request):
         # Get today's calls
@@ -1117,6 +1120,7 @@ class HotlineActivityView(viewsets.ViewSet):
 class AIManagementView(viewsets.ViewSet):
     """AI Management dashboard for system admin"""
     permission_classes = [IsCompanyAdmin]
+    serializer_class = AIManagementSerializer
     
     def list(self, request):
         # Get total recommendations
@@ -1185,6 +1189,7 @@ class AIManagementView(viewsets.ViewSet):
 class ClientEngagementView(viewsets.ViewSet):
     """Client engagement and rewards dashboard"""
     permission_classes = [IsCompanyAdmin]
+    serializer_class = ClientEngagementSerializer
     
     def list(self, request):
         # Get average daily engagement
