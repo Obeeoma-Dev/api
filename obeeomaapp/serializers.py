@@ -1,28 +1,20 @@
 # serializers.py
 from rest_framework.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
-from obeeomaapp.models import (SelfAssessment, MoodCheckIn, SelfHelpResource, ChatbotInteraction,
-                              UserBadge, EngagementStreak, EmployeeInvitation, Employee,
-                              Employer, AIManagement, HotlineActivity, EmployeeEngagement,
-                              Subscription, RecentActivity, MentalHealthAssessment,
-                              ResourceCategory, Department, OrganizationSettings,
-                              SubscriptionPlan, BillingHistory, PaymentMethod,
-                              WellnessTest, ResourceEngagement, CommonIssue,
-                              ChatEngagement, DepartmentContribution, OrganizationActivity,
-                              Progress, PlatformMetrics, PlatformUsage,
-                              SubscriptionRevenue, SystemActivity, HotlineCall,
-                              AIResource, ClientEngagement, RewardProgram,
-                              SystemSettings, Report,
-                              EmployeeProfile, AvatarProfile, WellnessHub,
-                              AssessmentResult, EducationalResource,
-                              CrisisTrigger, Notification, EngagementTracker,
-                              Feedback, ChatSession, ChatMessage,
-                              RecommendationLog, AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent)
+from obeeomaapp.models import *
+from .models import (ResourceCategory, EducationalVideo, UserVideoInteraction,)
 User = get_user_model()
+       
+from rest_framework import serializers
+from .models import (ResourceCategory, EducationalVideo, CalmingAudio, MentalHealthArticle, 
+GuidedMeditation, UserLearningProgress, SavedResource)
+# from django.contrib.auth.models import User
+
 
 # signup serializer
 class SignupSerializer(serializers.ModelSerializer):
@@ -77,14 +69,26 @@ class LoginSerializer(serializers.Serializer):
                 
             if not user.is_active:
                 raise serializers.ValidationError('Account is disabled.')
-                
+            
+            # Keep original validated data
             attrs['user'] = user
+            # Add role
+            attrs['role'] = user.role
             return attrs
         else:
             raise serializers.ValidationError('Both username and password are required.')
 
     def create(self, validated_data):
         return validated_data
+
+# custom serializer for token obtain pair
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        data['username'] = self.user.username  # keep username
+        data['role'] = getattr(self.user, 'role', None)  # add role
+        return data
+
     
     
 # Logout Serializer
@@ -102,20 +106,6 @@ class PasswordResetSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         return validated_data
-    
-class PasswordResetConfirmSerializer(serializers.Serializer):
-    code = serializers.CharField(write_only=True)
-    new_password = serializers.CharField(write_only=True, validators=[validate_password])
-    confirm_password = serializers.CharField(write_only=True)
-
-    def validate(self, attrs):
-        if attrs['new_password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({"confirm_password": "Passwords don’t match."})
-        return attrs
-
-    def create(self, validated_data):
-        return validated_data
-
 
 class PasswordChangeSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
@@ -469,7 +459,7 @@ class ResourceCategorySerializer(serializers.ModelSerializer):
     
     class Meta:
         model = ResourceCategory
-        fields = ['id', 'name', 'description', 'icon', 'color_code', 'total_videos', 
+        fields = ['id', 'name', 'description', 'icon', 'total_videos', 
                   'total_audios', 'total_articles', 'total_meditations', 'created_at']
     
     def get_total_videos(self, obj):
@@ -483,6 +473,7 @@ class ResourceCategorySerializer(serializers.ModelSerializer):
     
     def get_total_meditations(self, obj):
         return obj.guided_meditations.filter(is_active=True).count()
+
 
 
 # New Serializers for Dashboard Functionality
@@ -796,14 +787,8 @@ class ReportsAnalyticsSerializer(serializers.Serializer):
     formats = serializers.ListField()
 
 
-    # serializers.py
-from rest_framework import serializers
-from .models import EducationalVideo, UserVideoInteraction, ResourceCategory
+    
 
-class ResourceCategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ResourceCategory
-        fields = ['id', 'name', 'description', 'icon']
 
 class EducationalVideoSerializer(serializers.ModelSerializer):
     resource_category_name = serializers.CharField(source='resource_category.name', read_only=True)
@@ -910,126 +895,169 @@ class VideoRecommendationSerializer(serializers.ModelSerializer):
             'target_mood', 'mood_display', 'intensity_level', 'intensity_display'
         ]
 
-
-from rest_framework import serializers
-from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
-
-class AnxietyDistressMasterySerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
+class ResourceCategorySerializer(serializers.ModelSerializer):
+    total_videos = serializers.SerializerMethodField()
+    total_audios = serializers.SerializerMethodField()
+    total_articles = serializers.SerializerMethodField()
+    total_meditations = serializers.SerializerMethodField()
     
     class Meta:
-        model = AnxietyDistressMastery
-        fields = '__all__'
-        read_only_fields = ['user', 'created_at', 'updated_at']
+        model = ResourceCategory
+        fields = ['id', 'name', 'description', 'icon',  'total_videos', 
+                  'total_audios', 'total_articles', 'total_meditations']
+    
+    def get_total_videos(self, obj):
+        return obj.educational_videos.filter(is_active=True).count()
+    
+    def get_total_audios(self, obj):
+        return obj.calming_audios.filter(is_active=True).count()
+    
+    def get_total_articles(self, obj):
+        return obj.articles.filter(is_published=True).count()
+    
+    def get_total_meditations(self, obj):
+        return obj.guided_meditations.filter(is_active=True).count()
 
-class DepressionOvercomeSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
-    activity_type_display = serializers.CharField(source='get_activity_type_display', read_only=True)
+
+class EducationalVideoSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='resource_category.name', read_only=True)
+    category_icon = serializers.CharField(source='resource_category.icon', read_only=True)
+    is_saved = serializers.SerializerMethodField()
     
     class Meta:
-        model = DepressionOvercome
-        fields = '__all__'
-        read_only_fields = ['user', 'created_at']
+        model = EducationalVideo
+        fields = ['id', 'title', 'description', 'youtube_url', 'thumbnail', 'resource_category', 
+                  'category_name', 'category_icon', 'duration', 'views_count', 'is_active', 
+                  'is_saved', 'created_at', 'updated_at']
+    
+    def get_is_saved(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return SavedResource.objects.filter(user=request.user, educational_video=obj).exists()
+        return False
 
-class ClassicalArticleSerializer(serializers.ModelSerializer):
-    category_display = serializers.CharField(source='get_category_display', read_only=True)
+
+class CalmingAudioSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='resource_category.name', read_only=True)
+    category_icon = serializers.CharField(source='resource_category.icon', read_only=True)
+    is_saved = serializers.SerializerMethodField()
+    full_audio_url = serializers.SerializerMethodField()
     
     class Meta:
-        model = ClassicalArticle
-        fields = '__all__'
+        model = CalmingAudio
+        fields = ['id', 'title', 'description', 'audio_file', 'audio_url', 'full_audio_url', 
+                  'resource_category', 'category_name', 'category_icon', 'duration', 'play_count', 
+                  'is_active', 'is_saved', 'created_at', 'updated_at']
+    
+    def get_is_saved(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return SavedResource.objects.filter(user=request.user, calming_audio=obj).exists()
+        return False
+    
+    def get_full_audio_url(self, obj):
+        if obj.audio_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.audio_file.url)
+        return obj.audio_url
 
-class CustomerGeneratedContentSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
-    content_type_display = serializers.CharField(source='get_content_type_display', read_only=True)
-    user_name = serializers.SerializerMethodField()
+
+class MentalHealthArticleSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='resource_category.name', read_only=True)
+    category_icon = serializers.CharField(source='resource_category.icon', read_only=True)
+    author_name = serializers.CharField(source='author.username', read_only=True)
+    is_saved = serializers.SerializerMethodField()
     
     class Meta:
-        model = CustomerGeneratedContent
-        fields = '__all__'
-        read_only_fields = ['user', 'likes', 'created_at', 'updated_at']
+        model = MentalHealthArticle
+        fields = ['id', 'title', 'slug', 'content', 'excerpt', 'author', 'author_name', 
+                  'resource_category', 'category_name', 'category_icon', 'featured_image', 
+                  'estimated_read_time', 'views_count', 'is_published', 'is_saved', 
+                  'published_date', 'updated_at']
     
-    def get_user_name(self, obj):
-        if obj.is_anonymous:
-            return "Anonymous"
-        return obj.user.get_full_name() or obj.user.username
+    def get_is_saved(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return SavedResource.objects.filter(user=request.user, mental_health_article=obj).exists()
+        return False
+
+
+class GuidedMeditationSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='resource_category.name', read_only=True)
+    category_icon = serializers.CharField(source='resource_category.icon', read_only=True)
+    difficulty_display = serializers.CharField(source='get_difficulty_level_display', read_only=True)
+    is_saved = serializers.SerializerMethodField()
     
-    def create(self, validated_data):
-        validated_data['user'] = self.context['request'].user
-        return super().create(validated_data)
+    class Meta:
+        model = GuidedMeditation
+        fields = ['id', 'title', 'description', 'step_by_step_guide', 'duration_minutes', 
+                  'difficulty_level', 'difficulty_display', 'resource_category', 'category_name', 
+                  'category_icon', 'health_benefits', 'practice_image', 'times_practiced', 
+                  'is_active', 'is_saved', 'created_at', 'updated_at']
+    
+    def get_is_saved(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return SavedResource.objects.filter(user=request.user, guided_meditation=obj).exists()
+        return False
 
 
+class UserLearningProgressSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(source='user.username', read_only=True)
+    resource_title = serializers.SerializerMethodField()
+    resource_type = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = UserLearningProgress
+        fields = ['id', 'user', 'user_name', 'educational_video', 'calming_audio', 
+                  'mental_health_article', 'guided_meditation', 'resource_title', 'resource_type',
+                  'is_completed', 'completion_percentage', 'personal_notes', 'started_at', 
+                  'last_accessed', 'completed_at']
+    
+    def get_resource_title(self, obj):
+        if obj.educational_video:
+            return obj.educational_video.title
+        elif obj.calming_audio:
+            return obj.calming_audio.title
+        elif obj.mental_health_article:
+            return obj.mental_health_article.title
+        elif obj.guided_meditation:
+            return obj.guided_meditation.title
+        return "Unknown Resource"
+    
+    def get_resource_type(self, obj):
+        if obj.educational_video:
+            return "Educational Video"
+        elif obj.calming_audio:
+            return "Calming Audio"
+        elif obj.mental_health_article:
+            return "Article"
+        elif obj.guided_meditation:
+            return "Meditation"
+        return "Unknown"
 
 
-
-
-
-        # Add these to your serializers.py
-
-class OverviewResponseSerializer(serializers.Serializer):
-    employer_count = serializers.IntegerField()
-    employee_count = serializers.IntegerField()
-    active_subscriptions = serializers.IntegerField()
-    recent_activities = RecentActivitySerializer(many=True)
-
-class OrganizationOverviewResponseSerializer(serializers.Serializer):
-    total_employees = serializers.IntegerField()
-    total_tests = serializers.IntegerField()
-    average_score = serializers.FloatField()
-    at_risk_departments = serializers.IntegerField()
-    recent_activities = OrganizationActivitySerializer(many=True)
-
-class WellnessReportsResponseSerializer(serializers.Serializer):
-    common_issues = serializers.IntegerField()
-    resource_engagement = serializers.IntegerField()
-    average_wellbeing_trend = serializers.FloatField()
-    at_risk = serializers.IntegerField()
-    chat_engagement = ChatEngagementSerializer(many=True)
-    department_contributions = DepartmentContributionSerializer(many=True)
-    recent_activities = OrganizationActivitySerializer(many=True)
-
-class TestsByTypeResponseSerializer(serializers.Serializer):
-    test_type = serializers.CharField()
-    count = serializers.IntegerField()
-
-class TestsByDepartmentResponseSerializer(serializers.Serializer):
-    department__name = serializers.CharField()
-    count = serializers.IntegerField()
-
-class AIManagementResponseSerializer(serializers.Serializer):
-    total_recommendations = serializers.IntegerField()
-    average_engagement_rate = serializers.FloatField()
-    ai_accuracy_score = serializers.FloatField()
-    effectiveness_by_type = serializers.ListField()
-    weekly_recommendations = serializers.ListField()
-    resources = AIResourceSerializer(many=True)
-    top_anxiety_triggers = serializers.ListField()
-
-class ClientEngagementResponseSerializer(serializers.Serializer):
-    average_daily_engagement = serializers.FloatField()
-    active_reward_programs = serializers.IntegerField()
-    total_points_awarded = serializers.IntegerField()
-    weekly_engagement = serializers.ListField()
-    reward_redemptions = serializers.ListField()
-    clients = ClientEngagementSerializer(many=True)
-    top_rewards = RewardProgramSerializer(many=True)
-    engagement_trends = serializers.ListField()
-    streak_statistics = serializers.ListField()
-
-class HotlineActivityResponseSerializer(serializers.Serializer):
-    today_calls = serializers.IntegerField()
-    average_duration = serializers.CharField()
-    active_operators = serializers.IntegerField()
-    hourly_volume = serializers.ListField()
-    call_reasons = serializers.ListField()
-    recent_calls = HotlineCallSerializer(many=True)
-    critical_cases = HotlineCallSerializer(many=True)
-    operator_performance = serializers.ListField()
-
-class ReportsAnalyticsResponseSerializer(serializers.Serializer):
-    platform_usage_chart = serializers.ListField()
-    health_conditions_distribution = serializers.ListField()
-    available_reports = ReportSerializer(many=True)
-    custom_report_types = serializers.ListField()
-    date_ranges = serializers.ListField()
-    formats = serializers.ListField()
-
+class SavedResourceSerializer(serializers.ModelSerializer):
+    video_details = EducationalVideoSerializer(source='educational_video', read_only=True)
+    audio_details = CalmingAudioSerializer(source='calming_audio', read_only=True)
+    article_details = MentalHealthArticleSerializer(source='mental_health_article', read_only=True)
+    meditation_details = GuidedMeditationSerializer(source='guided_meditation', read_only=True)
+    resource_type = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = SavedResource
+        fields = ['id', 'user', 'educational_video', 'video_details', 'calming_audio', 
+                  'audio_details', 'mental_health_article', 'article_details', 'guided_meditation', 
+                  'meditation_details', 'resource_type', 'saved_at']
+    
+    def get_resource_type(self, obj):
+        if obj.educational_video:
+            return "video"
+        elif obj.calming_audio:
+            return "audio"
+        elif obj.mental_health_article:
+            return "article"
+        elif obj.guided_meditation:
+            return "meditation"
+        return "unknown"

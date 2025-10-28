@@ -12,68 +12,60 @@ from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
 from obeeomaapp.serializers import *
 from obeeomaapp.models import *
-from obeeomaapp.utils.gmail_http_api import send_gmail_api_email
-from .models import (
-    RecentActivity, HotlineActivity, EmployeeProfile, AvatarProfile, 
-    WellnessHub, MoodCheckIn, AssessmentResult, SelfHelpResource,
-    EducationalResource, CrisisTrigger, Notification, EngagementTracker,
-    Feedback, ChatSession, ChatMessage, RecommendationLog,
-    MentalHealthAssessment, UserBadge, EngagementStreak, Employer,
-    Employee, Subscription, AIManagement, EmployeeEngagement,
-    Progress, ResourceCategory, Department, OrganizationActivity,
-    SubscriptionPlan, BillingHistory, CommonIssue, ResourceEngagement,
-    WellnessTest, ChatEngagement, DepartmentContribution,
-    OrganizationSettings, PlatformMetrics, PlatformUsage,
-    SubscriptionRevenue, SystemActivity, HotlineCall, AIResource,
-    ClientEngagement, RewardProgram, Report, SystemSettings,
-    PasswordResetToken, User, EducationalVideo, UserVideoInteraction, AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
-)
-
-from .serializers import (
-    RecentActivitySerializer, HotlineActivitySerializer, EmployeeProfileSerializer,
-    AvatarProfileSerializer, WellnessHubSerializer, MoodCheckInSerializer,
-    AssessmentResultSerializer, SelfHelpResourceSerializer,
-    EducationalResourceSerializer, CrisisTriggerSerializer, NotificationSerializer,
-    EngagementTrackerSerializer, FeedbackSerializer, ChatSessionSerializer,
-    ChatMessageSerializer, RecommendationLogSerializer,
-    MentalHealthAssessmentSerializer, MentalHealthAssessmentListSerializer,
-    AssessmentResponseSerializer, UserBadgeSerializer, EngagementStreakSerializer,
-    EmployerSerializer, EmployeeSerializer, SubscriptionSerializer,
-    AIManagementSerializer, EmployeeEngagementSerializer,
-    ProgressSerializer, ResourceCategorySerializer, DepartmentSerializer,
-    OrganizationActivitySerializer, SubscriptionPlanSerializer,
-    BillingHistorySerializer, ChatEngagementSerializer,
-    DepartmentContributionSerializer, OrganizationSettingsSerializer,
-    PlatformMetricsSerializer, PlatformUsageSerializer,
-    SubscriptionRevenueSerializer, SystemActivitySerializer,
-    OrganizationsManagementSerializer, HotlineCallSerializer,
-    AIResourceSerializer, ClientEngagementSerializer,
-    RewardProgramSerializer, ReportSerializer, SystemSettingsSerializer,
-    SignupSerializer, LoginSerializer, PasswordResetSerializer, PasswordChangeSerializer,
-    EmployeeInvitationCreateSerializer, EmployeeInvitationAcceptSerializer,
-    EmployeeManagementSerializer, SubscriptionManagementSerializer,
-    EducationalVideoSerializer, UserVideoInteractionSerializer, AnxietyDistressMasterySerializer,
-    DepressionOvercomeSerializer, ClassicalArticleSerializer, CustomerGeneratedContentSerializer
-)
 from django.core.mail import send_mail
+from .utils.gmail_http_api import send_gmail_api_email  # Import the Gmail API email sender
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 import secrets
 from rest_framework import filters
 import string
-# from django.template.loader import render_to_string
-# from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
+from django.core.mail import EmailMultiAlternatives
 import logging
+from django_filters.rest_framework import DjangoFilterBackend
 
-
+from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from .models import (
+    EducationalVideo,
+    UserVideoInteraction,
+    ResourceCategory,
+    CalmingAudio,
+    MentalHealthArticle,  # ✅ keep this
+    GuidedMeditation,
+    UserLearningProgress,
+    SavedResource,  # ⚠️ note correct spelling (SavedResource)
+)
+from .serializers import (
+    EducationalVideoSerializer, 
+    UserVideoInteractionSerializer,
+    ResourceCategorySerializer, CalmingAudioSerializer, 
+    MentalHealthArticleSerializer, GuidedMeditationSerializer, UserLearningProgressSerializer, SavedResourceSerializer
+)
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework_simplejwt.views import TokenObtainPairView
+from .serializers import CustomTokenObtainPairSerializer
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from django.db.models import Q
+from .models import User, Employer, Employee, Subscription, RecentActivity, HotlineActivity, EmployeeEngagement, AIManagement, PasswordResetToken
+"""from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
+# from .serializers import (
+#     AnxietyDistressMasterySerializer, 
+#     DepressionOvercomeSerializer, 
+#     ClassicalArticleSerializer, 
+#     CustomerGeneratedContentSerializer
+# )"""
 
 
 # Set up logging
 logger = logging.getLogger(__name__)
-
-
+from obeeomaapp.serializers import *
 
 
 User = get_user_model()
@@ -92,7 +84,7 @@ class SignupView(viewsets.ModelViewSet):
     serializer_class = SignupSerializer
     permission_classes = [permissions.AllowAny]
 
-
+# login view
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = LoginSerializer
@@ -100,18 +92,28 @@ class LoginView(APIView):
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
+        
         user = authenticate(
             username=serializer.validated_data['username'],
             password=serializer.validated_data['password']
         )
+        
         if user:
             refresh = RefreshToken.for_user(user)
             return Response({
                 "refresh": str(refresh),
                 "access": str(refresh.access_token),
                 "username": user.username,
+                "role": user.role  # <-- just add this line
             })
+        
         return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    
+# matching view for custom token obtain pair serializer
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
     
 
 # LOGOUT VIEW
@@ -145,13 +147,9 @@ class LogoutView(APIView):
 
 logger = logging.getLogger(__name__)
 
-# obeeomaapp/views.py
-import secrets
-import string
-
 
 logger = logging.getLogger(__name__)
-
+User = get_user_model()
 
 class PasswordResetView(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
@@ -164,7 +162,6 @@ class PasswordResetView(viewsets.ViewSet):
 
         user = User.objects.filter(email=email).first()
         if not user:
-            logger.info(f"Password reset requested for non-existent email: {email}")
             return Response(
                 {"message": f"If an account exists for {email}, a reset code has been sent."},
                 status=status.HTTP_200_OK
@@ -176,48 +173,60 @@ class PasswordResetView(viewsets.ViewSet):
             expires_at = timezone.now() + timedelta(minutes=15)
 
             PasswordResetToken.objects.filter(user=user).delete()
+
             reset_token = PasswordResetToken.objects.create(
-                user=user, token=token, code=code, expires_at=expires_at
+                user=user,
+                token=token,
+                code=code,
+                expires_at=expires_at
             )
         except Exception as e:
-            logger.error(f"Error generating password reset token for {email}: {str(e)}")
+            logger.error("Error generating password reset token: %s", str(e))
             return Response(
                 {"error": "Something went wrong while generating reset token."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+        # ✅ Send email using Gmail API
+        subject = "Password Reset Verification Code - Obeeoma"
+        message = f"""
+Hello {user.username},
+
+You requested a password reset for your Obeeoma account.
+
+Your verification code is: {code}
+
+This code will expire in 15 minutes.
+
+If you did not request this password reset, please ignore this email.
+
+Best regards,
+Obeeoma Team
+"""
+
         try:
-            subject = "Password Reset Verification Code - Obeeoma"
-            message = (
-                f"Hello {user.username},\n\n"
-                f"You requested a password reset for your Obeeoma account.\n\n"
-                f"Your verification code is: {code}\n\n"
-                f"This code will expire in 15 minutes.\n\n"
-                f"If you did not request this password reset, please ignore this email.\n\n"
-                f"Best regards,\nObeeoma Team"
-            )
+            success = send_gmail_api_email(email, subject, message)
+            if not success:
+                raise Exception("Gmail API failed to send email")
 
-            email_sent = send_gmail_api_email(to_email=email, subject=subject, body=message)
-            if not email_sent:
-                reset_token.delete()
-                return Response(
-                    {"error": "Failed to send email. Please try again later."},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-
-            logger.info(f"Password reset email sent to {email}")
             return Response(
-                {"message": f"If an account exists for {email}, a reset code has been sent.", "token": token},
+                {
+                    "message": f"If an account exists for {email}, a reset code has been sent.",
+                    "token": token
+                },
                 status=status.HTTP_200_OK
             )
 
         except Exception as e:
-            logger.error(f"Error sending password reset email to {email}: {str(e)}")
+            logger.error("Error sending password reset email: %s", str(e))
             reset_token.delete()
             return Response(
                 {"error": "Failed to send email. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+# Confirm Password Reset View
 class PasswordResetConfirmView(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = PasswordResetSerializer
@@ -225,26 +234,40 @@ class PasswordResetConfirmView(viewsets.ViewSet):
     def create(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
+        
         code = serializer.validated_data['code']
         new_password = serializer.validated_data['new_password']
+        
+        # Get token from request headers or body
         token = request.data.get('token')
-
         if not token:
             return Response({"error": "Token is required"}, status=status.HTTP_400_BAD_REQUEST)
-
+        
         try:
-            reset_token = PasswordResetToken.objects.get(token=token, code=code, is_used=False)
+            # This part checks if token and code are valid
+            reset_token = PasswordResetToken.objects.get(
+                token=token,
+                code=code,
+                is_used=False
+            )
+            
+            # This part checks if token is expired
             if reset_token.is_expired():
                 reset_token.delete()
                 return Response({"error": "Verification code has expired"}, status=status.HTTP_400_BAD_REQUEST)
-
+            
+            # This helps in Updating user password
             user = reset_token.user
             user.set_password(new_password)
             user.save()
+            
+            # Mark token as used
             reset_token.mark_as_used()
-
-            return Response({"message": "Password reset successfully"}, status=status.HTTP_200_OK)
-
+            
+            return Response({
+                "message": "Password reset successfully"
+            }, status=status.HTTP_200_OK)
+            
         except PasswordResetToken.DoesNotExist:
             return Response({"error": "Invalid verification code"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -264,6 +287,7 @@ class PasswordChangeView(viewsets.ViewSet):
         user.set_password(serializer.validated_data['new_password'])
         user.save()
         return Response({"message": "Password updated successfully"})
+
 
 # --- Admin Dashboard ---
 class OverviewView(viewsets.ViewSet):
@@ -295,30 +319,15 @@ class EmployeeEngagementView(viewsets.ModelViewSet):
     permission_classes = [IsCompanyAdmin]
 
 
-from rest_framework.decorators import action
-from rest_framework.response import Response
-
 class FeaturesUsageView(viewsets.ModelViewSet):
     queryset = AIManagement.objects.select_related("employer").order_by("-created_at")
     serializer_class = AIManagementSerializer
     permission_classes = [IsCompanyAdmin]
 
-    @action(detail=False, methods=['get'], url_path='by-category')
+    @action(detail=False, methods=['get'])
     def by_category(self, request):
-        """
-        Get AI features usage grouped by category
-        """
-        # Your implementation here
-        # Example: Group by category and count usage
-        from django.db.models import Count
-        usage_by_category = (
-            AIManagement.objects
-            .values('category')  # Make sure your model has a 'category' field
-            .annotate(total_usage=Count('id'))
-            .order_by('-total_usage')
-        )
-        return Response(usage_by_category)
-
+        # Replace this with your actual logic
+        return Response({"message": "Feature flags grouped by category"})
 
 class BillingView(viewsets.ModelViewSet):
     queryset = Subscription.objects.select_related("employer").all()
@@ -1190,42 +1199,61 @@ class AIManagementView(viewsets.ViewSet):
         }
         
         return Response(data)
+
+
 class ClientEngagementView(viewsets.ViewSet):
     """Client engagement and rewards dashboard"""
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
+        # Get average daily engagement
         try:
             avg_engagement = ClientEngagement.objects.aggregate(
                 avg_engagement=Avg('engagement_rate')
             )['avg_engagement'] or 0
         except Exception:
             avg_engagement = 0
+        
+        # Get active reward programs
         try:
             active_rewards = RewardProgram.objects.filter(is_active=True).count()
         except Exception:
             active_rewards = 0
+        
+        # Get total points awarded
         try:
             total_points = ClientEngagement.objects.aggregate(
                 total_points=Sum('total_points')
             )['total_points'] or 0
         except Exception:
             total_points = 0
+        
+        # Get weekly engagement data (mock data)
         weekly_engagement = [65, 70, 68, 75, 80, 85, 78]
+        
+        # Get reward redemptions (mock data)
         reward_redemptions = [25, 30, 35, 40, 45, 40]
+        
+        # Get clients
         try:
             clients = ClientEngagement.objects.select_related('organization').all()[:10]
         except Exception:
             clients = []
+        
+        # Get top rewards
         try:
             top_rewards = RewardProgram.objects.filter(is_active=True).order_by('-redemption_count')[:3]
         except Exception:
             top_rewards = []
+        
+        # Get engagement trends (mock data)
         engagement_trends = [
             {'trend': 'Morning Sessions', 'percentage': 68},
             {'trend': 'Evening Sessions', 'percentage': 42},
             {'trend': 'Weekend Activity', 'percentage': 55}
         ]
+        
+        # Get streak statistics
         streak_stats = [
             {'streak': '7+ Day Streak', 'active_users': 324},
             {'streak': '14+ Day Streak', 'active_users': 186},
@@ -1245,6 +1273,8 @@ class ClientEngagementView(viewsets.ViewSet):
         }
         
         return Response(data)
+
+
 class ReportsAnalyticsView(viewsets.ViewSet):
     """Reports and analytics for system admin"""
     permission_classes = [IsCompanyAdmin]
@@ -1263,7 +1293,8 @@ class ReportsAnalyticsView(viewsets.ViewSet):
             {'condition': 'OCD', 'percentage': 5},
             {'condition': 'Other', 'percentage': 5}
         ]
-    
+        
+        # Get available reports
         try:
             available_reports = Report.objects.filter(is_active=True).order_by('-generated_date')[:5]
         except Exception:
@@ -1328,10 +1359,6 @@ class SystemSettingsView(viewsets.ModelViewSet):
         
         return Response(list(categories))"""
 
-from rest_framework import viewsets
-from rest_framework.decorators import action
-
-from rest_framework.permissions import IsAuthenticated, AllowAny
 
 
 class EducationalVideoViewSet(viewsets.ModelViewSet):
@@ -1381,151 +1408,322 @@ class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [AllowAny] 
     permission_classes = [AllowAny]
 
-
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
-from django.db.models import Q
-from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
-from .serializers import (
-    AnxietyDistressMasterySerializer, 
-    DepressionOvercomeSerializer, 
-    ClassicalArticleSerializer, 
-    CustomerGeneratedContentSerializer
-)
-
-# Anxiety Distress Mastery API
-class AnxietyDistressMasteryViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
-    serializer_class = AnxietyDistressMasterySerializer
+# # Anxiety Distress Mastery API
+# class AnxietyDistressMasteryViewSet(viewsets.ModelViewSet):
+#     permission_classes = [IsAuthenticated]
+#     serializer_class = AnxietyDistressMasterySerializer
     
-    def get_queryset(self):
-        return AnxietyDistressMastery.objects.filter(user=self.request.user)
+#     def get_queryset(self):
+#         return AnxietyDistressMastery.objects.filter(user=self.request.user)
     
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+#     def perform_create(self, serializer):
+#         serializer.save(user=self.request.user)
     
-    @action(detail=True, methods=['post'])
-    def mark_completed(self, request, pk=None):
-        mastery = self.get_object()
-        mastery.progress_status = 'completed'
-        mastery.save()
-        serializer = self.get_serializer(mastery)
-        return Response(serializer.data)
+#     @action(detail=True, methods=['post'])
+#     def mark_completed(self, request, pk=None):
+#         mastery = self.get_object()
+#         mastery.progress_status = 'completed'
+#         mastery.save()
+#         serializer = self.get_serializer(mastery)
+#         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'])
-    def progress_stats(self, request):
-        queryset = self.get_queryset()
-        total = queryset.count()
-        completed = queryset.filter(progress_status='completed').count()
-        in_progress = queryset.filter(progress_status='in_progress').count()
+#     @action(detail=False, methods=['get'])
+#     def progress_stats(self, request):
+#         queryset = self.get_queryset()
+#         total = queryset.count()
+#         completed = queryset.filter(progress_status='completed').count()
+#         in_progress = queryset.filter(progress_status='in_progress').count()
         
-        return Response({
-            'total': total,
-            'completed': completed,
-            'in_progress': in_progress,
-            'completion_rate': (completed / total * 100) if total > 0 else 0
-        })
+#         return Response({
+#             'total': total,
+#             'completed': completed,
+#             'in_progress': in_progress,
+#             'completion_rate': (completed / total * 100) if total > 0 else 0
+#         })
 
-# Depression Overcome API
-class DepressionOvercomeViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
-    serializer_class = DepressionOvercomeSerializer
+# # Depression Overcome API
+# class DepressionOvercomeViewSet(viewsets.ModelViewSet):
+#     permission_classes = [IsAuthenticated]
+#     serializer_class = DepressionOvercomeSerializer
     
-    def get_queryset(self):
-        return DepressionOvercome.objects.filter(user=self.request.user)
+#     def get_queryset(self):
+#         return DepressionOvercome.objects.filter(user=self.request.user)
     
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+#     def perform_create(self, serializer):
+#         serializer.save(user=self.request.user)
     
-    @action(detail=True, methods=['post'])
-    def complete_activity(self, request, pk=None):
-        activity = self.get_object()
-        mood_change = request.data.get('mood_change', 0)
+#     @action(detail=True, methods=['post'])
+#     def complete_activity(self, request, pk=None):
+#         activity = self.get_object()
+#         mood_change = request.data.get('mood_change', 0)
         
-        activity.is_completed = True
-        activity.actual_mood_change = mood_change
-        activity.save()
+#         activity.is_completed = True
+#         activity.actual_mood_change = mood_change
+#         activity.save()
         
-        serializer = self.get_serializer(activity)
-        return Response(serializer.data)
+#         serializer = self.get_serializer(activity)
+#         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'])
-    def by_type(self, request):
-        activity_type = request.query_params.get('type', None)
-        if activity_type:
-            queryset = self.get_queryset().filter(activity_type=activity_type)
-            serializer = self.get_serializer(queryset, many=True)
-            return Response(serializer.data)
-        return Response({"error": "Type parameter required"}, status=400)
+#     @action(detail=False, methods=['get'])
+#     def by_type(self, request):
+#         activity_type = request.query_params.get('type', None)
+#         if activity_type:
+#             queryset = self.get_queryset().filter(activity_type=activity_type)
+#             serializer = self.get_serializer(queryset, many=True)
+#             return Response(serializer.data)
+#         return Response({"error": "Type parameter required"}, status=400)
 
-# Classical Articles API
-class ClassicalArticleViewSet(viewsets.ReadOnlyModelViewSet):
+# # Classical Articles API
+# class ClassicalArticleViewSet(viewsets.ReadOnlyModelViewSet):
+#     permission_classes = [IsAuthenticatedOrReadOnly]
+#     serializer_class = ClassicalArticleSerializer
+#     queryset = ClassicalArticle.objects.all()
+    
+#     @action(detail=False, methods=['get'])
+#     def featured(self, request):
+#         featured_articles = self.get_queryset().filter(is_featured=True)
+#         serializer = self.get_serializer(featured_articles, many=True)
+#         return Response(serializer.data)
+    
+#     @action(detail=False, methods=['get'])
+#     def by_category(self, request):
+#         category = request.query_params.get('category', None)
+#         if category:
+#             articles = self.get_queryset().filter(category=category)
+#             serializer = self.get_serializer(articles, many=True)
+#             return Response(serializer.data)
+#         return Response({"error": "Category parameter required"}, status=400)
+    
+#     @action(detail=True, methods=['get'])
+#     def similar(self, request, pk=None):
+#         article = self.get_object()
+#         similar_articles = self.get_queryset().filter(
+#             category=article.category
+#         ).exclude(id=article.id)[:5]
+#         serializer = self.get_serializer(similar_articles, many=True)
+#         return Response(serializer.data)
+
+# # Customer Generated Content API
+# class CustomerGeneratedContentViewSet(viewsets.ModelViewSet):
+#     permission_classes = [IsAuthenticatedOrReadOnly]
+#     serializer_class = CustomerGeneratedContentSerializer
+    
+#     def get_queryset(self):
+#         if self.request.user.is_authenticated:
+#             # Users can see their own content + approved public content
+#             return CustomerGeneratedContent.objects.filter(
+#                 Q(user=self.request.user) | Q(is_approved=True)
+#             )
+#         else:
+#             # Anonymous users can only see approved content
+#             return CustomerGeneratedContent.objects.filter(is_approved=True)
+    
+#     def perform_create(self, serializer):
+#         serializer.save(user=self.request.user)
+    
+#     @action(detail=True, methods=['post'])
+#     def like(self, request, pk=None):
+#         content = self.get_object()
+#         content.likes += 1
+#         content.save()
+#         return Response({'likes': content.likes})
+    
+#     @action(detail=False, methods=['get'])
+#     def my_content(self, request):
+#         if not request.user.is_authenticated:
+#             return Response({"error": "Authentication required"}, status=401)
+        
+#         user_content = CustomerGeneratedContent.objects.filter(user=request.user)
+#         serializer = self.get_serializer(user_content, many=True)
+#         return Response(serializer.data)
+    
+#     @action(detail=False, methods=['get'])
+#     def featured(self, request):
+#         featured_content = self.get_queryset().filter(is_featured=True, is_approved=True)
+#         serializer = self.get_serializer(featured_content, many=True)
+#         return Response(serializer.data)    
+
+
+
+
+ 
+
+
+class CalmingAudioViewSet(viewsets.ModelViewSet):
+    """Relaxing audio tracks for meditation and stress relief"""
+    queryset = CalmingAudio.objects.filter(is_active=True)
+    serializer_class = CalmingAudioSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
-    serializer_class = ClassicalArticleSerializer
-    queryset = ClassicalArticle.objects.all()
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['resource_category', 'is_active']
+    search_fields = ['title', 'description']
+    ordering_fields = ['created_at', 'play_count', 'title']
     
-    @action(detail=False, methods=['get'])
-    def featured(self, request):
-        featured_articles = self.get_queryset().filter(is_featured=True)
-        serializer = self.get_serializer(featured_articles, many=True)
-        return Response(serializer.data)
+    @action(detail=True, methods=['post'])
+    def played(self, request, pk=None):
+        """Increment play count when audio is played"""
+        audio = self.get_object()
+        audio.play_count += 1
+        audio.save()
+        return Response({'message': 'Play recorded', 'total_plays': audio.play_count})
     
-    @action(detail=False, methods=['get'])
-    def by_category(self, request):
-        category = request.query_params.get('category', None)
-        if category:
-            articles = self.get_queryset().filter(category=category)
-            serializer = self.get_serializer(articles, many=True)
-            return Response(serializer.data)
-        return Response({"error": "Category parameter required"}, status=400)
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def save_resource(self, request, pk=None):
+        """Save or unsave this audio"""
+        audio = self.get_object()
+        saved, created = SavedResource.objects.get_or_create(user=request.user, calming_audio=audio)
+        if not created:
+            saved.delete()
+            return Response({'message': 'Audio removed from saved resources'})
+        return Response({'message': 'Audio saved to your library'})
+
+
+class MentalHealthArticleViewSet(viewsets.ModelViewSet):
+    """Educational articles about mental wellness"""
+    queryset = MentalHealthArticle.objects.filter(is_published=True)
+    serializer_class = MentalHealthArticleSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['resource_category', 'author', 'is_published']
+    search_fields = ['title', 'content', 'excerpt']
+    ordering_fields = ['published_date', 'views_count', 'estimated_read_time']
+    lookup_field = 'slug'
     
-    @action(detail=True, methods=['get'])
-    def similar(self, request, pk=None):
+    @action(detail=True, methods=['post'])
+    def mark_as_read(self, request, slug=None):
+        """Record article as read"""
         article = self.get_object()
-        similar_articles = self.get_queryset().filter(
-            category=article.category
-        ).exclude(id=article.id)[:5]
-        serializer = self.get_serializer(similar_articles, many=True)
+        article.views_count += 1
+        article.save()
+        return Response({'message': 'Article marked as read', 'total_views': article.views_count})
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def save_resource(self, request, slug=None):
+        """Save or unsave this article"""
+        article = self.get_object()
+        saved, created = SavedResource.objects.get_or_create(user=request.user, mental_health_article=article)
+        if not created:
+            saved.delete()
+            return Response({'message': 'Article removed from saved resources'})
+        return Response({'message': 'Article saved to your library'})
+    
+    @action(detail=False, methods=['get'])
+    def trending_articles(self, request):
+        """Get most read articles"""
+        trending = self.queryset.order_by('-views_count')[:10]
+        serializer = self.get_serializer(trending, many=True)
         return Response(serializer.data)
 
-# Customer Generated Content API
-class CustomerGeneratedContentViewSet(viewsets.ModelViewSet):
+
+class GuidedMeditationViewSet(viewsets.ModelViewSet):
+    """Meditation and mindfulness exercises"""
+    queryset = GuidedMeditation.objects.filter(is_active=True)
+    serializer_class = GuidedMeditationSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
-    serializer_class = CustomerGeneratedContentSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['resource_category', 'difficulty_level', 'is_active']
+    search_fields = ['title', 'description', 'health_benefits']
+    ordering_fields = ['difficulty_level', 'duration_minutes', 'times_practiced']
+    
+    @action(detail=True, methods=['post'])
+    def completed_session(self, request, pk=None):
+        """Record meditation session completion"""
+        meditation = self.get_object()
+        meditation.times_practiced += 1
+        meditation.save()
+        return Response({'message': 'Great job completing this meditation!', 
+                        'total_sessions': meditation.times_practiced})
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def save_resource(self, request, pk=None):
+        """Save or unsave this meditation"""
+        meditation = self.get_object()
+        saved, created = SavedResource.objects.get_or_create(user=request.user, guided_meditation=meditation)
+        if not created:
+            saved.delete()
+            return Response({'message': 'Meditation removed from saved resources'})
+        return Response({'message': 'Meditation saved to your library'})
+    
+    @action(detail=False, methods=['get'])
+    def for_beginners(self, request):
+        """Get beginner-friendly meditations"""
+        beginner_meditations = self.queryset.filter(difficulty_level='beginner')
+        serializer = self.get_serializer(beginner_meditations, many=True)
+        return Response(serializer.data)
+
+
+class UserLearningProgressViewSet(viewsets.ModelViewSet):
+    """Track user's learning journey through resources"""
+    serializer_class = UserLearningProgressSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['is_completed', 'educational_video', 'calming_audio', 
+                       'mental_health_article', 'guided_meditation']
+    ordering_fields = ['started_at', 'last_accessed', 'completion_percentage']
     
     def get_queryset(self):
-        if self.request.user.is_authenticated:
-            # Users can see their own content + approved public content
-            return CustomerGeneratedContent.objects.filter(
-                Q(user=self.request.user) | Q(is_approved=True)
-            )
-        else:
-            # Anonymous users can only see approved content
-            return CustomerGeneratedContent.objects.filter(is_approved=True)
+        return UserLearningProgress.objects.filter(user=self.request.user)
     
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
     
-    @action(detail=True, methods=['post'])
-    def like(self, request, pk=None):
-        content = self.get_object()
-        content.likes += 1
-        content.save()
-        return Response({'likes': content.likes})
+    @action(detail=False, methods=['get'])
+    def my_learning_stats(self, request):
+        """Get user's learning statistics"""
+        progress = self.get_queryset()
+        stats = {
+            'total_resources_accessed': progress.count(),
+            'completed_resources': progress.filter(is_completed=True).count(),
+            'in_progress': progress.filter(is_completed=False, completion_percentage__gt=0).count(),
+            'meditation_sessions': progress.filter(guided_meditation__isnull=False).count(),
+            'videos_watched': progress.filter(educational_video__isnull=False).count(),
+            'audios_listened': progress.filter(calming_audio__isnull=False).count(),
+            'articles_read': progress.filter(mental_health_article__isnull=False).count(),
+            'average_completion': progress.aggregate(models.Avg('completion_percentage'))['completion_percentage__avg'] or 0
+        }
+        return Response(stats)
+
+
+class SavedResourceViewSet(viewsets.ModelViewSet):
+    """User's saved/favorited resources library"""
+    serializer_class = SavedResourceSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['saved_at']
+    
+    def get_queryset(self):
+        return SavedResource.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
     
     @action(detail=False, methods=['get'])
-    def my_content(self, request):
-        if not request.user.is_authenticated:
-            return Response({"error": "Authentication required"}, status=401)
+    def by_resource_type(self, request):
+        """Filter saved resources by type (videos, audios, articles, meditations)"""
+        resource_type = request.query_params.get('type', 'all')
+        saved = self.get_queryset()
         
-        user_content = CustomerGeneratedContent.objects.filter(user=request.user)
-        serializer = self.get_serializer(user_content, many=True)
+        if resource_type == 'videos':
+            saved = saved.filter(educational_video__isnull=False)
+        elif resource_type == 'audios':
+            saved = saved.filter(calming_audio__isnull=False)
+        elif resource_type == 'articles':
+            saved = saved.filter(mental_health_article__isnull=False)
+        elif resource_type == 'meditations':
+            saved = saved.filter(guided_meditation__isnull=False)
+        
+        serializer = self.get_serializer(saved, many=True)
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'])
-    def featured(self, request):
-        featured_content = self.get_queryset().filter(is_featured=True, is_approved=True)
-        serializer = self.get_serializer(featured_content, many=True)
-        return Response(serializer.data)    
+    def summary(self, request):
+        """Get summary of saved resources"""
+        saved = self.get_queryset()
+        summary = {
+            'total_saved': saved.count(),
+            'saved_videos': saved.filter(educational_video__isnull=False).count(),
+            'saved_audios': saved.filter(calming_audio__isnull=False).count(),
+            'saved_articles': saved.filter(mental_health_article__isnull=False).count(),
+            'saved_meditations': saved.filter(guided_meditation__isnull=False).count(),
+        }
+        return Response(summary)

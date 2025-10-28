@@ -22,21 +22,34 @@ CSRF_TRUSTED_ORIGINS = [
 # Database
 tmpPostgres = urlparse(os.getenv("DATABASE_URL", ""))
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("PGDATABASE", "neondb"),
-        "USER": os.environ.get("PGUSER", "neondb_owner"),
-        "PASSWORD": os.environ.get("PGPASSWORD"),
-        "HOST": os.environ.get("PGHOST"),
-        "PORT": os.environ.get("PGPORT", "5432"),
-        "OPTIONS": {
-            "sslmode": os.environ.get("PGSSLMODE", "require"),
-        },
-        "CONN_MAX_AGE": 600,
-        "CONN_HEALTH_CHECKS": True,
+# Database configuration
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL and DATABASE_URL.startswith("sqlite"):
+    # Use SQLite for testing/CI
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
     }
-}
+else:
+    # Use PostgreSQL for production
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.environ.get("PGDATABASE", "neondb"),
+            "USER": os.environ.get("PGUSER", "neondb_owner"),
+            "PASSWORD": os.environ.get("PGPASSWORD"),
+            "HOST": os.environ.get("PGHOST"),
+            "PORT": os.environ.get("PGPORT", "5432"),
+            "OPTIONS": {
+                "sslmode": os.environ.get("PGSSLMODE", "require"),
+            },
+            "CONN_MAX_AGE": 600,
+            "CONN_HEALTH_CHECKS": True,
+        }
+    }
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -52,6 +65,7 @@ INSTALLED_APPS = [
     "drf_yasg",
     "drf_spectacular",
     'corsheaders',
+    'django_filters',
 ]
 
 MIDDLEWARE = [
@@ -198,8 +212,8 @@ LOGGING = {
 }
 # EMAIL CONFIGURATION SETTINGS
 EMAIL_BACKEND = ("django.core.mail.backends.console.EmailBackend")
-DEFAULT_EMAIL_FROM = os.getenv("DEFAULT_EMAIL_FROM", default="Obeeoma2025@gmail.com")
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", default="obeeoma2025@gmail.com")
+DEFAULT_EMAIL_FROM = os.getenv("DEFAULT_EMAIL_FROM", default="Obeeoma256@gmail.com")
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", default="obeeoma256@gmail.com")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
