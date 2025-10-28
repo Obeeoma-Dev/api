@@ -893,5 +893,5 @@ class VideoRecommendationSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'thumbnail', 'duration',
             'views_count', 'helpful_count', 'resource_category_name',
-            'target_mood', 'mood_display', 'intensity_level', 'intensity_display'
+            'target_mood', 'mood_display', 'intensity_level', 'intensity_display',
         ]
