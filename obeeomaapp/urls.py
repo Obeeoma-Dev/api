@@ -25,7 +25,7 @@ from obeeomaapp.views import (
     EducationalResourceView, CrisisTriggerView, NotificationView, 
     EngagementTrackerView, FeedbackView, ChatSessionView, 
     ChatMessageView, RecommendationLogView, InvitationAcceptView, 
-    home, , CustomTokenObtainPairView
+    EmployerRegistrationView, home, CustomTokenObtainPairView
 )
 
 app_name = "obeeomaapp"
@@ -94,6 +94,9 @@ urlpatterns = [
     path("auth/signup/", SignupView.as_view({'post': 'create'}), name="signup"),
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/logout/", LogoutView.as_view(), name="logout"),
+    
+    # Employer Registration
+    path("auth/register-organization/", EmployerRegistrationView.as_view(), name="register-organization"),
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
     path("auth/reset-password/confirm/", PasswordResetConfirmView.as_view({'post': 'create'}), name="password-reset-confirm"),
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
@@ -104,7 +107,7 @@ urlpatterns = [
     path("dashboard/employee-engagement/", EmployeeEngagementView.as_view({'get': 'list', 'post': 'create'}), name="employee-engagement"),
     path("dashboard/features-usage/", FeaturesUsageView.as_view({'get': 'list'}), name="features-usage"),
     path("dashboard/billing/", BillingView.as_view({'get': 'list', 'post': 'create'}), name="billing"),
-    path("dashboard/invites/", InviteView.as_view({'get': 'list', 'post': 'create'}), name="invites"),
+    path("dashboard/invites/", InviteView.as_view({'get': 'list', 'post': 'create'}), name="employee-invitations"),
     path("dashboard/users/", UsersView.as_view({'get': 'list', 'post': 'create'}), name="users"),
     path("dashboard/reports/", ReportsView.as_view({'get': 'list'}), name="reports"),
     path("dashboard/crisis-insights/", CrisisInsightsView.as_view({'get': 'list'}), name="crisis-insights"),

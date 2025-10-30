@@ -42,18 +42,23 @@ class Employee(models.Model):
         ('suspended', 'Suspended'),
     ]
     
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="employee_profile")  # Add this field
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="employee_profile", null=True, blank=True)
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="employees")
     department = models.ForeignKey('Department', on_delete=models.SET_NULL, null=True, blank=True, related_name="employees")
-    # Remove the 'name' field since we'll use user.get_full_name()
+    first_name = models.CharField(max_length=100, default='')
+    last_name = models.CharField(max_length=100, default='')
     email = models.EmailField(unique=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     joined_date = models.DateTimeField(auto_now_add=True)
     last_active = models.DateTimeField(auto_now=True)
     avatar = models.ImageField(upload_to='employee_avatars/', blank=True, null=True)
 
+    @property
+    def name(self):
+        return f"{self.first_name} {self.last_name}".strip() or self.email
+
     def __str__(self):
-        return f"{self.user.get_full_name()} - {self.employer.name}"
+        return f"{self.name} - {self.employer.name}"
 
     class Meta:
         ordering = ['-joined_date']
