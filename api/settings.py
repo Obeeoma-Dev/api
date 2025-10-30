@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "drf_yasg",
     "drf_spectacular",
     'corsheaders',
+    'django_filters',
 ]
 
 MIDDLEWARE = [
@@ -126,7 +127,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
-    "http://obeeoma.onrender.com",
+    "http://64.225.122.101",
 ]
 CORS_ALLOW_ALL_ORIGINS = True
 

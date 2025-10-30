@@ -148,7 +148,8 @@ from obeeomaapp.views import (
     MoodCheckInView, AssessmentResultView, SelfHelpResourceView,
     EducationalResourceView, CrisisTriggerView, NotificationView, 
     EngagementTrackerView, FeedbackView, ChatSessionView, 
-    ChatMessageView, RecommendationLogView, InvitationAcceptView, home
+    ChatMessageView, RecommendationLogView, InvitationAcceptView, home, CalmingAudioViewSet, MentalHealthArticleViewSet,
+    GuidedMeditationViewSet, UserLearningProgressViewSet, SavedResourceViewSet
 )
 
 app_name = "obeeomaapp"
@@ -179,6 +180,12 @@ router.register(r'video-interactions', UserVideoInteractionViewSet, basename='vi
 # router.register(r'classical-articles', ClassicalArticleViewSet, basename='classical-articles')
 # router.register(r'user-content', CustomerGeneratedContentViewSet, basename='user-content')
 router.register(r'categories', ResourceCategoryViewSet, basename='categories')"""
+router.register(r'calming-audios', CalmingAudioViewSet, basename='calming-audio')
+router.register(r'mental-health-articles', MentalHealthArticleViewSet, basename='mental-health-article')
+router.register(r'guided-meditations', GuidedMeditationViewSet, basename='guided-meditation')
+router.register(r'my-learning-progress', UserLearningProgressViewSet, basename='learning-progress')
+router.register(r'saved-resources', SavedResourceViewSet, basename='saved-resource')
+router.register(r'categories', ResourceCategoryViewSet, basename='categories')
 
 # Dashboard routers (Employer Dashboard)
 router.register(r'dashboard/organization-overview', OrganizationOverviewView, basename='organization-overview')
