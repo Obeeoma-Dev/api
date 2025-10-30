@@ -148,7 +148,7 @@ from obeeomaapp.views import (
     MoodCheckInView, AssessmentResultView, SelfHelpResourceView,
     EducationalResourceView, CrisisTriggerView, NotificationView, 
     EngagementTrackerView, FeedbackView, ChatSessionView, 
-    ChatMessageView, RecommendationLogView, InvitationAcceptView, home, 
+    ChatMessageView, RecommendationLogView, InvitationAcceptView, home
 )
 
 app_name = "obeeomaapp"
