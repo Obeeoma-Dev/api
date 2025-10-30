@@ -120,10 +120,15 @@ class EmployeeModelTest(TestCase):
         with self.assertRaises(IntegrityError):
             Employee.objects.create(**self.employee_data)
 
-    def test_employee_str_representation(self):
-        employee = Employee.objects.create(**self.employee_data)
-        expected_str = f"{employee.name} - {employee.employer.name}"
-        self.assertEqual(str(employee), expected_str)
+def test_employee_str_representation(self):
+    employer = Employer.objects.create(name="Test Employer")
+    employee = Employee.objects.create(
+        name="John Doe",  # Add this if using the alternative solution
+        email="john@test.com",
+        employer=employer
+    )
+    expected_str = "John Doe - Test Employer"
+    self.assertEqual(str(employee), expected_str)
 
     def test_employee_status_choices(self):
         employee = Employee.objects.create(**self.employee_data)

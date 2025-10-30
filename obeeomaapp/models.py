@@ -42,16 +42,22 @@ class Employee(models.Model):
         ('suspended', 'Suspended'),
     ]
     
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="employee_profile", null=True, blank=True)
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="employees")
     department = models.ForeignKey('Department', on_delete=models.SET_NULL, null=True, blank=True, related_name="employees")
-    name = models.CharField(max_length=255)
+    first_name = models.CharField(max_length=100, default='')
+    last_name = models.CharField(max_length=100, default='')
     email = models.EmailField(unique=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     joined_date = models.DateTimeField(auto_now_add=True)
     last_active = models.DateTimeField(auto_now=True)
     avatar = models.ImageField(upload_to='employee_avatars/', blank=True, null=True)
 
-    def _str_(self):
+    @property
+    def name(self):
+        return f"{self.first_name} {self.last_name}".strip() or self.email
+
+    def __str__(self):
         return f"{self.name} - {self.employer.name}"
 
     class Meta:
@@ -518,23 +524,6 @@ class PasswordResetToken(models.Model):
         self.used_at = timezone.now()
         self.save()
 
-class ResourceCategory(models.Model):
-    """Categories for organizing mental health resources (e.g., Stress Management, Anxiety, Depression)"""
-    name = models.CharField(max_length=100, help_text="e.g., Stress Management, Anxiety Relief, Sleep Help")
-    description = models.TextField(blank=True, help_text="Brief description of what this category covers")
-    icon = models.CharField(max_length=50, blank=True, help_text="Emoji or icon name")
-    color_code = models.CharField(max_length=7, default="#667eea", help_text="Hex color for UI theming")
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        verbose_name = "Resource Category"
-        verbose_name_plural = "Resource Categories"
-        ordering = ['name']
-    
-    def __str__(self):
-        return f"{self.icon} {self.name}" if self.icon else self.name
-
-
 # Enhanced Models for Dashboard Functionality
 
 class OrganizationSettings(models.Model):
@@ -978,6 +967,10 @@ class ResourceCategory(models.Model):
         return self.name
     
     class Meta:
+        # Add any Meta options here, for example:
+        verbose_name = "Resource Category"
+        verbose_name_plural = "Resource Categories"
+        # ordering = ['name']  # Optional: uncomment if you want default ordering
         verbose_name_plural = "Resource Categories"
 
 class EducationalVideo(models.Model):
