@@ -3,11 +3,12 @@
 from django.db import migrations
 
 
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("obeeomaapp", "0002_classicalarticle_anxietydistressmastery_and_more"),
-        ("obeeomaapp", "0002_progress"),
+        ("obeeomaapp", "0001_initial"),
     ]
 
     operations = []
