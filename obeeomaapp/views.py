@@ -84,6 +84,36 @@ class SignupView(viewsets.ModelViewSet):
 
 
 # Employer Registration View
+@extend_schema(
+    tags=["Authentication"],
+    request=EmployerRegistrationSerializer,
+    responses={
+        201: {
+            "description": "Organization created successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Organization created successfully",
+                        "organization": {
+                            "id": 1,
+                            "name": "My Company Inc",
+                            "is_active": True,
+                            "joined_date": "2025-10-30T18:50:48Z"
+                        },
+                        "employee": {
+                            "id": 1,
+                            "name": "John Doe",
+                            "email": "john@example.com",
+                            "status": "active"
+                        }
+                    }
+                }
+            }
+        },
+        400: {"description": "Bad Request - organization_name required or user already has organization"}
+    },
+    description="Create an organization for the authenticated employer user. Each user can only create one organization."
+)
 class EmployerRegistrationView(APIView):
     """
     Allow employers to register and create their organization in one step.
@@ -91,23 +121,13 @@ class EmployerRegistrationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def post(self, request):
-        """
-        Create an organization for the authenticated employer user.
+        """Create an organization for the authenticated employer user."""
+        serializer = EmployerRegistrationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         
-        Expected payload:
-        {
-            "organization_name": "My Company Inc",
-            "industry": "Technology",  # optional
-            "size": "50-100"  # optional
-        }
-        """
-        organization_name = request.data.get('organization_name')
-        
-        if not organization_name:
-            return Response(
-                {"error": "organization_name is required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        organization_name = serializer.validated_data.get('organization_name')
+        industry = serializer.validated_data.get('industry', '')
+        size = serializer.validated_data.get('size', '')
         
         # Check if user already has an organization
         existing_org = Employer.objects.filter(
