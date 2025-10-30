@@ -15,55 +15,17 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="CalmingAudio",
             fields=[
-                (
-                    "id",
-                    models.BigAutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name="ID",
-                    ),
-                ),
-                (
-                    "title",
-                    models.CharField(help_text="Audio track name", max_length=200),
-                ),
-                (
-                    "description",
-                    models.TextField(help_text="What this audio helps with"),
-                ),
-                (
-                    "audio_file",
-                    models.FileField(
-                        blank=True, null=True, upload_to="calming_audios/"
-                    ),
-                ),
-                (
-                    "audio_url",
-                    models.URLField(
-                        blank=True,
-                        help_text="External audio URL (if not uploading file)",
-                        null=True,
-                    ),
-                ),
-                (
-                    "duration",
-                    models.CharField(
-                        blank=True, help_text="e.g., 15:00", max_length=20
-                    ),
-                ),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("title", models.CharField(help_text="Audio track name", max_length=200)),
+                ("description", models.TextField(help_text="What this audio helps with")),
+                ("audio_file", models.FileField(blank=True, null=True, upload_to="calming_audios/")),
+                ("audio_url", models.URLField(blank=True, null=True, help_text="External audio URL (if not uploading file)")),
+                ("duration", models.CharField(blank=True, help_text="e.g., 15:00", max_length=20)),
                 ("play_count", models.IntegerField(default=0)),
                 ("is_active", models.BooleanField(default=True)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
-                (
-                    "resource_category",
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name="calming_audios",
-                        to="obeeomaapp.resourcecategory",
-                    ),
-                ),
+                ("resource_category", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="calming_audios", to="obeeomaapp.resourcecategory")),
             ],
             options={
                 "verbose_name": "Calming Audio",
@@ -74,69 +36,19 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="GuidedMeditation",
             fields=[
-                (
-                    "id",
-                    models.BigAutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name="ID",
-                    ),
-                ),
-                (
-                    "title",
-                    models.CharField(
-                        help_text="Meditation technique name", max_length=200
-                    ),
-                ),
-                (
-                    "description",
-                    models.TextField(help_text="What this meditation helps achieve"),
-                ),
-                (
-                    "step_by_step_guide",
-                    models.TextField(help_text="Detailed instructions for practice"),
-                ),
-                (
-                    "duration_minutes",
-                    models.IntegerField(help_text="Recommended duration in minutes"),
-                ),
-                (
-                    "difficulty_level",
-                    models.CharField(
-                        choices=[
-                            ("beginner", "🌱 Beginner - New to meditation"),
-                            ("intermediate", "🌿 Intermediate - Some experience"),
-                            ("advanced", "🌳 Advanced - Regular practitioner"),
-                        ],
-                        default="beginner",
-                        max_length=20,
-                    ),
-                ),
-                (
-                    "health_benefits",
-                    models.TextField(
-                        blank=True, help_text="Mental health benefits of this practice"
-                    ),
-                ),
-                (
-                    "practice_image",
-                    models.ImageField(
-                        blank=True, null=True, upload_to="meditation_images/"
-                    ),
-                ),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("title", models.CharField(help_text="Meditation technique name", max_length=200)),
+                ("description", models.TextField(help_text="What this meditation helps achieve")),
+                ("step_by_step_guide", models.TextField(help_text="Detailed instructions for practice")),
+                ("duration_minutes", models.IntegerField(help_text="Recommended duration in minutes")),
+                ("difficulty_level", models.CharField(choices=[("beginner", "🌱 Beginner - New to meditation"), ("intermediate", "🌿 Intermediate - Some experience"), ("advanced", "🌳 Advanced - Regular practitioner")], default="beginner", max_length=20)),
+                ("health_benefits", models.TextField(blank=True, help_text="Mental health benefits of this practice")),
+                ("practice_image", models.ImageField(blank=True, null=True, upload_to="meditation_images/")),
                 ("times_practiced", models.IntegerField(default=0)),
                 ("is_active", models.BooleanField(default=True)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
-                (
-                    "resource_category",
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name="guided_meditations",
-                        to="obeeomaapp.resourcecategory",
-                    ),
-                ),
+                ("resource_category", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="guided_meditations", to="obeeomaapp.resourcecategory")),
             ],
             options={
                 "verbose_name": "Guided Meditation",
@@ -147,60 +59,19 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="MentalHealthArticle",
             fields=[
-                (
-                    "id",
-                    models.BigAutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name="ID",
-                    ),
-                ),
-                (
-                    "title",
-                    models.CharField(help_text="Article headline", max_length=200),
-                ),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("title", models.CharField(help_text="Article headline", max_length=200)),
                 ("slug", models.SlugField(max_length=250, unique=True)),
                 ("content", models.TextField(help_text="Full article content")),
-                (
-                    "excerpt",
-                    models.TextField(
-                        blank=True,
-                        help_text="Short summary for preview",
-                        max_length=500,
-                    ),
-                ),
-                (
-                    "featured_image",
-                    models.ImageField(
-                        blank=True, null=True, upload_to="article_images/"
-                    ),
-                ),
-                (
-                    "estimated_read_time",
-                    models.IntegerField(default=5, help_text="Reading time in minutes"),
-                ),
+                ("excerpt", models.TextField(blank=True, help_text="Short summary for preview", max_length=500)),
+                ("featured_image", models.ImageField(blank=True, null=True, upload_to="article_images/")),
+                ("estimated_read_time", models.IntegerField(default=5, help_text="Reading time in minutes")),
                 ("views_count", models.IntegerField(default=0)),
                 ("is_published", models.BooleanField(default=True)),
                 ("published_date", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
-                (
-                    "author",
-                    models.ForeignKey(
-                        null=True,
-                        on_delete=django.db.models.deletion.SET_NULL,
-                        related_name="mental_health_articles",
-                        to=settings.AUTH_USER_MODEL,
-                    ),
-                ),
-                (
-                    "resource_category",
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name="articles",
-                        to="obeeomaapp.resourcecategory",
-                    ),
-                ),
+                ("author", models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="mental_health_articles", to=settings.AUTH_USER_MODEL)),
+                ("resource_category", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="articles", to="obeeomaapp.resourcecategory")),
             ],
             options={
                 "verbose_name": "Mental Health Article",
@@ -211,60 +82,13 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="SavedResource",
             fields=[
-                (
-                    "id",
-                    models.BigAutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name="ID",
-                    ),
-                ),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("saved_at", models.DateTimeField(auto_now_add=True)),
-                (
-                    "calming_audio",
-                    models.ForeignKey(
-                        blank=True,
-                        null=True,
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to="obeeomaapp.calmingaudio",
-                    ),
-                ),
-                (
-                    "educational_video",
-                    models.ForeignKey(
-                        blank=True,
-                        null=True,
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to="obeeomaapp.educationalvideo",
-                    ),
-                ),
-                (
-                    "guided_meditation",
-                    models.ForeignKey(
-                        blank=True,
-                        null=True,
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to="obeeomaapp.guidedmeditation",
-                    ),
-                ),
-                (
-                    "mental_health_article",
-                    models.ForeignKey(
-                        blank=True,
-                        null=True,
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to="obeeomaapp.mentalhealtharticle",
-                    ),
-                ),
-                (
-                    "user",
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name="saved_resources",
-                        to=settings.AUTH_USER_MODEL,
-                    ),
-                ),
+                ("calming_audio", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to="obeeomaapp.calmingaudio")),
+                ("educational_video", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to="obeeomaapp.educationalvideo")),
+                ("guided_meditation", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to="obeeomaapp.guidedmeditation")),
+                ("mental_health_article", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to="obeeomaapp.mentalhealtharticle")),
+                ("user", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="saved_resources", to=settings.AUTH_USER_MODEL)),
             ],
             options={
                 "verbose_name": "Saved Resource",
@@ -281,130 +105,23 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="UserLearningProgress",
             fields=[
-                (
-                    "id",
-                    models.BigAutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name="ID",
-                    ),
-                ),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("is_completed", models.BooleanField(default=False)),
-                (
-                    "completion_percentage",
-                    models.IntegerField(default=0, help_text="0-100%"),
-                ),
-                (
-                    "personal_notes",
-                    models.TextField(
-                        blank=True, help_text="User's private notes about this resource"
-                    ),
-                ),
+                ("completion_percentage", models.IntegerField(default=0, help_text="0-100%")),
+                ("personal_notes", models.TextField(blank=True, help_text="User's private notes about this resource")),
                 ("started_at", models.DateTimeField(auto_now_add=True)),
                 ("last_accessed", models.DateTimeField(auto_now=True)),
                 ("completed_at", models.DateTimeField(blank=True, null=True)),
-                (
-                    "calming_audio",
-                    models.ForeignKey(
-                        blank=True,
-                        null=True,
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to="obeeomaapp.calmingaudio",
-                    ),
-                ),
-                (
-                    "educational_video",
-                    models.ForeignKey(
-                        blank=True,
-                        null=True,
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to="obeeomaapp.educationalvideo",
-                    ),
-                ),
-                (
-                    "guided_meditation",
-                    models.ForeignKey(
-                        blank=True,
-                        null=True,
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to="obeeomaapp.guidedmeditation",
-                    ),
-                ),
-                (
-                    "mental_health_article",
-                    models.ForeignKey(
-                        blank=True,
-                        null=True,
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to="obeeomaapp.mentalhealtharticle",
-                    ),
-                ),
-                (
-                    "user",
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name="learning_progress",
-                        to=settings.AUTH_USER_MODEL,
-                    ),
-                ),
+                ("calming_audio", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to="obeeomaapp.calmingaudio")),
+                ("educational_video", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to="obeeomaapp.educationalvideo")),
+                ("guided_meditation", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to="obeeomaapp.guidedmeditation")),
+                ("mental_health_article", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to="obeeomaapp.mentalhealtharticle")),
+                ("user", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="learning_progress", to=settings.AUTH_USER_MODEL)),
             ],
             options={
                 "verbose_name": "User Learning Progress",
                 "verbose_name_plural": "User Learning Progress",
                 "ordering": ["-last_accessed"],
             },
-        ),
-        migrations.RemoveField(
-            model_name="anxietydistressmastery",
-            name="created_by",
-        ),
-        migrations.DeleteModel(
-            name="ClassicalArticle",
-        ),
-        migrations.RemoveField(
-            model_name="customergeneratedcontent",
-            name="customer",
-        ),
-        migrations.RemoveField(
-            model_name="depressionovercome",
-            name="created_by",
-        ),
-        migrations.AlterModelOptions(
-            name="uservideointeraction",
-            options={"ordering": ["watched_at"]},
-        ),
-        migrations.AlterUniqueTogether(
-            name="uservideointeraction",
-            unique_together=set(),
-        ),
-        migrations.AddField(
-            model_name="uservideointeraction",
-            name="completed",
-            field=models.BooleanField(default=False),
-        ),
-        migrations.AddField(
-            model_name="uservideointeraction",
-            name="progress",
-            field=models.FloatField(default=0.0),
-        ),
-        migrations.AlterField(
-            model_name="uservideointeraction",
-            name="mood_after",
-            field=models.CharField(blank=True, max_length=50, null=True),
-        ),
-        migrations.AlterField(
-            model_name="uservideointeraction",
-            name="mood_before",
-            field=models.CharField(blank=True, max_length=50, null=True),
-        ),
-        migrations.DeleteModel(
-            name="AnxietyDistressMastery",
-        ),
-        migrations.DeleteModel(
-            name="CustomerGeneratedContent",
-        ),
-        migrations.DeleteModel(
-            name="DepressionOvercome",
         ),
     ]

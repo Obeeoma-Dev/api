@@ -1037,9 +1037,9 @@ class UserVideoInteraction(models.Model):
     progress = models.FloatField(default=0.0)
     completed = models.BooleanField(default=False)
 
-    
-    mood_before = models.CharField(max_length=50, blank=True, null=True)
-    mood_after = models.CharField(max_length=50, blank=True, null=True)
+
+    mood_before = models.IntegerField(blank=True, null=True)
+    mood_after = models.IntegerField(blank=True, null=True)
     watched_full_video = models.BooleanField(default=False)
     marked_helpful = models.BooleanField(default=False)
     saved_for_later = models.BooleanField(default=False)
