@@ -80,11 +80,29 @@ class LoginSerializer(serializers.Serializer):
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
-        data['username'] = self.user.username  # keep username
-        data['role'] = getattr(self.user, 'role', None)  # add role
+        user = self.user
+
+        
+        data['username'] = user.username
+        data['role'] = getattr(user, 'role', None)
+
+        # Just Including only the relevant user data
+        user_data = {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+            "date_joined": user.date_joined,
+            "is_active": user.is_active,
+            "avatar": user.avatar.url if hasattr(user, 'avatar') and user.avatar else None,
+        }
+
+        # This helps to Merge user data into the token response
+        data.update({
+            "user": user_data
+        })
         return data
 
-    
     
 # Logout Serializer
 class LogoutSerializer(serializers.Serializer):
