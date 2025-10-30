@@ -141,6 +141,27 @@ class EmployerSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class EmployerRegistrationSerializer(serializers.Serializer):
+    """Serializer for employer organization registration"""
+    organization_name = serializers.CharField(
+        max_length=255,
+        required=True,
+        help_text="Name of your organization/company"
+    )
+    industry = serializers.CharField(
+        max_length=100,
+        required=False,
+        allow_blank=True,
+        help_text="Industry sector (e.g., Technology, Healthcare, Finance)"
+    )
+    size = serializers.CharField(
+        max_length=50,
+        required=False,
+        allow_blank=True,
+        help_text="Company size (e.g., 1-10, 11-50, 51-200, 200+)"
+    )
+
+
 class EmployeeSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
     employer_name = serializers.CharField(source='employer.name', read_only=True)
