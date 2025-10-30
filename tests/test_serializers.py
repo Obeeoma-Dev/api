@@ -491,8 +491,7 @@ class ResourceCategorySerializerTest(TestCase):
         self.category = ResourceCategory.objects.create(
             name='Mindfulness',
             description='Mindfulness resources',
-            icon='🧠',
-            color_code='#667eea'
+            icon='',
         )
         # Create some videos for this category
         EducationalVideo.objects.create(
