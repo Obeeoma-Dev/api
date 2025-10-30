@@ -91,3 +91,4 @@ urllib3==2.5.0
 websocket-client==1.8.0
 whitenoise==6.11.0
 wsproto==1.2.0
+django-filter==25.2

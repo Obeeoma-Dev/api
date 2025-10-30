@@ -144,14 +144,11 @@ class EmployerSerializer(serializers.ModelSerializer):
 class EmployeeSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
     employer_name = serializers.CharField(source='employer.name', read_only=True)
-    name = serializers.SerializerMethodField(read_only=True)  # <-- added
+    name = serializers.CharField(read_only=True)
 
     class Meta:
         model = Employee
-        fields = ['id', 'employer', 'employer_name', 'department', 'department_name', 'name', 'email', 'status', 'joined_date', 'last_active', 'avatar']
-
-    def get_name(self, obj):
-        return f"{obj.first_name} {obj.last_name}"
+        fields = ['id', 'employer', 'employer_name', 'department', 'department_name', 'first_name', 'last_name', 'name', 'email', 'status', 'joined_date', 'last_active', 'avatar']
 
 
 
@@ -223,15 +220,26 @@ class EngagementStreakSerializer(serializers.ModelSerializer):
 
 
 class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
+    expires_at = serializers.DateTimeField(required=False, help_text="Invitation expiration date (defaults to 7 days from now)")
+    
     class Meta:
         model = EmployeeInvitation
-        fields = ['id', 'email', 'message', 'expires_at']
+        fields = ['id', 'email', 'message', 'expires_at', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
     def create(self, validated_data):
         from secrets import token_urlsafe
+        from django.utils import timezone
+        from datetime import timedelta
+        
         employer = self.context['employer']
         inviter = self.context['user']
         token = token_urlsafe(32)
+        
+        # Set default expiration to 7 days if not provided
+        if 'expires_at' not in validated_data:
+            validated_data['expires_at'] = timezone.now() + timedelta(days=7)
+        
         return EmployeeInvitation.objects.create(
             employer=employer,
             invited_by=inviter,
@@ -922,13 +930,10 @@ class VideoRecommendationSerializer(serializers.ModelSerializer):
 class EmployeeManagementSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    name = serializers.SerializerMethodField(read_only=True)  # <-- added this
+    name = serializers.CharField(read_only=True)
 
     class Meta:
         model = Employee
-        fields = ['id', 'name', 'email', 'department', 'department_name', 'status', 'status_display', 'joined_date', 'avatar']
-
-    def get_name(self, obj):
-        return f"{obj.first_name} {obj.last_name}"
+        fields = ['id', 'first_name', 'last_name', 'name', 'email', 'department', 'department_name', 'status', 'status_display', 'joined_date', 'avatar']
 
 
