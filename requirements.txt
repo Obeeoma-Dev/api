@@ -61,7 +61,6 @@ PyJWT==2.10.1
 pylint==3.3.7
 pyparsing==3.2.5
 PySocks==1.7.1
-pytest==8.4.1
 python-decouple==3.8
 python-dotenv==1.1.1
 pytz==2025.2
