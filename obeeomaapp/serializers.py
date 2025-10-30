@@ -80,11 +80,29 @@ class LoginSerializer(serializers.Serializer):
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
-        data['username'] = self.user.username  # keep username
-        data['role'] = getattr(self.user, 'role', None)  # add role
+        user = self.user
+
+        
+        data['username'] = user.username
+        data['role'] = getattr(user, 'role', None)
+
+        # Just Including only the relevant user data
+        user_data = {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+            "date_joined": user.date_joined,
+            "is_active": user.is_active,
+            "avatar": user.avatar.url if hasattr(user, 'avatar') and user.avatar else None,
+        }
+
+        # Merge user data into the token response
+        data.update({
+            "user": user_data
+        })
         return data
 
-    
     
 # Logout Serializer
 class LogoutSerializer(serializers.Serializer):
@@ -126,10 +144,15 @@ class EmployerSerializer(serializers.ModelSerializer):
 class EmployeeSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
     employer_name = serializers.CharField(source='employer.name', read_only=True)
-    
+    name = serializers.SerializerMethodField(read_only=True)  # <-- added
+
     class Meta:
         model = Employee
         fields = ['id', 'employer', 'employer_name', 'department', 'department_name', 'name', 'email', 'status', 'joined_date', 'last_active', 'avatar']
+
+    def get_name(self, obj):
+        return f"{obj.first_name} {obj.last_name}"
+
 
 
 class AIManagementSerializer(serializers.ModelSerializer):
@@ -895,3 +918,17 @@ class VideoRecommendationSerializer(serializers.ModelSerializer):
             'views_count', 'helpful_count', 'resource_category_name',
             'target_mood', 'mood_display', 'intensity_level', 'intensity_display',
         ]
+
+class EmployeeManagementSerializer(serializers.ModelSerializer):
+    department_name = serializers.CharField(source='department.name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    name = serializers.SerializerMethodField(read_only=True)  # <-- added this
+
+    class Meta:
+        model = Employee
+        fields = ['id', 'name', 'email', 'department', 'department_name', 'status', 'status_display', 'joined_date', 'avatar']
+
+    def get_name(self, obj):
+        return f"{obj.first_name} {obj.last_name}"
+
+
