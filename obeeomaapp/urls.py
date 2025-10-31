@@ -8,8 +8,7 @@ from .views import CustomTokenObtainPairView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 from obeeomaapp.views import (
-    MentalHealthAssessmentViewSet, ResourceCategoryViewSet,
-    EducationalVideoViewSet, UserVideoInteractionViewSet, 
+    MentalHealthAssessmentViewSet,
     OrganizationOverviewView, EmployeeManagementView,
     DepartmentManagementView, SubscriptionManagementView,
     WellnessReportsView, OrganizationSettingsView, TestsByTypeView,
@@ -22,13 +21,14 @@ from obeeomaapp.views import (
     PasswordResetView, PasswordResetConfirmView, PasswordChangeView,
     OverviewView, TrendsView, EmployeeEngagementView, BillingView,
     InviteView, UsersView, ReportsView, CrisisInsightsView,
-    EmployeeProfileView, AvatarProfileView, WellnessHubView,
-    MoodCheckInView, AssessmentResultView, SelfHelpResourceView,
-    EducationalResourceView, CrisisTriggerView, NotificationView, 
-    EngagementTrackerView, FeedbackView, ChatSessionView, 
-    ChatMessageView, RecommendationLogView, InvitationAcceptView, 
-    EmployerRegistrationView, home, CustomTokenObtainPairView
+    InvitationAcceptView, 
+    EmployerRegistrationView, home, CustomTokenObtainPairView, EmployeeProfileViewSet,EmployeeProfileViewSet,
+    AvatarProfileViewSet,WellnessHubViewSet,AssessmentResultViewSet,CrisisTriggerViewSet,NotificationViewSet,
+    EngagementTrackerViewSet, FeedbackViewSet, ChatSessionViewSet,ChatMessageViewSet,RecommendationLogViewSet,
 )
+
+
+
 
 app_name = "obeeomaapp"
 
@@ -45,27 +45,29 @@ schema_view = get_schema_view(
 
 # --- Router setup ---
 router = DefaultRouter()
+router.register(r'profiles', EmployeeProfileViewSet, basename='employee-profile')
 router.register(r'mental-health/assessments', MentalHealthAssessmentViewSet, basename='mental-health-assessment')
 router.register(r'employers', EmployerViewSet, basename='employer')
 router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'progress', ProgressViewSet)
-router.register(r'resource-categories', ResourceCategoryViewSet, basename='resource-category')
-router.register(r'videos', EducationalVideoViewSet, basename='videos')
-router.register(r'video-interactions', UserVideoInteractionViewSet, basename='video-interactions')
-"""# router.register(r'anxiety-mastery', AnxietyDistressMasteryViewSet, basename='anxiety-mastery')
-# router.register(r'depression-activities', DepressionOvercomeViewSet, basename='depression-activities')
-# router.register(r'classical-articles', ClassicalArticleViewSet, basename='classical-articles')
-# router.register(r'user-content', CustomerGeneratedContentViewSet, basename='user-content')
-router.register(r'categories', ResourceCategoryViewSet, basename='categories')"""
-"""router.register(r'calming-audios', CalmingAudioViewSet, basename='calming-audio')
-router.register(r'mental-health-articles', MentalHealthArticleViewSet, basename='mental-health-article')
-router.register(r'guided-meditations', GuidedMeditationViewSet, basename='guided-meditation')
-router.register(r'my-learning-progress', UserLearningProgressViewSet, basename='learning-progress')
-router.register(r'saved-resources', SavedResourceViewSet, basename='saved-resource')
-router.register(r'categories', ResourceCategoryViewSet, basename='categories')"""
+
+
 
 # Dashboard routers (Employer Dashboard)
+
+router.register('employee-profiles', EmployeeProfileViewSet, basename='employeeprofile')
+router.register('avatar-profiles', AvatarProfileViewSet, basename='avatarprofile')
+router.register('wellness-hubs', WellnessHubViewSet, basename='wellnesshub')
+router.register('assessment-results', AssessmentResultViewSet, basename='assessmentresult')
+router.register('crisis-triggers', CrisisTriggerViewSet, basename='crisistrigger')
+router.register('notifications', NotificationViewSet, basename='notification')
+router.register('engagement-trackers', EngagementTrackerViewSet, basename='engagementtracker')
+router.register('feedback', FeedbackViewSet, basename='feedback')
+router.register('chat-sessions', ChatSessionViewSet, basename='chatsession')
+router.register('chat-messages', ChatMessageViewSet, basename='chatmessage')
+router.register('recommendation-logs', RecommendationLogViewSet, basename='recommendationlog')
+
 router.register(r'dashboard/organization-overview', OrganizationOverviewView, basename='organization-overview')
 router.register(r'dashboard/employees', EmployeeManagementView, basename='employee-management')
 router.register(r'dashboard/departments', DepartmentManagementView, basename='department-management')
@@ -124,22 +126,7 @@ urlpatterns = [
     path("admin/organizations/client-distribution/", OrganizationsManagementView.as_view({'get': 'client_distribution'}), name="organizations-client-distribution"),
     path("admin/feature-flags/by-category/", FeaturesUsageView.as_view({'get': 'by_category'}), name="feature-flags-by-category"),
 
-    # Employee endpoints
-    path('employee/profile/', EmployeeProfileView.as_view({'get': 'list', 'post': 'create'}), name='employee-profile'),
-    path('employee/avatar/', AvatarProfileView.as_view({'get': 'list', 'post': 'create'}), name='avatar-profile'),
-    path('employee/wellness/', WellnessHubView.as_view({'get': 'list', 'post': 'create'}), name='wellness-hub'),
-    path('employee/mood-checkin/', MoodCheckInView.as_view({'get': 'list', 'post': 'create'}), name='mood-checkin'),
-    path('employee/assessments/', AssessmentResultView.as_view({'get': 'list', 'post': 'create'}), name='assessment-results'),
-    path('resources/self-help/', SelfHelpResourceView.as_view({'get': 'list', 'post': 'create'}), name='self-help-resources'),
-    path('resources/educational/', EducationalResourceView.as_view({'get': 'list', 'post': 'create'}), name='educational-resources'),
-    path('employee/crisis/', CrisisTriggerView.as_view({'get': 'list', 'post': 'create'}), name='crisis-trigger'),
-    path('employee/notifications/', NotificationView.as_view({'get': 'list', 'post': 'create'}), name='notifications'),
-    path('employee/engagement/', EngagementTrackerView.as_view({'get': 'list', 'post': 'create'}), name='engagement-tracker'),
-    path('employee/feedback/', FeedbackView.as_view({'get': 'list', 'post': 'create'}), name='feedback'),
-    path('sana/sessions/', ChatSessionView.as_view({'get': 'list', 'post': 'create'}), name='chat-sessions'),
-    path('sana/sessions/<int:session_id>/messages/', ChatMessageView.as_view({'get': 'list', 'post': 'create'}), name='chat-messages'),
-    path('employee/recommendations/', RecommendationLogView.as_view({'get': 'list', 'post': 'create'}), name='recommendation-log'),
-    
+ 
     # Invitation acceptance (public)
     path('auth/accept-invite/', InvitationAcceptView.as_view({'post': 'create'}), name='accept-invite'),
 

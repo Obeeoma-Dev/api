@@ -13,6 +13,7 @@ from rest_framework.permissions import (
     BasePermission,
     IsAuthenticatedOrReadOnly,
 )
+from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from obeeomaapp.serializers import *
@@ -33,16 +34,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from .models import (
-    EducationalVideo,
-    UserVideoInteraction,
-    ResourceCategory,
-    # CalmingAudio,
-    # MentalHealthArticle,  
-    # GuidedMeditation,
-    # UserLearningProgress,
-    # SavedResource,  
-)
+
 
 
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
@@ -553,16 +545,89 @@ class EmailConfigCheckView(APIView):
         return Response(config)
 
 
-# --- Employee App ---
-class EmployeeProfileView(viewsets.ModelViewSet):
-    serializer_class = EmployeeProfileSerializer
+
+
+# ---- Employee-specific APIs ----
+
+
+
+class EmployeeViewSetMixin:
+    """Base mixin for all employee-related viewsets"""
+    
+    def get_employee(self):
+        """Get employee profile for current user"""
+        try:
+            return EmployeeProfile.objects.get(user=self.request.user)
+        except EmployeeProfile.DoesNotExist:
+            raise ValidationError({
+                "error": "Profile not found. Please create your profile first."
+            })
+    
+    def perform_create(self, serializer):
+        """Auto-assign employee when creating"""
+        employee = self.get_employee()
+        serializer.save(employee=employee)
+
+
+class EmployeeProfileViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['subscription_tier', 'is_premium_active']
+    search_fields = ['organization', 'role']
 
     def get_queryset(self):
         return EmployeeProfile.objects.filter(user=self.request.user)
 
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return EmployeeProfileCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return EmployeeProfileUpdateSerializer
+        elif self.action == 'set_wellness_status':
+            return WellnessStatusSerializer
+        return EmployeeProfileSerializer
 
-class AvatarProfileView(viewsets.ModelViewSet):
+    def perform_create(self, serializer):
+        if EmployeeProfile.objects.filter(user=self.request.user).exists():
+            raise ValidationError({
+                "error": "You already have a profile. Use PUT or PATCH to update it."
+            })
+        serializer.save(user=self.request.user)
+
+    @action(detail=False, methods=['get'])
+    def me(self, request):
+        try:
+            profile = EmployeeProfile.objects.get(user=request.user)
+            serializer = self.get_serializer(profile)
+            return Response(serializer.data)
+        except EmployeeProfile.DoesNotExist:
+            return Response({
+                "error": "Profile not found. Please create one first."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['patch'], url_path='set-wellness-status')
+    def set_wellness_status(self, request, pk=None):
+        profile = self.get_object()
+        serializer = WellnessStatusSerializer(profile, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({
+            'message': 'Wellness status updated successfully',
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['delete'], url_path='delete-account')
+    def delete_account(self, request, pk=None):
+        profile = self.get_object()
+        user = profile.user
+        profile.delete()
+        user.delete()
+        return Response({
+            "detail": "Your account and profile were deleted successfully."
+        }, status=status.HTTP_204_NO_CONTENT)
+
+
+class AvatarProfileViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
     serializer_class = AvatarProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -570,7 +635,7 @@ class AvatarProfileView(viewsets.ModelViewSet):
         return AvatarProfile.objects.filter(employee__user=self.request.user)
 
 
-class WellnessHubView(viewsets.ModelViewSet):
+class WellnessHubViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
     serializer_class = WellnessHubSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -578,63 +643,64 @@ class WellnessHubView(viewsets.ModelViewSet):
         return WellnessHub.objects.filter(employee__user=self.request.user)
 
 
-class MoodCheckInView(viewsets.ModelViewSet):
-    serializer_class = MoodCheckInSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return MoodCheckIn.objects.filter(employee__user=self.request.user)
-
-    def perform_create(self, serializer):
-        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
-        serializer.save(employee=employee)
-
-
-class AssessmentResultView(viewsets.ModelViewSet):
+class AssessmentResultViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
     serializer_class = AssessmentResultSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return AssessmentResult.objects.filter(employee__user=self.request.user)
 
-    def perform_create(self, serializer):
-        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
-        serializer.save(employee=employee)
 
-
-class SelfHelpResourceView(viewsets.ModelViewSet):
-    queryset = SelfHelpResource.objects.all()
-    serializer_class = SelfHelpResourceSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-
-class EducationalResourceView(viewsets.ModelViewSet):
-    queryset = EducationalResource.objects.all()
-    serializer_class = EducationalResourceSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-
-class CrisisTriggerView(viewsets.ModelViewSet):
+class CrisisTriggerViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
     serializer_class = CrisisTriggerSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return CrisisTrigger.objects.filter(employee__user=self.request.user)
 
-    def perform_create(self, serializer):
-        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
-        serializer.save(employee=employee)
 
-
-class NotificationView(viewsets.ModelViewSet):
+class NotificationViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['is_read', 'notification_type']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         return Notification.objects.filter(employee__user=self.request.user)
 
+    @action(detail=False, methods=['get'])
+    def unread(self, request):
+        unread = self.get_queryset().filter(is_read=False)
+        serializer = self.get_serializer(unread, many=True)
+        return Response(serializer.data)
 
-class EngagementTrackerView(viewsets.ModelViewSet):
+    @action(detail=False, methods=['post'])
+    def mark_all_read(self, request):
+        updated = self.get_queryset().filter(is_read=False).update(is_read=True)
+        return Response({
+            'message': f'{updated} notifications marked as read',
+            'count': updated
+        })
+
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        notification = self.get_object()
+        notification.is_read = True
+        notification.save()
+        return Response({
+            'message': 'Notification marked as read',
+            'notification': self.get_serializer(notification).data
+        })
+
+    @action(detail=False, methods=['get'])
+    def count_unread(self, request):
+        count = self.get_queryset().filter(is_read=False).count()
+        return Response({'unread_count': count})
+
+
+class EngagementTrackerViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
     serializer_class = EngagementTrackerSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -642,54 +708,99 @@ class EngagementTrackerView(viewsets.ModelViewSet):
         return EngagementTracker.objects.filter(employee__user=self.request.user)
 
 
-class FeedbackView(viewsets.ModelViewSet):
+class FeedbackViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
     serializer_class = FeedbackSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['rating', 'feedback_type']
+    ordering_fields = ['created_at', 'rating']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         return Feedback.objects.filter(employee__user=self.request.user)
 
-    def perform_create(self, serializer):
-        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
-        serializer.save(employee=employee)
+    @action(detail=False, methods=['get'])
+    def average_rating(self, request):
+        from django.db.models import Avg
+        avg = self.get_queryset().aggregate(average=Avg('rating'))
+        return Response({
+            'average_rating': round(avg['average'], 2) if avg['average'] else 0,
+            'total_feedback': self.get_queryset().count()
+        })
 
 
-class ChatSessionView(viewsets.ModelViewSet):
+class ChatSessionViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
     serializer_class = ChatSessionSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['is_active']
+    ordering_fields = ['created_at', 'last_message_at']
+    ordering = ['-last_message_at']
 
     def get_queryset(self):
         return ChatSession.objects.filter(employee__user=self.request.user)
 
-    def perform_create(self, serializer):
-        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
-        serializer.save(employee=employee)
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        active_sessions = self.get_queryset().filter(is_active=True)
+        serializer = self.get_serializer(active_sessions, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def end_session(self, request, pk=None):
+        session = self.get_object()
+        session.is_active = False
+        session.save()
+        return Response({
+            'message': 'Chat session ended successfully',
+            'session': self.get_serializer(session).data
+        })
 
 
-class ChatMessageView(viewsets.ModelViewSet):
+class ChatMessageViewSet(viewsets.ModelViewSet):
     serializer_class = ChatMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['created_at']
+    ordering = ['created_at']
 
     def get_queryset(self):
-        session_id = self.kwargs.get("session_id")
-        return ChatMessage.objects.filter(session__id=session_id, session__employee__user=self.request.user)
+        return ChatMessage.objects.filter(session__employee__user=self.request.user)
 
     def perform_create(self, serializer):
-        session = get_object_or_404(ChatSession, id=self.kwargs.get("session_id"), employee__user=self.request.user)
-        serializer.save(session=session)
+        session_id = self.request.data.get('session')
+        if not session_id:
+            raise ValidationError({"session": "Session ID is required"})
+        try:
+            session = ChatSession.objects.get(
+                id=session_id,
+                employee__user=self.request.user
+            )
+            serializer.save(session=session)
+            session.last_message_at = timezone.now()
+            session.save()
+        except ChatSession.DoesNotExist:
+            raise ValidationError({"session": "Invalid session ID"})
+
+    @action(detail=False, methods=['get'])
+    def by_session(self, request):
+        session_id = request.query_params.get('session_id')
+        if not session_id:
+            return Response({
+                "error": "session_id parameter required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        messages = self.get_queryset().filter(session_id=session_id)
+        serializer = self.get_serializer(messages, many=True)
+        return Response(serializer.data)
 
 
-class RecommendationLogView(viewsets.ModelViewSet):
+class RecommendationLogViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
     serializer_class = RecommendationLogSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return RecommendationLog.objects.filter(employee__user=self.request.user)
-
-    def perform_create(self, serializer):
-        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
-        serializer.save(employee=employee)
-
 
 class MentalHealthAssessmentViewSet(viewsets.ModelViewSet):
     """ViewSet for mental health assessments"""
@@ -973,14 +1084,6 @@ class ProgressViewSet(viewsets.ModelViewSet):
             "progress_entries": Progress.objects.count(),
         }
         return Response(data)
-class ResourceCategoryViewSet(viewsets.ModelViewSet):
-    """Mental health resource categories (Stress, Anxiety, Sleep, etc.)"""
-    queryset = ResourceCategory.objects.all()
-    serializer_class = ResourceCategorySerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['name', 'description']
-    ordering_fields = ['name', 'created_at']
 
 
 # New Dashboard Views
@@ -1668,371 +1771,3 @@ class SystemSettingsView(viewsets.ModelViewSet):
         
         return Response(list(categories))"""
 
-
-
-class EducationalVideoViewSet(viewsets.ModelViewSet):
-    queryset = EducationalVideo.objects.filter(is_active=True)
-    serializer_class = EducationalVideoSerializer
-    permission_classes = [AllowAny]
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAuthenticated()]
-        return [AllowAny()]
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def mark_helpful(self, request, pk=None):
-        video = self.get_object()
-        video.helpful_count += 1
-        video.save()
-        return Response({'status': 'marked helpful', 'helpful_count': video.helpful_count})
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def save_video(self, request, pk=None):
-        video = self.get_object()
-        video.saved_count += 1
-        video.save()
-        return Response({'status': 'video saved', 'saved_count': video.saved_count})
-
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        instance.views_count += 1
-        instance.save()
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
-
-class UserVideoInteractionViewSet(viewsets.ModelViewSet):
-    serializer_class = UserVideoInteractionSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        return UserVideoInteraction.objects.filter(user=self.request.user)
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-
-class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = ResourceCategory.objects.all()
-    serializer_class = ResourceCategorySerializer
-    permission_classes = [AllowAny]
-
-# # Anxiety Distress Mastery API
-"""# class AnxietyDistressMasteryViewSet(viewsets.ModelViewSet):
-#     permission_classes = [IsAuthenticated]
-#     serializer_class = AnxietyDistressMasterySerializer
-    
-#     def get_queryset(self):
-#         return AnxietyDistressMastery.objects.filter(user=self.request.user)
-    
-#     def perform_create(self, serializer):
-#         serializer.save(user=self.request.user)
-    
-#     @action(detail=True, methods=['post'])
-#     def mark_completed(self, request, pk=None):
-#         mastery = self.get_object()
-#         mastery.progress_status = 'completed'
-#         mastery.save()
-#         serializer = self.get_serializer(mastery)
-#         return Response(serializer.data)
-    
-#     @action(detail=False, methods=['get'])
-#     def progress_stats(self, request):
-#         queryset = self.get_queryset()
-#         total = queryset.count()
-#         completed = queryset.filter(progress_status='completed').count()
-#         in_progress = queryset.filter(progress_status='in_progress').count()
-        
-#         return Response({
-#             'total': total,
-#             'completed': completed,
-#             'in_progress': in_progress,
-#             'completion_rate': (completed / total * 100) if total > 0 else 0
-#         })
-
-# # Depression Overcome API
-# class DepressionOvercomeViewSet(viewsets.ModelViewSet):
-#     permission_classes = [IsAuthenticated]
-#     serializer_class = DepressionOvercomeSerializer
-    
-#     def get_queryset(self):
-#         return DepressionOvercome.objects.filter(user=self.request.user)
-    
-#     def perform_create(self, serializer):
-#         serializer.save(user=self.request.user)
-    
-#     @action(detail=True, methods=['post'])
-#     def complete_activity(self, request, pk=None):
-#         activity = self.get_object()
-#         mood_change = request.data.get('mood_change', 0)
-        
-#         activity.is_completed = True
-#         activity.actual_mood_change = mood_change
-#         activity.save()
-        
-#         serializer = self.get_serializer(activity)
-#         return Response(serializer.data)
-    
-#     @action(detail=False, methods=['get'])
-#     def by_type(self, request):
-#         activity_type = request.query_params.get('type', None)
-#         if activity_type:
-#             queryset = self.get_queryset().filter(activity_type=activity_type)
-#             serializer = self.get_serializer(queryset, many=True)
-#             return Response(serializer.data)
-#         return Response({"error": "Type parameter required"}, status=400)
-
-# # Classical Articles API
-# class ClassicalArticleViewSet(viewsets.ReadOnlyModelViewSet):
-#     permission_classes = [IsAuthenticatedOrReadOnly]
-#     serializer_class = ClassicalArticleSerializer
-#     queryset = ClassicalArticle.objects.all()
-    
-#     @action(detail=False, methods=['get'])
-#     def featured(self, request):
-#         featured_articles = self.get_queryset().filter(is_featured=True)
-#         serializer = self.get_serializer(featured_articles, many=True)
-#         return Response(serializer.data)
-    
-#     @action(detail=False, methods=['get'])
-#     def by_category(self, request):
-#         category = request.query_params.get('category', None)
-#         if category:
-#             articles = self.get_queryset().filter(category=category)
-#             serializer = self.get_serializer(articles, many=True)
-#             return Response(serializer.data)
-#         return Response({"error": "Category parameter required"}, status=400)
-    
-#     @action(detail=True, methods=['get'])
-#     def similar(self, request, pk=None):
-#         article = self.get_object()
-#         similar_articles = self.get_queryset().filter(
-#             category=article.category
-#         ).exclude(id=article.id)[:5]
-#         serializer = self.get_serializer(similar_articles, many=True)
-#         return Response(serializer.data)
-
-# # Customer Generated Content API
-# class CustomerGeneratedContentViewSet(viewsets.ModelViewSet):
-#     permission_classes = [IsAuthenticatedOrReadOnly]
-#     serializer_class = CustomerGeneratedContentSerializer
-    
-#     def get_queryset(self):
-#         if self.request.user.is_authenticated:
-#             # Users can see their own content + approved public content
-#             return CustomerGeneratedContent.objects.filter(
-#                 Q(user=self.request.user) | Q(is_approved=True)
-#             )
-#         else:
-#             # Anonymous users can only see approved content
-#             return CustomerGeneratedContent.objects.filter(is_approved=True)
-    
-#     def perform_create(self, serializer):
-#         serializer.save(user=self.request.user)
-    
-#     @action(detail=True, methods=['post'])
-#     def like(self, request, pk=None):
-#         content = self.get_object()
-#         content.likes += 1
-#         content.save()
-#         return Response({'likes': content.likes})
-    
-#     @action(detail=False, methods=['get'])
-#     def my_content(self, request):
-#         if not request.user.is_authenticated:
-#             return Response({"error": "Authentication required"}, status=401)
-        
-#         user_content = CustomerGeneratedContent.objects.filter(user=request.user)
-#         serializer = self.get_serializer(user_content, many=True)
-#         return Response(serializer.data)
-    
-#     @action(detail=False, methods=['get'])
-#     def featured(self, request):
-#         featured_content = self.get_queryset().filter(is_featured=True, is_approved=True)
-#         serializer = self.get_serializer(featured_content, many=True)
-#         return Response(serializer.data) """   
-#         return Response(serializer.data)    
-
-
-
-
- 
-
-
-# class CalmingAudioViewSet(viewsets.ModelViewSet):
-#     """Relaxing audio tracks for meditation and stress relief"""
-#     queryset = CalmingAudio.objects.filter(is_active=True)
-#     serializer_class = CalmingAudioSerializer
-#     permission_classes = [IsAuthenticatedOrReadOnly]
-#     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-#     filterset_fields = ['resource_category', 'is_active']
-#     search_fields = ['title', 'description']
-#     ordering_fields = ['created_at', 'play_count', 'title']
-    
-#     @action(detail=True, methods=['post'])
-#     def played(self, request, pk=None):
-#         """Increment play count when audio is played"""
-#         audio = self.get_object()
-#         audio.play_count += 1
-#         audio.save()
-#         return Response({'message': 'Play recorded', 'total_plays': audio.play_count})
-    
-#     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-#     def save_resource(self, request, pk=None):
-#         """Save or unsave this audio"""
-#         audio = self.get_object()
-#         saved, created = SavedResource.objects.get_or_create(user=request.user, calming_audio=audio)
-#         if not created:
-#             saved.delete()
-#             return Response({'message': 'Audio removed from saved resources'})
-#         return Response({'message': 'Audio saved to your library'})
-
-
-# class MentalHealthArticleViewSet(viewsets.ModelViewSet):
-#     """Educational articles about mental wellness"""
-#     queryset = MentalHealthArticle.objects.filter(is_published=True)
-#     serializer_class = MentalHealthArticleSerializer
-#     permission_classes = [IsAuthenticatedOrReadOnly]
-#     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-#     filterset_fields = ['resource_category', 'author', 'is_published']
-#     search_fields = ['title', 'content', 'excerpt']
-#     ordering_fields = ['published_date', 'views_count', 'estimated_read_time']
-#     lookup_field = 'slug'
-    
-#     @action(detail=True, methods=['post'])
-#     def mark_as_read(self, request, slug=None):
-#         """Record article as read"""
-#         article = self.get_object()
-#         article.views_count += 1
-#         article.save()
-#         return Response({'message': 'Article marked as read', 'total_views': article.views_count})
-    
-#     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-#     def save_resource(self, request, slug=None):
-#         """Save or unsave this article"""
-#         article = self.get_object()
-#         saved, created = SavedResource.objects.get_or_create(user=request.user, mental_health_article=article)
-#         if not created:
-#             saved.delete()
-#             return Response({'message': 'Article removed from saved resources'})
-#         return Response({'message': 'Article saved to your library'})
-    
-#     @action(detail=False, methods=['get'])
-#     def trending_articles(self, request):
-#         """Get most read articles"""
-#         trending = self.queryset.order_by('-views_count')[:10]
-#         serializer = self.get_serializer(trending, many=True)
-#         return Response(serializer.data)
-
-
-# class GuidedMeditationViewSet(viewsets.ModelViewSet):
-#     """Meditation and mindfulness exercises"""
-#     queryset = GuidedMeditation.objects.filter(is_active=True)
-#     serializer_class = GuidedMeditationSerializer
-#     permission_classes = [IsAuthenticatedOrReadOnly]
-#     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-#     filterset_fields = ['resource_category', 'difficulty_level', 'is_active']
-#     search_fields = ['title', 'description', 'health_benefits']
-#     ordering_fields = ['difficulty_level', 'duration_minutes', 'times_practiced']
-    
-#     @action(detail=True, methods=['post'])
-#     def completed_session(self, request, pk=None):
-#         """Record meditation session completion"""
-#         meditation = self.get_object()
-#         meditation.times_practiced += 1
-#         meditation.save()
-#         return Response({'message': 'Great job completing this meditation!', 
-#                         'total_sessions': meditation.times_practiced})
-    
-#     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-#     def save_resource(self, request, pk=None):
-#         """Save or unsave this meditation"""
-#         meditation = self.get_object()
-#         saved, created = SavedResource.objects.get_or_create(user=request.user, guided_meditation=meditation)
-#         if not created:
-#             saved.delete()
-#             return Response({'message': 'Meditation removed from saved resources'})
-#         return Response({'message': 'Meditation saved to your library'})
-    
-#     @action(detail=False, methods=['get'])
-#     def for_beginners(self, request):
-#         """Get beginner-friendly meditations"""
-#         beginner_meditations = self.queryset.filter(difficulty_level='beginner')
-#         serializer = self.get_serializer(beginner_meditations, many=True)
-#         return Response(serializer.data)
-
-
-# class UserLearningProgressViewSet(viewsets.ModelViewSet):
-#     """Track user's learning journey through resources"""
-#     serializer_class = UserLearningProgressSerializer
-#     permission_classes = [IsAuthenticated]
-#     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-#     filterset_fields = ['is_completed', 'educational_video', 'calming_audio', 
-#                        'mental_health_article', 'guided_meditation']
-#     ordering_fields = ['started_at', 'last_accessed', 'completion_percentage']
-    
-#     def get_queryset(self):
-#         return UserLearningProgress.objects.filter(user=self.request.user)
-    
-#     def perform_create(self, serializer):
-#         serializer.save(user=self.request.user)
-    
-#     @action(detail=False, methods=['get'])
-#     def my_learning_stats(self, request):
-#         """Get user's learning statistics"""
-#         progress = self.get_queryset()
-#         stats = {
-#             'total_resources_accessed': progress.count(),
-#             'completed_resources': progress.filter(is_completed=True).count(),
-#             'in_progress': progress.filter(is_completed=False, completion_percentage__gt=0).count(),
-#             'meditation_sessions': progress.filter(guided_meditation__isnull=False).count(),
-#             'videos_watched': progress.filter(educational_video__isnull=False).count(),
-#             'audios_listened': progress.filter(calming_audio__isnull=False).count(),
-#             'articles_read': progress.filter(mental_health_article__isnull=False).count(),
-#             'average_completion': progress.aggregate(models.Avg('completion_percentage'))['completion_percentage__avg'] or 0
-#         }
-#         return Response(stats)
-
-
-# class SavedResourceViewSet(viewsets.ModelViewSet):
-#     """User's saved/favorited resources library"""
-#     serializer_class = SavedResourceSerializer
-#     permission_classes = [IsAuthenticated]
-#     filter_backends = [filters.OrderingFilter]
-#     ordering_fields = ['saved_at']
-    
-#     def get_queryset(self):
-#         return SavedResource.objects.filter(user=self.request.user)
-    
-#     def perform_create(self, serializer):
-#         serializer.save(user=self.request.user)
-    
-#     @action(detail=False, methods=['get'])
-#     def by_resource_type(self, request):
-#         """Filter saved resources by type (videos, audios, articles, meditations)"""
-#         resource_type = request.query_params.get('type', 'all')
-#         saved = self.get_queryset()
-        
-#         if resource_type == 'videos':
-#             saved = saved.filter(educational_video__isnull=False)
-#         elif resource_type == 'audios':
-#             saved = saved.filter(calming_audio__isnull=False)
-#         elif resource_type == 'articles':
-#             saved = saved.filter(mental_health_article__isnull=False)
-#         elif resource_type == 'meditations':
-#             saved = saved.filter(guided_meditation__isnull=False)
-        
-#         serializer = self.get_serializer(saved, many=True)
-#         return Response(serializer.data)
-    
-#     @action(detail=False, methods=['get'])
-#     def summary(self, request):
-#         """Get summary of saved resources"""
-#         saved = self.get_queryset()
-#         summary = {
-#             'total_saved': saved.count(),
-#             'saved_videos': saved.filter(educational_video__isnull=False).count(),
-#             'saved_audios': saved.filter(calming_audio__isnull=False).count(),
-#             'saved_articles': saved.filter(mental_health_article__isnull=False).count(),
-#             'saved_meditations': saved.filter(guided_meditation__isnull=False).count(),
-#         }
-#         return Response(summary)
