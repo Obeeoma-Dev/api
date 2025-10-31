@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
-from .models import (ResourceCategory, EducationalVideo, UserVideoInteraction,)
+
 User = get_user_model()
 
 # signup serializer
@@ -312,20 +312,136 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
 
 
 # --- Employee Profile ---
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
+from .models import EmployeeProfile
+
+User = get_user_model()
+
+
+class UserBasicSerializer(serializers.ModelSerializer):
+    """Basic user information for nested serialization"""
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name']
+        read_only_fields = ['id', 'username', 'email']
+
+
 class EmployeeProfileSerializer(serializers.ModelSerializer):
+    """Complete employee profile with user details"""
+    user_details = UserBasicSerializer(source='user', read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
+    email = serializers.EmailField(source='user.email', read_only=True)
+    
     class Meta:
         model = EmployeeProfile
-        fields = '__all__'
-        read_only_fields = ['user', 'joined_on']
+        fields = [
+            'id',
+            'user',
+            'user_details',
+            'username',
+            'email',
+            'avatar',
+            'organization',
+            'role',
+            'joined_on',
+            'subscription_tier',
+            'is_premium_active',
+            'is_anonymous',
+            'receive_notifications',
+            'current_wellness_status',
+        ]
+        read_only_fields = ['id', 'user', 'joined_on', 'user_details', 'username', 'email']
+    
+    def validate_subscription_tier(self, value):
+        """Validate subscription tier choices"""
+        valid_tiers = ['freemium', 'premium']
+        if value not in valid_tiers:
+            raise serializers.ValidationError(
+                f"Invalid subscription tier. Choose from: {', '.join(valid_tiers)}"
+            )
+        return value
+    
+    def validate_avatar(self, value):
+        """Validate avatar file size and type"""
+        if value:
+            # Check file size (max 5MB)
+            if value.size > 5 * 1024 * 1024:
+                raise serializers.ValidationError("Avatar image size cannot exceed 5MB")
+            
+            # Check file type
+            valid_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif']
+            if value.content_type not in valid_types:
+                raise serializers.ValidationError(
+                    "Invalid image type. Only JPEG, PNG, and GIF are allowed"
+                )
+        return value
 
-# --- Avatar ---
+
+class EmployeeProfileCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating a new employee profile"""
+    class Meta:
+        model = EmployeeProfile
+        fields = [
+            'avatar',
+            'organization',
+            'role',
+            'subscription_tier',
+            'is_premium_active',
+            'is_anonymous',
+            'receive_notifications',
+            'current_wellness_status',
+        ]
+    
+    def create(self, validated_data):
+        """Create profile for the authenticated user"""
+        user = self.context['request'].user
+        validated_data['user'] = user
+        return super().create(validated_data)
+
+
+class EmployeeProfileUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating employee profile"""
+    class Meta:
+        model = EmployeeProfile
+        fields = [
+            'avatar',
+            'organization',
+            'role',
+            'subscription_tier',
+            'is_premium_active',
+            'is_anonymous',
+            'receive_notifications',
+            'current_wellness_status',
+        ]
+    
+    def validate(self, attrs):
+        """Custom validation for updates"""
+        # If upgrading to premium, activate premium status
+        if attrs.get('subscription_tier') == 'premium':
+            attrs['is_premium_active'] = True
+        
+        # If downgrading to freemium, deactivate premium
+        if attrs.get('subscription_tier') == 'freemium':
+            attrs['is_premium_active'] = False
+        
+        return attrs
+
+
+class WellnessStatusSerializer(serializers.ModelSerializer):
+    """Quick update for wellness status only"""
+    class Meta:
+        model = EmployeeProfile
+        fields = ['current_wellness_status']
+
+
 class AvatarProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = AvatarProfile
         fields = '__all__'
         read_only_fields = ['employee']
 
-# --- Wellness Hub ---
+
 class WellnessHubSerializer(serializers.ModelSerializer):
     class Meta:
         model = WellnessHub
@@ -333,48 +449,42 @@ class WellnessHubSerializer(serializers.ModelSerializer):
         read_only_fields = ['employee', 'updated_at']
 
 
-# --- Assessment Results ---
+
 class AssessmentResultSerializer(serializers.ModelSerializer):
     class Meta:
         model = AssessmentResult
         fields = '__all__'
         read_only_fields = ['employee', 'submitted_on']
 
-# --- Educational Resources ---
-class EducationalResourceSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = EducationalResource
-        fields = '__all__'
 
-# --- Crisis Trigger ---
+
+
 class CrisisTriggerSerializer(serializers.ModelSerializer):
     class Meta:
         model = CrisisTrigger
         fields = '__all__'
         read_only_fields = ['employee', 'triggered_on']
 
-# --- Notifications ---
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = '__all__'
         read_only_fields = ['employee', 'sent_on']
 
-# --- Engagement Tracker ---
+
 class EngagementTrackerSerializer(serializers.ModelSerializer):
     class Meta:
         model = EngagementTracker
         fields = '__all__'
         read_only_fields = ['employee']
 
-# --- Feedback ---
 class FeedbackSerializer(serializers.ModelSerializer):
     class Meta:
         model = Feedback
         fields = '__all__'
         read_only_fields = ['employee', 'submitted_on']
 
-# --- Sana Chat Sessions ---
+
 class ChatSessionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatSession
@@ -387,7 +497,7 @@ class ChatMessageSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['session', 'timestamp']
 
-# --- Recommendations ---
+
 class RecommendationLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = RecommendationLog
@@ -396,7 +506,7 @@ class RecommendationLogSerializer(serializers.ModelSerializer):
 
 
 
-# Assessment Response Serializers
+
 class AssessmentResponseSerializer(serializers.Serializer):
     """Serializer for handling assessment responses"""
     assessment_type = serializers.ChoiceField(choices=['GAD-7', 'PHQ-9', 'BOTH'])
@@ -498,28 +608,7 @@ class MentalHealthAssessmentListSerializer(serializers.ModelSerializer):
             'gad7_severity', 'phq9_severity', 'assessment_date'
         ]
 
-class ResourceCategorySerializer(serializers.ModelSerializer):
-    total_videos = serializers.SerializerMethodField()
-    total_audios = serializers.SerializerMethodField()
-    total_articles = serializers.SerializerMethodField()
-    total_meditations = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = ResourceCategory
-        fields = ['id', 'name', 'description', 'icon', 'color_code', 'total_videos', 
-                  'total_audios', 'total_articles', 'total_meditations', 'created_at']
-    
-    def get_total_videos(self, obj):
-        return obj.educational_videos.filter(is_active=True).count()
-    
-    def get_total_audios(self, obj):
-        return obj.calming_audios.filter(is_active=True).count()
-    
-    def get_total_articles(self, obj):
-        return obj.articles.filter(is_published=True).count()
-    
-    def get_total_meditations(self, obj):
-        return obj.guided_meditations.filter(is_active=True).count()
+
 
 
 # New Serializers for Dashboard Functionality
@@ -829,132 +918,4 @@ class ReportsAnalyticsSerializer(serializers.Serializer):
     custom_report_types = serializers.ListField()
     date_ranges = serializers.ListField()
     formats = serializers.ListField()
-
-
-    # serializers.py
-from rest_framework import serializers
-from .models import EducationalVideo, UserVideoInteraction, ResourceCategory
-
-class ResourceCategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ResourceCategory
-        fields = ['id', 'name', 'description', 'icon']
-
-class EducationalVideoSerializer(serializers.ModelSerializer):
-    resource_category_name = serializers.CharField(source='resource_category.name', read_only=True)
-    is_saved = serializers.SerializerMethodField()
-    is_helpful_marked = serializers.SerializerMethodField()
-    youtube_embed_url = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = EducationalVideo
-        fields = [
-            'id', 'title', 'description', 'youtube_url', 'youtube_embed_url',
-            'thumbnail', 'resource_category', 'resource_category_name',
-            'duration', 'views_count', 'helpful_count', 'saved_count',
-            'target_mood', 'intensity_level', 'crisis_support_text',
-            'is_professionally_reviewed', 'reviewed_by', 'review_date',
-            'is_active', 'created_at', 'updated_at',
-            'is_saved', 'is_helpful_marked'
-        ]
-        read_only_fields = [
-            'views_count', 'helpful_count', 'saved_count', 'created_at', 'updated_at'
-        ]
-    
-    @extend_schema_field(bool)
-    def get_is_saved(self, obj) -> bool:
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return UserVideoInteraction.objects.filter(
-                user=request.user,
-                video=obj,
-                saved_for_later=True
-            ).exists()
-        return False
-    
-    @extend_schema_field(bool)
-    def get_is_helpful_marked(self, obj) -> bool:
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return UserVideoInteraction.objects.filter(
-                user=request.user,
-                video=obj,
-                marked_helpful=True
-            ).exists()
-        return False
-    
-    @extend_schema_field(str)
-    def get_youtube_embed_url(self, obj) -> str:
-        """Convert YouTube URL to embed URL"""
-        if 'youtube.com' in obj.youtube_url:
-            video_id = obj.youtube_url.split('v=')[1]
-            return f'https://www.youtube.com/embed/{video_id}'
-        elif 'youtu.be' in obj.youtube_url:
-            video_id = obj.youtube_url.split('/')[-1]
-            return f'https://www.youtube.com/embed/{video_id}'
-        return obj.youtube_url
-    
-    def validate_youtube_url(self, value: str) -> str:
-        """Validate that the URL is a valid YouTube URL"""
-        if 'youtube.com' not in value and 'youtu.be' not in value:
-            raise serializers.ValidationError("Please provide a valid YouTube URL")
-        return value
-    
-    def validate(self, data: dict) -> dict:
-        """Additional validation for mental health content"""
-        if data.get('crisis_support_text') and data.get('intensity_level', 1) != 1:
-            raise serializers.ValidationError(
-                "Crisis support videos should have gentle intensity level (1)"
-            )
-        return data
-
-class UserVideoInteractionSerializer(serializers.ModelSerializer):
-    video_title = serializers.CharField(source='video.title', read_only=True)
-    video_target_mood = serializers.CharField(source='video.target_mood', read_only=True)
-    video_thumbnail = serializers.URLField(source='video.thumbnail', read_only=True)
-    video_duration = serializers.CharField(source='video.duration', read_only=True)
-    
-    class Meta:
-        model = UserVideoInteraction
-        fields = [
-            'id', 'video', 'video_title', 'video_target_mood', 'video_thumbnail', 'video_duration',
-            'mood_before', 'mood_after', 'watched_full_video', 'marked_helpful',
-            'saved_for_later', 'watched_at'
-        ]
-        read_only_fields = ['user', 'watched_at']
-    
-    def validate(self, data):
-        """Validate mood tracking"""
-        mood_before = data.get('mood_before')
-        mood_after = data.get('mood_after')
-        
-        if mood_before and mood_after:
-            if int(mood_after) < int(mood_before):
-                # This is okay - sometimes people feel worse, but we might want to flag for support
-                pass
-        
-        return data
-
-class VideoRecommendationSerializer(serializers.ModelSerializer):
-    resource_category_name = serializers.CharField(source='resource_category.name', read_only=True)
-    mood_display = serializers.CharField(source='get_target_mood_display', read_only=True)
-    intensity_display = serializers.CharField(source='get_intensity_level_display', read_only=True)
-    
-    class Meta:
-        model = EducationalVideo
-        fields = [
-            'id', 'title', 'description', 'thumbnail', 'duration',
-            'views_count', 'helpful_count', 'resource_category_name',
-            'target_mood', 'mood_display', 'intensity_level', 'intensity_display',
-        ]
-
-class EmployeeManagementSerializer(serializers.ModelSerializer):
-    department_name = serializers.CharField(source='department.name', read_only=True)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
-    name = serializers.CharField(read_only=True)
-
-    class Meta:
-        model = Employee
-        fields = ['id', 'first_name', 'last_name', 'name', 'email', 'department', 'department_name', 'status', 'status_display', 'joined_date', 'avatar']
-
 
