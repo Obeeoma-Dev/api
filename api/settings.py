@@ -131,6 +131,9 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_ALLOW_ALL_ORIGINS = True
 
+# Frontend URL for email links
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/overview/"
 
