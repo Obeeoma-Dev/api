@@ -27,7 +27,7 @@ from obeeomaapp.views import (
     EducationalResourceView, CrisisTriggerView, NotificationView, 
     EngagementTrackerView, FeedbackView, ChatSessionView, 
     ChatMessageView, RecommendationLogView, InvitationAcceptView, 
-    EmployerRegistrationView, home, CustomTokenObtainPairView
+    InvitationVerifyView, EmployerRegistrationView, home, CustomTokenObtainPairView
 )
 
 app_name = "obeeomaapp"
@@ -141,6 +141,7 @@ urlpatterns = [
     path('employee/recommendations/', RecommendationLogView.as_view({'get': 'list', 'post': 'create'}), name='recommendation-log'),
     
     # Invitation acceptance (public)
+    path('auth/verify-invite/', InvitationVerifyView.as_view(), name='verify-invite'),
     path('auth/accept-invite/', InvitationAcceptView.as_view({'post': 'create'}), name='accept-invite'),
 
     # Include router URLs
