@@ -21,6 +21,13 @@ from obeeomaapp.views import (
     PasswordResetView, PasswordResetConfirmView, PasswordChangeView,
     OverviewView, TrendsView, EmployeeEngagementView, BillingView,
     InviteView, UsersView, ReportsView, CrisisInsightsView,
+    EmployeeProfileView, AvatarProfileView, WellnessHubView,
+    MoodCheckInView, AssessmentResultView, SelfHelpResourceView,
+    EducationalResourceView, CrisisTriggerView, NotificationView, 
+    EngagementTrackerView, FeedbackView, ChatSessionView, 
+    ChatMessageView, RecommendationLogView, InvitationAcceptView, 
+    InvitationVerifyView, EmployerRegistrationView, home, CustomTokenObtainPairView
+)
     InvitationAcceptView, 
     EmployerRegistrationView, home, CustomTokenObtainPairView, EmployeeProfileViewSet,EmployeeProfileViewSet,
     AvatarProfileViewSet,WellnessHubViewSet,AssessmentResultViewSet,CrisisTriggerViewSet,NotificationViewSet,
@@ -128,6 +135,7 @@ urlpatterns = [
 
  
     # Invitation acceptance (public)
+    path('auth/verify-invite/', InvitationVerifyView.as_view(), name='verify-invite'),
     path('auth/accept-invite/', InvitationAcceptView.as_view({'post': 'create'}), name='accept-invite'),
 
     # Include router URLs

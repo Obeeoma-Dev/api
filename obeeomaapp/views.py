@@ -12,6 +12,7 @@ from rest_framework.permissions import (
     IsAuthenticated,
     BasePermission,
     IsAuthenticatedOrReadOnly,
+    AllowAny,
 )
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -40,11 +41,6 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import CustomTokenObtainPairSerializer
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
-from django.db.models import Q
 from .models import User, Employer, Employee, Subscription, RecentActivity, HotlineActivity, EmployeeEngagement, AIManagement, PasswordResetToken
 """ from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
 from .serializers import (
@@ -462,7 +458,27 @@ class InviteView(viewsets.ModelViewSet):
 
     @extend_schema(
         request=EmployeeInvitationCreateSerializer,
-        responses={201: EmployeeInvitationCreateSerializer},
+        responses={
+            201: {
+                "description": "Invitation sent successfully",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "message": "Invitation sent successfully",
+                            "invitation": {
+                                "id": 1,
+                                "email": "newemployee@company.com",
+                                "message": "Welcome to our team!",
+                                "expires_at": "2025-11-06T19:13:03.648Z",
+                                "created_at": "2025-10-30T19:13:03.648Z"
+                            },
+                            "invitation_link": "/auth/accept-invite/?token=abc123xyz"
+                        }
+                    }
+                }
+            },
+            400: {"description": "Bad Request - Invalid data or user has no organization"}
+        },
         description="""
         Send an invitation to a new employee.
         
@@ -484,18 +500,86 @@ class InviteView(viewsets.ModelViewSet):
     )
     def create(self, request, *args, **kwargs):
         """Send an invitation to a new employee"""
+        # Get the employer for the current user
+        employer = None
+        
+        # Try to get employer from employee profile
+        try:
+            employee_profile = Employee.objects.filter(user=request.user).first()
+            if employee_profile:
+                employer = employee_profile.employer
+        except Exception:
+            pass
+        
+        # If still no employer, check if user is staff and get first employer
+        if not employer and request.user.is_staff:
+            employer = Employer.objects.first()
+        
+        if not employer:
+            return Response(
+                {
+                    "error": "You must be associated with an organization to send invitations",
+                    "detail": "Please create or join an organization first"
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         serializer = self.get_serializer(
             data=request.data,
             context={
-                'employer': request.user.employer_profile.employer,
+                'employer': employer,
                 'user': request.user
             }
         )
         serializer.is_valid(raise_exception=True)
         invitation = serializer.save()
         
-        # TODO: Send email with invitation link
-        # send_invitation_email(invitation)
+        # Send invitation email
+        try:
+            invitation_url = f"{settings.FRONTEND_URL}/auth/accept-invite?token={invitation.token}" if hasattr(settings, 'FRONTEND_URL') else f"http://localhost:3000/auth/accept-invite?token={invitation.token}"
+            
+            subject = f"You're invited to join {employer.name} on Obeeoma"
+            message = f"""
+Hello,
+
+You have been invited to join {employer.name} on the Obeeoma platform by {request.user.username}.
+
+{invitation.message if invitation.message else ''}
+
+To accept this invitation and create your account, please click the link below:
+
+{invitation_url}
+
+Your invitation token: {invitation.token}
+
+This invitation will expire on {invitation.expires_at.strftime('%B %d, %Y at %I:%M %p')}.
+
+If you have any questions, please contact your organization administrator.
+
+Best regards,
+The Obeeoma Team
+"""
+            
+            # Try to send via Gmail API first, fallback to SMTP
+            try:
+                email_sent = send_gmail_api_email(invitation.email, subject, message)
+            except Exception as gmail_error:
+                logger.warning(f"Gmail API failed, using SMTP: {str(gmail_error)}")
+                send_mail(
+                    subject,
+                    message,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [invitation.email],
+                    fail_silently=False,
+                )
+                email_sent = True
+            
+            if not email_sent:
+                logger.error(f"Failed to send invitation email to {invitation.email}")
+                
+        except Exception as e:
+            logger.error(f"Error sending invitation email: {str(e)}")
+            # Don't fail the request if email fails, just log it
         
         return Response({
             'message': 'Invitation sent successfully',
@@ -1060,16 +1144,130 @@ class EmployerViewSet(viewsets.ModelViewSet):
         return Response({'message': 'Invitation created', 'token': invite.token}, status=status.HTTP_201_CREATED)
 
 
+class InvitationVerifyView(APIView):
+    """Verify an invitation token before signup"""
+    permission_classes = [permissions.AllowAny]
+    
+    def get(self, request):
+        """
+        Verify if an invitation token is valid.
+        
+        Query parameter: ?token=abc123xyz
+        """
+        token = request.query_params.get('token')
+        
+        if not token:
+            return Response(
+                {"error": "Token parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            invitation = EmployeeInvitation.objects.get(token=token, accepted=False)
+            
+            # Check if expired
+            if invitation.expires_at < timezone.now():
+                return Response(
+                    {
+                        "valid": False,
+                        "error": "Invitation has expired",
+                        "expired_at": invitation.expires_at
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            return Response({
+                "valid": True,
+                "email": invitation.email,
+                "organization": invitation.employer.name,
+                "invited_by": invitation.invited_by.username if invitation.invited_by else "Administrator",
+                "expires_at": invitation.expires_at,
+                "message": invitation.message
+            })
+            
+        except EmployeeInvitation.DoesNotExist:
+            return Response(
+                {
+                    "valid": False,
+                    "error": "Invalid or already used invitation token"
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+@extend_schema(
+    tags=["Authentication"],
+    request=EmployeeInvitationAcceptSerializer,
+    responses={
+        201: {
+            "description": "Account created successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Account created successfully",
+                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "user": {
+                            "id": 1,
+                            "username": "newemployee",
+                            "email": "newemployee@company.com",
+                            "role": "employee"
+                        }
+                    }
+                }
+            }
+        },
+        400: {"description": "Invalid token, expired invitation, or validation error"}
+    },
+    description="""
+    Accept an employee invitation and create a new account.
+    
+    The invited person should:
+    1. Receive an email with an invitation token
+    2. Use this endpoint to create their account with the token
+    3. Provide a username and password
+    
+    **Example Request:**
+    ```json
+    {
+      "token": "abc123xyz789",
+      "username": "johndoe",
+      "password": "SecurePassword123!"
+    }
+    ```
+    
+    Upon success, the user account is created and linked to the organization.
+    """
+)
 class InvitationAcceptView(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = EmployeeInvitationAcceptSerializer
 
     def create(self, request):
+        """Accept invitation and create employee account"""
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        
+        # Generate tokens
         refresh = RefreshToken.for_user(user)
-        return Response({'message': 'Account created successfully', 'access': str(refresh.access_token), 'refresh': str(refresh)}, status=status.HTTP_201_CREATED)
+        
+        # Get user data
+        user_data = {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+            "date_joined": user.date_joined,
+            "is_active": user.is_active,
+        }
+        
+        return Response({
+            'message': 'Account created successfully',
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': user_data
+        }, status=status.HTTP_201_CREATED)
 
 class ProgressViewSet(viewsets.ModelViewSet):
     queryset = Progress.objects.all()
@@ -1256,8 +1454,6 @@ class TestsByTypeView(viewsets.ViewSet):
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
-        from django.db.models import Count
-        
         tests_by_type = WellnessTest.objects.values('test_type').annotate(
             count=Count('id')
         ).order_by('-count')
@@ -1270,7 +1466,6 @@ class TestsByDepartmentView(viewsets.ViewSet):
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
-        from django.db.models import Count
         
         tests_by_department = WellnessTest.objects.values(
             'department__name'
@@ -1355,7 +1550,7 @@ class SystemAdminOverviewView(viewsets.ViewSet):
             'subscription_revenue': SubscriptionRevenueSerializer(subscription_revenue, many=True).data,
             'recent_activities': SystemActivitySerializer(recent_activities, many=True).data
         }
-        
+
         return Response(data)
 
 
