@@ -21,19 +21,23 @@ from obeeomaapp.views import (
     PasswordResetView, PasswordResetConfirmView, PasswordChangeView,
     OverviewView, TrendsView, EmployeeEngagementView, BillingView,
     InviteView, UsersView, ReportsView, CrisisInsightsView,
-    EmployeeProfileView, AvatarProfileView, WellnessHubView,
-    MoodCheckInView, AssessmentResultView, SelfHelpResourceView,
-    EducationalResourceView, CrisisTriggerView, NotificationView, 
-    EngagementTrackerView, FeedbackView, ChatSessionView, 
-    ChatMessageView, RecommendationLogView, InvitationAcceptView, 
-    InvitationVerifyView, EmployerRegistrationView, home, CustomTokenObtainPairView
+       EmployeeProfileViewSet,
+    AvatarProfileViewSet,
+    WellnessHubViewSet,
+    # MoodCheckInViewSet,           # make sure this exists in views.py
+    AssessmentResultViewSet,
+    # SelfHelpResourceViewSet,      # make sure this exists in views.py
+    # EducationalResourceViewSet,   # make sure this exists in views.py
+    CrisisTriggerViewSet,
+    NotificationViewSet,
+    EngagementTrackerViewSet,
+    FeedbackViewSet,
+    ChatSessionViewSet,
+    ChatMessageViewSet,
+    RecommendationLogViewSet, InvitationAcceptView, 
+    InvitationVerifyView, EmployerRegistrationView, home, CustomTokenObtainPairView, InvitationAcceptView, 
+    EmployerRegistrationView, home, CustomTokenObtainPairView
 )
-    InvitationAcceptView, 
-    EmployerRegistrationView, home, CustomTokenObtainPairView, EmployeeProfileViewSet,EmployeeProfileViewSet,
-    AvatarProfileViewSet,WellnessHubViewSet,AssessmentResultViewSet,CrisisTriggerViewSet,NotificationViewSet,
-    EngagementTrackerViewSet, FeedbackViewSet, ChatSessionViewSet,ChatMessageViewSet,RecommendationLogViewSet,
-)
-
 
 
 
@@ -52,7 +56,7 @@ schema_view = get_schema_view(
 
 # --- Router setup ---
 router = DefaultRouter()
-router.register(r'profiles', EmployeeProfileViewSet, basename='employee-profile')
+
 router.register(r'mental-health/assessments', MentalHealthAssessmentViewSet, basename='mental-health-assessment')
 router.register(r'employers', EmployerViewSet, basename='employer')
 router.register(r'me/badges', MyBadgesView, basename='my-badges')
@@ -63,17 +67,20 @@ router.register(r'progress', ProgressViewSet)
 
 # Dashboard routers (Employer Dashboard)
 
-router.register('employee-profiles', EmployeeProfileViewSet, basename='employeeprofile')
-router.register('avatar-profiles', AvatarProfileViewSet, basename='avatarprofile')
-router.register('wellness-hubs', WellnessHubViewSet, basename='wellnesshub')
-router.register('assessment-results', AssessmentResultViewSet, basename='assessmentresult')
-router.register('crisis-triggers', CrisisTriggerViewSet, basename='crisistrigger')
-router.register('notifications', NotificationViewSet, basename='notification')
-router.register('engagement-trackers', EngagementTrackerViewSet, basename='engagementtracker')
-router.register('feedback', FeedbackViewSet, basename='feedback')
-router.register('chat-sessions', ChatSessionViewSet, basename='chatsession')
-router.register('chat-messages', ChatMessageViewSet, basename='chatmessage')
-router.register('recommendation-logs', RecommendationLogViewSet, basename='recommendationlog')
+router.register(r'employee/profile', EmployeeProfileViewSet, basename='employee-profile')
+router.register(r'employee/avatar', AvatarProfileViewSet, basename='avatar-profile')
+router.register(r'employee/wellness', WellnessHubViewSet, basename='wellness-hub')
+# router.register(r'employee/mood-checkin', MoodCheckInViewSet, basename='mood-checkin')
+router.register(r'employee/assessments',  AssessmentResultViewSet, basename='assessment-results')
+# router.register(r'resources/self-help', SelfHelpResourceViewSet, basename='self-help-resources')
+# router.register(r'resources/educational', EducationalResourceViewSet, basename='educational-resources')
+router.register(r'employee/crisis', CrisisTriggerViewSet, basename='crisis-trigger')
+router.register(r'employee/notifications', NotificationViewSet, basename='notifications')
+router.register(r'employee/engagement', EngagementTrackerViewSet, basename='engagement-tracker')
+router.register(r'employee/feedback', FeedbackViewSet, basename='feedback')
+router.register(r'sana/sessions', ChatSessionViewSet, basename='chat-sessions')
+router.register(r'sana/messages', ChatMessageViewSet, basename='chat-messages')
+router.register(r'employee/recommendations', RecommendationLogViewSet, basename='recommendation-log')
 
 router.register(r'dashboard/organization-overview', OrganizationOverviewView, basename='organization-overview')
 router.register(r'dashboard/employees', EmployeeManagementView, basename='employee-management')
