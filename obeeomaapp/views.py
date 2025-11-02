@@ -1966,3 +1966,229 @@ class SystemSettingsView(viewsets.ModelViewSet):
         
         return Response(list(categories))"""
 
+
+
+
+# views for educational resources
+class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = ResourceCategory.objects.all()
+    serializer_class = ResourceCategorySerializer
+    permission_classes = [AllowAny]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'description']
+    ordering_fields = ['name']
+
+
+class EducationalVideoViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = EducationalVideo.objects.filter(is_active=True)
+    serializer_class = EducationalVideoSerializer
+    permission_classes = [AllowAny]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['category']
+    search_fields = ['title', 'description']
+    ordering_fields = ['created_at', 'views', 'title']
+    
+    @action(detail=True, methods=['post'])
+    def watch(self, request, pk=None):
+        """Record that user watched this video"""
+        video = self.get_object()
+        video.views += 1
+        video.save()
+        
+        # Track user activity if authenticated
+        if request.user.is_authenticated:
+            UserActivity.objects.create(user=request.user, video=video)
+        
+        return Response({'message': 'View recorded', 'total_views': video.views})
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def save(self, request, pk=None):
+        """Save video to user's library"""
+        video = self.get_object()
+        saved, created = SavedResource.objects.get_or_create(
+            user=request.user, 
+            video=video
+        )
+        
+        if created:
+            return Response({'message': 'Video saved to your library'})
+        else:
+            saved.delete()
+            return Response({'message': 'Video removed from library'})
+    
+    @action(detail=False, methods=['get'])
+    def popular(self, request):
+       
+        popular = self.queryset.order_by('-views')[:10]
+        serializer = self.get_serializer(popular, many=True)
+        return Response(serializer.data)
+
+
+class CalmingAudioViewSet(viewsets.ReadOnlyModelViewSet):
+   
+    queryset = CalmingAudio.objects.filter(is_active=True)
+    serializer_class = CalmingAudioSerializer
+    permission_classes = [AllowAny]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['category']
+    search_fields = ['title', 'description']
+    ordering_fields = ['created_at', 'plays', 'title']
+    
+    @action(detail=True, methods=['post'])
+    def play(self, request, pk=None):
+        
+        audio = self.get_object()
+        audio.plays += 1
+        audio.save()
+        
+        # Track user activity if authenticated
+        if request.user.is_authenticated:
+            UserActivity.objects.create(user=request.user, audio=audio)
+        
+        return Response({'message': 'Play recorded', 'total_plays': audio.plays})
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def save(self, request, pk=None):
+        audio = self.get_object()
+        saved, created = SavedResource.objects.get_or_create(
+            user=request.user, 
+            audio=audio
+        )
+        
+        if created:
+            return Response({'message': 'Audio saved to your library'})
+        else:
+            saved.delete()
+            return Response({'message': 'Audio removed from library'})
+
+
+class MentalHealthArticleViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = MentalHealthArticle.objects.filter(is_published=True)
+    serializer_class = MentalHealthArticleSerializer
+    permission_classes = [AllowAny]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['category']
+    search_fields = ['title', 'content', 'excerpt']
+    ordering_fields = ['published_date', 'views', 'reading_time']
+    lookup_field = 'slug'
+    
+    @action(detail=True, methods=['post'])
+    def read(self, request, slug=None):
+        article = self.get_object()
+        article.views += 1
+        article.save()
+        
+        # Track user activity if authenticated
+        if request.user.is_authenticated:
+            UserActivity.objects.create(user=request.user, article=article)
+        
+        return Response({'message': 'Read recorded', 'total_views': article.views})
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def save(self, request, slug=None):
+        article = self.get_object()
+        saved, created = SavedResource.objects.get_or_create(
+            user=request.user, 
+            article=article
+        )
+        
+        if created:
+            return Response({'message': 'Article saved to your library'})
+        else:
+            saved.delete()
+            return Response({'message': 'Article removed from library'})
+    
+    @action(detail=False, methods=['get'])
+    def trending(self, request):
+        trending = self.queryset.order_by('-views')[:10]
+        serializer = self.get_serializer(trending, many=True)
+        return Response(serializer.data)
+
+
+class MeditationTechniqueViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = MeditationTechnique.objects.filter(is_active=True)
+    serializer_class = MeditationTechniqueSerializer
+    permission_classes = [AllowAny]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['category', 'difficulty']
+    search_fields = ['title', 'description', 'benefits']
+    ordering_fields = ['difficulty', 'duration', 'times_practiced']
+    
+    @action(detail=True, methods=['post'])
+    def practice(self, request, pk=None):
+        meditation = self.get_object()
+        meditation.times_practiced += 1
+        meditation.save()
+        
+        # Track user activity if authenticated
+        if request.user.is_authenticated:
+            UserActivity.objects.create(user=request.user, meditation=meditation, completed=True)
+        
+        return Response({'message': 'Practice recorded', 'total_sessions': meditation.times_practiced})
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def save(self, request, pk=None):
+        meditation = self.get_object()
+        saved, created = SavedResource.objects.get_or_create(
+            user=request.user, 
+            meditation=meditation
+        )
+        
+        if created:
+            return Response({'message': 'Meditation saved to your library'})
+        else:
+            saved.delete()
+            return Response({'message': 'Meditation removed from library'})
+    
+    @action(detail=False, methods=['get'])
+    def for_beginners(self, request):
+        beginners = self.queryset.filter(difficulty='beginner')
+        serializer = self.get_serializer(beginners, many=True)
+        return Response(serializer.data)
+
+
+class SavedResourceViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = SavedResourceSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return SavedResource.objects.filter(user=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def by_type(self, request):
+        resource_type = request.query_params.get('type', 'all')
+        saved = self.get_queryset()
+        
+        if resource_type == 'videos':
+            saved = saved.filter(video__isnull=False)
+        elif resource_type == 'audios':
+            saved = saved.filter(audio__isnull=False)
+        elif resource_type == 'articles':
+            saved = saved.filter(article__isnull=False)
+        elif resource_type == 'meditations':
+            saved = saved.filter(meditation__isnull=False)
+        
+        serializer = self.get_serializer(saved, many=True)
+        return Response(serializer.data)
+
+
+class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = UserActivitySerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return UserActivity.objects.filter(user=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        activities = self.get_queryset()
+        
+        stats = {
+            'total_activities': activities.count(),
+            'videos_watched': activities.filter(video__isnull=False).count(),
+            'audios_played': activities.filter(audio__isnull=False).count(),
+            'articles_read': activities.filter(article__isnull=False).count(),
+            'meditations_practiced': activities.filter(meditation__isnull=False, completed=True).count(),
+        }
+        
+        return Response(stats)
