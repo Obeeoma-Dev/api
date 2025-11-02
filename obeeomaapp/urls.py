@@ -23,11 +23,9 @@ from obeeomaapp.views import (
     InviteView, UsersView, ReportsView, CrisisInsightsView,
        EmployeeProfileViewSet,
     AvatarProfileViewSet,
-    WellnessHubViewSet,
-    # MoodCheckInViewSet,           # make sure this exists in views.py
+    WellnessHubViewSet,           # make sure this exists in views.py
     AssessmentResultViewSet,
-    # SelfHelpResourceViewSet,      # make sure this exists in views.py
-    # EducationalResourceViewSet,   # make sure this exists in views.py
+    # make sure this exists in views.py
     CrisisTriggerViewSet,
     NotificationViewSet,
     EngagementTrackerViewSet,
@@ -40,6 +38,9 @@ from obeeomaapp.views import (
 )
 
 
+from .views import (ResourceCategoryViewSet, EducationalVideoViewSet, CalmingAudioViewSet,
+                    MentalHealthArticleViewSet, MeditationTechniqueViewSet, 
+                    SavedResourceViewSet, UserActivityViewSet)
 
 app_name = "obeeomaapp"
 
@@ -70,10 +71,7 @@ router.register(r'progress', ProgressViewSet)
 router.register(r'employee/profile', EmployeeProfileViewSet, basename='employee-profile')
 router.register(r'employee/avatar', AvatarProfileViewSet, basename='avatar-profile')
 router.register(r'employee/wellness', WellnessHubViewSet, basename='wellness-hub')
-# router.register(r'employee/mood-checkin', MoodCheckInViewSet, basename='mood-checkin')
 router.register(r'employee/assessments',  AssessmentResultViewSet, basename='assessment-results')
-# router.register(r'resources/self-help', SelfHelpResourceViewSet, basename='self-help-resources')
-# router.register(r'resources/educational', EducationalResourceViewSet, basename='educational-resources')
 router.register(r'employee/crisis', CrisisTriggerViewSet, basename='crisis-trigger')
 router.register(r'employee/notifications', NotificationViewSet, basename='notifications')
 router.register(r'employee/engagement', EngagementTrackerViewSet, basename='engagement-tracker')
@@ -90,6 +88,17 @@ router.register(r'dashboard/wellness-reports', WellnessReportsView, basename='we
 router.register(r'dashboard/settings', OrganizationSettingsView, basename='organization-settings')
 router.register(r'dashboard/tests-by-type', TestsByTypeView, basename='tests-by-type')
 router.register(r'dashboard/tests-by-department', TestsByDepartmentView, basename='tests-by-department')
+
+
+
+
+router.register(r'categories', ResourceCategoryViewSet, basename='resource-category')
+router.register(r'videos', EducationalVideoViewSet, basename='educational-video')
+router.register(r'audios', CalmingAudioViewSet, basename='calming-audio')
+router.register(r'articles', MentalHealthArticleViewSet, basename='mental-health-article')
+router.register(r'meditations', MeditationTechniqueViewSet, basename='meditation-technique')
+router.register(r'saved', SavedResourceViewSet, basename='saved-resource')
+router.register(r'activity', UserActivityViewSet, basename='user-activity')
 
 # System Admin routers
 router.register(r'admin/overview', SystemAdminOverviewView, basename='system-admin-overview')
