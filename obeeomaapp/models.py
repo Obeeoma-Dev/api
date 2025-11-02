@@ -952,10 +952,9 @@ class Report(models.Model):
 
 
 
-
+# --Educational Resources Models--
 
 class ResourceCategory(models.Model):
-    """Categories for organizing resources (Stress, Anxiety, Depression, etc.)"""
     name = models.CharField(max_length=100, help_text="e.g., Stress Management, Anxiety Relief")
     description = models.TextField(blank=True)
     icon = models.CharField(max_length=50, blank=True, help_text="Emoji or icon name")
@@ -972,7 +971,6 @@ class ResourceCategory(models.Model):
 
 
 class EducationalVideo(models.Model):
-    """Educational videos about mental health"""
     title = models.CharField(max_length=200)
     description = models.TextField(help_text="What will users learn?")
     youtube_url = models.URLField(help_text="YouTube video URL")
@@ -993,7 +991,6 @@ class EducationalVideo(models.Model):
 
 
 class CalmingAudio(models.Model):
-    """Audio tracks for relaxation and meditation"""
     title = models.CharField(max_length=200)
     description = models.TextField(help_text="What does this audio help with?")
     audio_file = models.FileField(upload_to='audios/', blank=True, null=True)
@@ -1014,7 +1011,6 @@ class CalmingAudio(models.Model):
 
 
 class MentalHealthArticle(models.Model):
-    """Educational articles about mental wellness"""
     title = models.CharField(max_length=200)
     slug = models.SlugField(unique=True, max_length=250, blank=True)
     content = models.TextField()
