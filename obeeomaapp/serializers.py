@@ -9,6 +9,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
 
+from rest_framework import serializers
 User = get_user_model()
 
 # signup serializer
@@ -919,3 +920,148 @@ class ReportsAnalyticsSerializer(serializers.Serializer):
     date_ranges = serializers.ListField()
     formats = serializers.ListField()
 
+
+# Serializers for Educational Resources 
+class ResourceCategorySerializer(serializers.ModelSerializer):
+    video_count = serializers.SerializerMethodField()
+    audio_count = serializers.SerializerMethodField()
+    article_count = serializers.SerializerMethodField()
+    meditation_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ResourceCategory
+        fields = ['id', 'name', 'description', 'icon', 'color_code', 
+                  'video_count', 'audio_count', 'article_count', 'meditation_count']
+    
+    def get_video_count(self, obj):
+        return obj.videos.filter(is_active=True).count()
+    
+    def get_audio_count(self, obj):
+        return obj.audios.filter(is_active=True).count()
+    
+    def get_article_count(self, obj):
+        return obj.articles.filter(is_published=True).count()
+    
+    def get_meditation_count(self, obj):
+        return obj.meditations.filter(is_active=True).count()
+
+
+class EducationalVideoSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    is_saved = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = EducationalVideo
+        fields = ['id', 'title', 'description', 'youtube_url', 'thumbnail', 
+                  'category', 'category_name', 'duration', 'views', 'is_saved', 
+                  'created_at']
+        read_only_fields = ['views']
+    
+    def get_is_saved(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return SavedResource.objects.filter(user=request.user, video=obj).exists()
+        return False
+
+
+class CalmingAudioSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    is_saved = serializers.SerializerMethodField()
+    audio_url_full = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = CalmingAudio
+        fields = ['id', 'title', 'description', 'audio_file', 'audio_url', 
+                  'audio_url_full', 'category', 'category_name', 'duration', 
+                  'plays', 'is_saved', 'created_at']
+        read_only_fields = ['plays']
+    
+    def get_is_saved(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return SavedResource.objects.filter(user=request.user, audio=obj).exists()
+        return False
+    
+    def get_audio_url_full(self, obj):
+        if obj.audio_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.audio_file.url)
+        return obj.audio_url
+
+
+class MentalHealthArticleSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    author_name = serializers.CharField(source='author.username', read_only=True, allow_null=True)
+    is_saved = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = MentalHealthArticle
+        fields = ['id', 'title', 'slug', 'content', 'excerpt', 'author_name', 
+                  'category', 'category_name', 'featured_image', 'reading_time', 
+                  'views', 'is_saved', 'published_date']
+        read_only_fields = ['slug', 'views']
+    
+    def get_is_saved(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return SavedResource.objects.filter(user=request.user, article=obj).exists()
+        return False
+
+
+class MeditationTechniqueSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    difficulty_display = serializers.CharField(source='get_difficulty_display', read_only=True)
+    is_saved = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = MeditationTechnique
+        fields = ['id', 'title', 'description', 'instructions', 'duration', 
+                  'difficulty', 'difficulty_display', 'category', 'category_name', 
+                  'benefits', 'image', 'times_practiced', 'is_saved', 'created_at']
+        read_only_fields = ['times_practiced']
+    
+    def get_is_saved(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return SavedResource.objects.filter(user=request.user, meditation=obj).exists()
+        return False
+
+
+class SavedResourceSerializer(serializers.ModelSerializer):
+    resource_type = serializers.SerializerMethodField()
+    resource_title = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = SavedResource
+        fields = ['id', 'video', 'audio', 'article', 'meditation', 
+                  'resource_type', 'resource_title', 'saved_at']
+    
+    def get_resource_type(self, obj):
+        if obj.video:
+            return 'video'
+        elif obj.audio:
+            return 'audio'
+        elif obj.article:
+            return 'article'
+        elif obj.meditation:
+            return 'meditation'
+        return 'unknown'
+    
+    def get_resource_title(self, obj):
+        if obj.video:
+            return obj.video.title
+        elif obj.audio:
+            return obj.audio.title
+        elif obj.article:
+            return obj.article.title
+        elif obj.meditation:
+            return obj.meditation.title
+        return 'Unknown'
+
+
+class UserActivitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserActivity
+        fields = ['id', 'video', 'audio', 'article', 'meditation', 
+                  'completed', 'progress_percentage', 'notes', 'accessed_at']
