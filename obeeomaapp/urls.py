@@ -1,49 +1,50 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework import permissions
+
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
-from .views import CustomTokenObtainPairView
 
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
-from obeeomaapp.views import (
-    MentalHealthAssessmentViewSet,
-    OrganizationOverviewView, EmployeeManagementView,
-    DepartmentManagementView, SubscriptionManagementView,
-    WellnessReportsView, OrganizationSettingsView, TestsByTypeView,
-    TestsByDepartmentView, SystemAdminOverviewView, 
-    OrganizationsManagementView, HotlineActivityView,
-    AIManagementView, ClientEngagementView,
-    ReportsAnalyticsView, SystemSettingsView, FeaturesUsageView,
-    EmployerViewSet, MyBadgesView, MyStreaksView, ProgressViewSet, 
-    EmailConfigCheckView, SignupView, LoginView, LogoutView, 
-    PasswordResetView, PasswordResetConfirmView, PasswordChangeView,
-    OverviewView, TrendsView, EmployeeEngagementView, BillingView,
-    UsersView, ReportsView, CrisisInsightsView,
-    EmployeeProfileView, AvatarProfileView, WellnessHubView,
-    MoodCheckInView, AssessmentResultView, SelfHelpResourceView,
-    EducationalResourceView, CrisisTriggerView, NotificationView, 
-    EngagementTrackerView, FeedbackView, ChatSessionView, 
-    ChatMessageView, RecommendationLogView, InvitationAcceptView, 
-    InvitationVerifyView, EmployerRegistrationView, home, CustomTokenObtainPairView,
-    InvitationAcceptanceView, InviteView  # Added missing views
-    InviteView, UsersView, ReportsView, CrisisInsightsView, EmployeeViewSet,
-    AvatarProfileViewSet,
-    WellnessHubViewSet,           # make sure this exists in views.py
-    AssessmentResultViewSet,
-    # make sure this exists in views.py
-    CrisisTriggerViewSet,
-    NotificationViewSet,
-    EngagementTrackerViewSet,
-    FeedbackViewSet,
-    ChatSessionViewSet,
-    ChatMessageViewSet,
-    RecommendationLogViewSet, InvitationAcceptView, 
-    InvitationVerifyView, EmployerRegistrationView, home, CustomTokenObtainPairView, InvitationAcceptView, 
-    EmployerRegistrationView, home, CustomTokenObtainPairView
-)
 
+from obeeomaapp.views import (
+    # Auth & Core
+    SignupView, LoginView, LogoutView, PasswordResetView, PasswordResetConfirmView,
+    PasswordChangeView, CustomTokenObtainPairView, home,
+
+    # Onboarding & Invitations
+    InvitationAcceptView, InvitationVerifyView, InvitationAcceptanceView, InviteView,
+    EmployerRegistrationView,
+
+    # User & Profile
+    UsersView, EmployeeProfileView, AvatarProfileView, AvatarProfileViewSet,
+    EmployeeViewSet,
+
+    # Mental Health & Wellness
+    MentalHealthAssessmentViewSet, MoodCheckInView, AssessmentResultView, AssessmentResultViewSet,
+    SelfHelpResourceView, EducationalResourceView, WellnessHubView, WellnessHubViewSet,
+
+    # Crisis & Notifications
+    CrisisTriggerView, CrisisTriggerViewSet, NotificationView, NotificationViewSet,
+
+    # Engagement & Feedback
+    EngagementTrackerView, EngagementTrackerViewSet, FeedbackView, FeedbackViewSet,
+    ChatSessionView, ChatSessionViewSet, ChatMessageView, ChatMessageViewSet,
+    RecommendationLogView, RecommendationLogViewSet,
+
+    # Organization & Admin
+    OrganizationOverviewView, EmployeeManagementView, DepartmentManagementView,
+    SubscriptionManagementView, WellnessReportsView, OrganizationSettingsView,
+    TestsByTypeView, TestsByDepartmentView, SystemAdminOverviewView,
+    OrganizationsManagementView, HotlineActivityView, AIManagementView,
+    ClientEngagementView, ReportsAnalyticsView, SystemSettingsView, FeaturesUsageView,
+
+    # Progress & Analytics
+    MyBadgesView, MyStreaksView, ProgressViewSet, OverviewView, TrendsView,
+    EmployeeEngagementView, BillingView, ReportsView, CrisisInsightsView,
+    EmailConfigCheckView, EmployerViewSet,
+)
 
 from .views import (EducationalResourceViewSet, VideoViewSet, AudioViewSet,
                     ArticleViewSet, MeditationTechniqueViewSet, 
