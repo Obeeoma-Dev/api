@@ -8,8 +8,7 @@ from .views import CustomTokenObtainPairView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 from obeeomaapp.views import (
-    MentalHealthAssessmentViewSet, ResourceCategoryViewSet,
-    EducationalVideoViewSet, UserVideoInteractionViewSet, 
+    MentalHealthAssessmentViewSet,
     OrganizationOverviewView, EmployeeManagementView,
     DepartmentManagementView, SubscriptionManagementView,
     WellnessReportsView, OrganizationSettingsView, TestsByTypeView,
@@ -31,6 +30,8 @@ from obeeomaapp.views import (
     InvitationAcceptanceView, InviteView  # Added missing views
 )
 
+
+
 app_name = "obeeomaapp"
 
 # --- Swagger schema view ---
@@ -46,6 +47,7 @@ schema_view = get_schema_view(
 
 # --- Router setup ---
 router = DefaultRouter()
+
 router.register(r'mental-health/assessments', MentalHealthAssessmentViewSet, basename='mental-health-assessment')
 router.register(r'employers', EmployerViewSet, basename='employer')
 router.register(r'me/badges', MyBadgesView, basename='my-badges')
@@ -56,6 +58,22 @@ router.register(r'videos', EducationalVideoViewSet, basename='videos')
 router.register(r'video-interactions', UserVideoInteractionViewSet, basename='video-interactions')
 
 # Dashboard routers (Employer Dashboard)
+
+router.register(r'employee/profile', EmployeeProfileViewSet, basename='employee-profile')
+router.register(r'employee/avatar', AvatarProfileViewSet, basename='avatar-profile')
+router.register(r'employee/wellness', WellnessHubViewSet, basename='wellness-hub')
+# router.register(r'employee/mood-checkin', MoodCheckInViewSet, basename='mood-checkin')
+router.register(r'employee/assessments',  AssessmentResultViewSet, basename='assessment-results')
+# router.register(r'resources/self-help', SelfHelpResourceViewSet, basename='self-help-resources')
+# router.register(r'resources/educational', EducationalResourceViewSet, basename='educational-resources')
+router.register(r'employee/crisis', CrisisTriggerViewSet, basename='crisis-trigger')
+router.register(r'employee/notifications', NotificationViewSet, basename='notifications')
+router.register(r'employee/engagement', EngagementTrackerViewSet, basename='engagement-tracker')
+router.register(r'employee/feedback', FeedbackViewSet, basename='feedback')
+router.register(r'sana/sessions', ChatSessionViewSet, basename='chat-sessions')
+router.register(r'sana/messages', ChatMessageViewSet, basename='chat-messages')
+router.register(r'employee/recommendations', RecommendationLogViewSet, basename='recommendation-log')
+
 router.register(r'dashboard/organization-overview', OrganizationOverviewView, basename='organization-overview')
 router.register(r'dashboard/employees', EmployeeManagementView, basename='employee-management')
 router.register(r'dashboard/departments', DepartmentManagementView, basename='department-management')
