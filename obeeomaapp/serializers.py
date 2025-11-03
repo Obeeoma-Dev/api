@@ -427,6 +427,10 @@ class AssessmentResultSerializer(serializers.ModelSerializer):
         read_only_fields = ['employee', 'submitted_on']
 
 
+class EducationalResourceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EducationalResource
+        fields = '__all__'
 
 
 class CrisisTriggerSerializer(serializers.ModelSerializer):
