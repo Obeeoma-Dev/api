@@ -28,7 +28,9 @@ from obeeomaapp.views import (
     EngagementTrackerView, FeedbackView, ChatSessionView, 
     ChatMessageView, RecommendationLogView, InvitationAcceptView, 
     InvitationVerifyView, EmployerRegistrationView, home, CustomTokenObtainPairView,
-    InvitationAcceptanceView, InviteView
+    InvitationAcceptanceView, InviteView, VideoViewSet, AudioViewSet,
+    ArticleViewSet, MeditationTechniqueViewSet, SavedResourceViewSet, EducationalResourceViewSet,
+    UserActivityViewSet
 )
 
 
@@ -55,8 +57,7 @@ router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'progress', ProgressViewSet)
 router.register(r'resource-categories', ResourceCategoryViewSet, basename='resource-category')
-router.register(r'videos', EducationalVideoViewSet, basename='videos')
-router.register(r'video-interactions', UserVideoInteractionViewSet, basename='video-interactions')
+router.register(r'video-interactions', UserVideoInteractionViewSet, basename='video-interactions'), E
 
 # Dashboard routers (Employer Dashboard)
 
