@@ -1061,19 +1061,6 @@ class MoodCheckInView(viewsets.ModelViewSet):
     def get_queryset(self):
         return EmployeeProfile.objects.filter(user=self.request.user)
 
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return EmployeeProfileCreateSerializer
-        elif self.action in ['update', 'partial_update']:
-            return EmployeeProfileUpdateSerializer
-        elif self.action == 'set_wellness_status':
-            return WellnessStatusSerializer
-        return EmployeeProfileSerializer
-
-    def perform_create(self, serializer):
-        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
-        serializer.save(employee=employee)
-
 
 @extend_schema(tags=['Employee - Assessments'])
 class AssessmentResultView(viewsets.ModelViewSet):
