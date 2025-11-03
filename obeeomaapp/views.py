@@ -1,3 +1,4 @@
+# Keep only these imports (external modules)
 from django.http import JsonResponse
 from django.db.models import Avg, Count, Sum
 from rest_framework.decorators import action
@@ -17,8 +18,8 @@ from rest_framework.permissions import (
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
-from obeeomaapp.serializers import *
-from obeeomaapp.models import *
+from .serializers import *  # Import serializers from the same app
+from .models import *  # Import models from the same app
 from django.core.mail import send_mail, EmailMultiAlternatives
 from .utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings
@@ -31,25 +32,7 @@ from django.template.loader import render_to_string
 import logging
 from django_filters.rest_framework import DjangoFilterBackend
 
-from rest_framework import viewsets
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
-
-
-
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
-from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import CustomTokenObtainPairSerializer
-from .models import User, Employer, Employee, Subscription, RecentActivity, HotlineActivity, EmployeeEngagement, AIManagement, PasswordResetToken
-""" from .models import AnxietyDistressMastery, DepressionOvercome, ClassicalArticle, CustomerGeneratedContent
-from .serializers import (
-     AnxietyDistressMasterySerializer, 
-     DepressionOvercomeSerializer, 
-#     ClassicalArticleSerializer, 
-#     CustomerGeneratedContentSerializer
-# )"""
-
+# Remove the circular import that tries to import from the same file
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -65,6 +48,7 @@ class IsCompanyAdmin(BasePermission):
 
 
 # --- Authentication Views ---
+@extend_schema(tags=['Authentication'])
 class SignupView(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = SignupSerializer
@@ -77,59 +61,64 @@ class SignupView(viewsets.ModelViewSet):
     request=EmployerRegistrationSerializer,
     responses={
         201: {
-            "description": "Organization created successfully",
+            "description": "Account and organization created successfully",
             "content": {
                 "application/json": {
                     "example": {
-                        "message": "Organization created successfully",
+                        "message": "Account and organization created successfully",
+                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "user": {
+                            "id": 1,
+                            "email": "john@company.com",
+                            "username": "john@company.com",
+                            "role": "employer"
+                        },
                         "organization": {
                             "id": 1,
                             "name": "My Company Inc",
-                            "is_active": True,
-                            "joined_date": "2025-10-30T18:50:48Z"
-                        },
-                        "employee": {
-                            "id": 1,
-                            "name": "John Doe",
-                            "email": "john@example.com",
-                            "status": "active"
+                            "is_active": True
                         }
                     }
                 }
             }
         },
-        400: {"description": "Bad Request - organization_name required or user already has organization"}
+        400: {"description": "Bad Request - validation errors or email already exists"}
     },
-    description="Create an organization for the authenticated employer user. Each user can only create one organization."
+    description="""
+    Register as an employer - creates user account and organization in one step.
+    
+    This is a public endpoint (no authentication required).
+    After successful registration, you'll receive JWT tokens for immediate login.
+    """
 )
 class EmployerRegistrationView(APIView):
     """
-    Allow employers to register and create their organization in one step.
+    Single-step employer registration: creates user account and organization together.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]  # Public endpoint
     
     def post(self, request):
-        """Create an organization for the authenticated employer user."""
+        """Register employer with organization in one step."""
         serializer = EmployerRegistrationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        organization_name = serializer.validated_data.get('organization_name')
-        industry = serializer.validated_data.get('industry', '')
-        size = serializer.validated_data.get('size', '')
+        # Extract validated data
+        organization_name = serializer.validated_data['organization_name']
+        email = serializer.validated_data['email']
+        password = serializer.validated_data['password']
+        employer_name = serializer.validated_data['employer_name']
+        phone_number = serializer.validated_data.get('phone_number', '')
         
-        # Check if user already has an organization
-        existing_org = Employer.objects.filter(
-            employees__user=request.user
-        ).first()
-        
-        if existing_org:
-            return Response(
-                {
-                    "error": "You already have an organization",
-                    "organization": EmployerSerializer(existing_org).data
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Create user account (email as username)
+        user = User.objects.create_user(
+            username=email,  # Use email as username
+            email=email,
+            password=password,
+            role='employer',
+            first_name=employer_name.split()[0] if ' ' in employer_name else employer_name,
+            last_name=' '.join(employer_name.split()[1:]) if ' ' in employer_name else ''
+        )
         
         # Create the organization
         employer = Employer.objects.create(
@@ -140,10 +129,10 @@ class EmployerRegistrationView(APIView):
         # Link the user to this organization as an employee
         employee = Employee.objects.create(
             employer=employer,
-            user=request.user,
-            first_name=request.user.first_name or request.user.username,
-            last_name=request.user.last_name or '',
-            email=request.user.email,
+            user=user,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            email=email,
             status='active'
         )
         
@@ -151,21 +140,42 @@ class EmployerRegistrationView(APIView):
         RecentActivity.objects.create(
             employer=employer,
             activity_type="New Employer",
-            details=f"Organization '{organization_name}' was created by {request.user.username}",
+            details=f"Organization '{organization_name}' was created by {employer_name}",
             is_important=True
         )
         
+        # Generate JWT tokens for immediate login
+        refresh = RefreshToken.for_user(user)
+        
         return Response(
             {
-                "message": "Organization created successfully",
-                "organization": EmployerSerializer(employer).data,
-                "employee": EmployeeSerializer(employee).data
+                "message": "Account and organization created successfully",
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "username": user.username,
+                    "role": user.role,
+                    "name": employer_name
+                },
+                "organization": {
+                    "id": employer.id,
+                    "name": employer.name,
+                    "is_active": employer.is_active,
+                    "joined_date": employer.joined_date
+                },
+                "employee_profile": {
+                    "id": employee.id,
+                    "status": employee.status
+                }
             },
             status=status.HTTP_201_CREATED
         )
 
 
 # login view
+@extend_schema(tags=['Authentication'])
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = LoginSerializer
@@ -238,10 +248,10 @@ class LogoutView(APIView):
                 {"error": "Invalid or expired token."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-  # password reset request view
 
-logger = logging.getLogger(__name__)
 
+# password reset request view
+@extend_schema(tags=['Authentication'])
 class PasswordResetView(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = PasswordResetSerializer
@@ -318,6 +328,7 @@ Obeeoma Team
 
 
 # Confirm Password Reset View
+@extend_schema(tags=['Authentication'])
 class PasswordResetConfirmView(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
     serializer_class = PasswordResetSerializer
@@ -363,6 +374,7 @@ class PasswordResetConfirmView(viewsets.ViewSet):
             return Response({"error": "Invalid verification code"}, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(tags=['Authentication'])
 class PasswordChangeView(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = PasswordChangeSerializer
@@ -380,61 +392,102 @@ class PasswordChangeView(viewsets.ViewSet):
         return Response({"message": "Password updated successfully"})
 
 
-# --- Admin Dashboard ---
-class OverviewView(viewsets.ViewSet):
-    permission_classes = [IsCompanyAdmin]
+# --- Missing Serializers for Invitation Flow ---
+class EmployeeInvitationAcceptSerializer(serializers.Serializer):
+    token = serializers.CharField(
+        required=True,
+        help_text="Invitation token from the email link"
+    )
+    password = serializers.CharField(
+        required=True,
+        write_only=True,
+        min_length=8,
+        help_text="Password for the new account"
+    )
+    first_name = serializers.CharField(
+        required=True,
+        help_text="User's first name"
+    )
+    last_name = serializers.CharField(
+        required=True,
+        help_text="User's last name"
+    )
+    
+    def validate_token(self, value):
+        try:
+            invitation = EmployeeInvitation.objects.get(
+                token=value,
+                accepted=False,
+                expires_at__gt=timezone.now()
+            )
+            return value
+        except EmployeeInvitation.DoesNotExist:
+            raise serializers.ValidationError("Invalid or expired invitation token")
 
-    def list(self, request):
-        employer_count = Employer.objects.count()
-        employee_count = Employee.objects.count()
-        active_subscriptions = Subscription.objects.filter(is_active=True).count()
-        recent = RecentActivity.objects.select_related("employer").order_by("-timestamp")[:10]
-        recent_serialized = RecentActivitySerializer(recent, many=True).data
-        return Response({
-            "employer_count": employer_count,
-            "employee_count": employee_count,
-            "active_subscriptions": active_subscriptions,
-            "recent_activities": recent_serialized,
-        })
+    def create(self, validated_data):
+        token = validated_data['token']
+        password = validated_data['password']
+        first_name = validated_data['first_name']
+        last_name = validated_data['last_name']
+        
+        # Get the invitation
+        invitation = EmployeeInvitation.objects.get(
+            token=token,
+            accepted=False,
+            expires_at__gt=timezone.now()
+        )
+        
+        # Create user account
+        user = User.objects.create_user(
+            username=invitation.email,  # Use email as username
+            email=invitation.email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+            is_active=True
+        )
+        
+        # Create employee profile
+        employee_profile = Employee.objects.create(
+            user=user,
+            employer=invitation.employer
+        )
+        
+        # Mark invitation as accepted
+        invitation.accepted = True
+        invitation.accepted_at = timezone.now()
+        invitation.save()
+        
+        return user
 
 
-class TrendsView(viewsets.ReadOnlyModelViewSet):
-    queryset = HotlineActivity.objects.select_related("employer").order_by("-recorded_at")
-    serializer_class = HotlineActivitySerializer
-    permission_classes = [IsCompanyAdmin]
+class EmployeeUserCreateSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, min_length=8)
+    password_confirm = serializers.CharField(write_only=True)
+    
+    class Meta:
+        model = User
+        fields = ['email', 'first_name', 'last_name', 'password', 'password_confirm']
+    
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password_confirm']:
+            raise serializers.ValidationError({"password_confirm": "Passwords don't match"})
+        return attrs
+    
+    def create(self, validated_data):
+        validated_data.pop('password_confirm')
+        user = User.objects.create_user(
+            username=validated_data['email'],  # Use email as username
+            email=validated_data['email'],
+            password=validated_data['password'],
+            first_name=validated_data['first_name'],
+            last_name=validated_data['last_name'],
+            is_active=True
+        )
+        return user
 
 
-class EmployeeEngagementView(viewsets.ModelViewSet):
-    queryset = EmployeeEngagement.objects.select_related("employer").order_by("-month")
-    serializer_class = EmployeeEngagementSerializer
-    permission_classes = [IsCompanyAdmin]
-
-
-class FeaturesUsageView(viewsets.ModelViewSet):
-    queryset = AIManagement.objects.select_related("employer").order_by("-created_at")
-    serializer_class = AIManagementSerializer
-    permission_classes = [IsCompanyAdmin]
-
-    @action(detail=False, methods=['get'])
-    def by_category(self, request):
-        # Replace this with your actual logic
-        return Response({"message": "Feature flags grouped by category"})
-
-class BillingView(viewsets.ModelViewSet):
-    queryset = Subscription.objects.select_related("employer").all()
-    serializer_class = SubscriptionSerializer
-    permission_classes = [IsCompanyAdmin]
-
-    @action(detail=False, methods=['get'])
-    def summary(self, request):
-        subscriptions = self.get_queryset()
-        total_revenue = sum(float(s.amount) for s in subscriptions)
-        return Response({
-            "subscriptions": SubscriptionSerializer(subscriptions, many=True).data,
-            "total_revenue": total_revenue
-        })
-
-
+# --- Employee Invitation Views ---
 @extend_schema(tags=['Employee Invitations'])
 class InviteView(viewsets.ModelViewSet):
     """
@@ -446,14 +499,27 @@ class InviteView(viewsets.ModelViewSet):
     - Resend or cancel invitations
     """
     serializer_class = EmployeeInvitationCreateSerializer
-    permission_classes = [IsCompanyAdmin]
+    permission_classes = [permissions.IsAuthenticated]  # Allow any authenticated user with an organization
 
     def get_queryset(self):
         # Get invitations for the employer's organization
-        if hasattr(self.request.user, 'employer_profile'):
-            return EmployeeInvitation.objects.filter(
-                employer=self.request.user.employer_profile.employer
-            ).order_by('-created_at')
+        employer = None
+        
+        # Try to get employer from employee profile
+        try:
+            employee_profile = Employee.objects.filter(user=self.request.user).first()
+            if employee_profile:
+                employer = employee_profile.employer
+        except Exception:
+            pass
+        
+        # If still no employer, check if user is staff and get first employer
+        if not employer and self.request.user.is_staff:
+            employer = Employer.objects.first()
+        
+        if employer:
+            return EmployeeInvitation.objects.filter(employer=employer).order_by('-created_at')
+        
         return EmployeeInvitation.objects.none()
 
     @extend_schema(
@@ -588,560 +654,137 @@ The Obeeoma Team
         }, status=status.HTTP_201_CREATED)
 
 
-class UsersView(viewsets.ModelViewSet):
-    queryset = Employee.objects.select_related("employer").all()
-    serializer_class = EmployeeSerializer
-    permission_classes = [IsCompanyAdmin]
-
-
-class ReportsView(viewsets.ReadOnlyModelViewSet):
-    queryset = RecentActivity.objects.select_related("employer").order_by("-timestamp")
-    serializer_class = RecentActivitySerializer
-    permission_classes = [IsCompanyAdmin]
-
-
-class CrisisInsightsView(viewsets.ReadOnlyModelViewSet):
-    queryset = HotlineActivity.objects.select_related("employer").order_by("-recorded_at")
-    serializer_class = HotlineActivitySerializer
-    permission_classes = [IsCompanyAdmin]
-
-
-def home(request):
-    return JsonResponse({"status": "ok", "app": "obeeomaapp"})
-
-
-class EmailConfigCheckView(APIView):
-    """Debug endpoint to check email configuration"""
-    permission_classes = [permissions.AllowAny]
+@extend_schema(tags=['Employee Invitations'])
+class InvitationAcceptanceView(APIView):
+    """
+    Handle employee invitation acceptance and account creation
+    """
+    permission_classes = [AllowAny]  # Allow unauthenticated access for signup
     
-    def get(self, request):
-        config = {
-            "email_backend": settings.EMAIL_BACKEND,
-            "email_host": settings.EMAIL_HOST,
-            "email_port": settings.EMAIL_PORT,
-            "email_use_tls": settings.EMAIL_USE_TLS,
-            "email_use_ssl": settings.EMAIL_USE_SSL,
-            "email_host_user": settings.EMAIL_HOST_USER,
-            "default_from_email": settings.DEFAULT_FROM_EMAIL,
-            "debug_mode": settings.DEBUG,
-            "has_email_password": bool(settings.EMAIL_HOST_PASSWORD),
-        }
-        return Response(config)
-
-
-
-
-# ---- Employee-specific APIs ----
-
-
-
-class EmployeeViewSetMixin:
-    """Base mixin for all employee-related viewsets"""
-    
-    def get_employee(self):
-        """Get employee profile for current user"""
-        try:
-            return EmployeeProfile.objects.get(user=self.request.user)
-        except EmployeeProfile.DoesNotExist:
-            raise ValidationError({
-                "error": "Profile not found. Please create your profile first."
-            })
-    
-    def perform_create(self, serializer):
-        """Auto-assign employee when creating"""
-        employee = self.get_employee()
-        serializer.save(employee=employee)
-
-
-class EmployeeProfileViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['subscription_tier', 'is_premium_active']
-    search_fields = ['organization', 'role']
-
-    def get_queryset(self):
-        return EmployeeProfile.objects.filter(user=self.request.user)
-
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return EmployeeProfileCreateSerializer
-        elif self.action in ['update', 'partial_update']:
-            return EmployeeProfileUpdateSerializer
-        elif self.action == 'set_wellness_status':
-            return WellnessStatusSerializer
-        return EmployeeProfileSerializer
-
-    def perform_create(self, serializer):
-        if EmployeeProfile.objects.filter(user=self.request.user).exists():
-            raise ValidationError({
-                "error": "You already have a profile. Use PUT or PATCH to update it."
-            })
-        serializer.save(user=self.request.user)
-
-    @action(detail=False, methods=['get'])
-    def me(self, request):
-        try:
-            profile = EmployeeProfile.objects.get(user=request.user)
-            serializer = self.get_serializer(profile)
-            return Response(serializer.data)
-        except EmployeeProfile.DoesNotExist:
-            return Response({
-                "error": "Profile not found. Please create one first."
-            }, status=status.HTTP_404_NOT_FOUND)
-
-    @action(detail=True, methods=['patch'], url_path='set-wellness-status')
-    def set_wellness_status(self, request, pk=None):
-        profile = self.get_object()
-        serializer = WellnessStatusSerializer(profile, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response({
-            'message': 'Wellness status updated successfully',
-            'data': serializer.data
-        }, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['delete'], url_path='delete-account')
-    def delete_account(self, request, pk=None):
-        profile = self.get_object()
-        user = profile.user
-        profile.delete()
-        user.delete()
-        return Response({
-            "detail": "Your account and profile were deleted successfully."
-        }, status=status.HTTP_204_NO_CONTENT)
-
-
-class AvatarProfileViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
-    serializer_class = AvatarProfileSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return AvatarProfile.objects.filter(employee__user=self.request.user)
-
-
-class WellnessHubViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
-    serializer_class = WellnessHubSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return WellnessHub.objects.filter(employee__user=self.request.user)
-
-
-class AssessmentResultViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
-    serializer_class = AssessmentResultSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return AssessmentResult.objects.filter(employee__user=self.request.user)
-
-
-class CrisisTriggerViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
-    serializer_class = CrisisTriggerSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return CrisisTrigger.objects.filter(employee__user=self.request.user)
-
-
-class NotificationViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
-    serializer_class = NotificationSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['is_read', 'notification_type']
-    ordering_fields = ['created_at']
-    ordering = ['-created_at']
-
-    def get_queryset(self):
-        return Notification.objects.filter(employee__user=self.request.user)
-
-    @action(detail=False, methods=['get'])
-    def unread(self, request):
-        unread = self.get_queryset().filter(is_read=False)
-        serializer = self.get_serializer(unread, many=True)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=['post'])
-    def mark_all_read(self, request):
-        updated = self.get_queryset().filter(is_read=False).update(is_read=True)
-        return Response({
-            'message': f'{updated} notifications marked as read',
-            'count': updated
-        })
-
-    @action(detail=True, methods=['post'])
-    def mark_read(self, request, pk=None):
-        notification = self.get_object()
-        notification.is_read = True
-        notification.save()
-        return Response({
-            'message': 'Notification marked as read',
-            'notification': self.get_serializer(notification).data
-        })
-
-    @action(detail=False, methods=['get'])
-    def count_unread(self, request):
-        count = self.get_queryset().filter(is_read=False).count()
-        return Response({'unread_count': count})
-
-
-class EngagementTrackerViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
-    serializer_class = EngagementTrackerSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return EngagementTracker.objects.filter(employee__user=self.request.user)
-
-
-class FeedbackViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
-    serializer_class = FeedbackSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['rating', 'feedback_type']
-    ordering_fields = ['created_at', 'rating']
-    ordering = ['-created_at']
-
-    def get_queryset(self):
-        return Feedback.objects.filter(employee__user=self.request.user)
-
-    @action(detail=False, methods=['get'])
-    def average_rating(self, request):
-        from django.db.models import Avg
-        avg = self.get_queryset().aggregate(average=Avg('rating'))
-        return Response({
-            'average_rating': round(avg['average'], 2) if avg['average'] else 0,
-            'total_feedback': self.get_queryset().count()
-        })
-
-
-class ChatSessionViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
-    serializer_class = ChatSessionSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['is_active']
-    ordering_fields = ['created_at', 'last_message_at']
-    ordering = ['-last_message_at']
-
-    def get_queryset(self):
-        return ChatSession.objects.filter(employee__user=self.request.user)
-
-    @action(detail=False, methods=['get'])
-    def active(self, request):
-        active_sessions = self.get_queryset().filter(is_active=True)
-        serializer = self.get_serializer(active_sessions, many=True)
-        return Response(serializer.data)
-
-    @action(detail=True, methods=['post'])
-    def end_session(self, request, pk=None):
-        session = self.get_object()
-        session.is_active = False
-        session.save()
-        return Response({
-            'message': 'Chat session ended successfully',
-            'session': self.get_serializer(session).data
-        })
-
-
-class ChatMessageViewSet(viewsets.ModelViewSet):
-    serializer_class = ChatMessageSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [filters.OrderingFilter]
-    ordering_fields = ['created_at']
-    ordering = ['created_at']
-
-    def get_queryset(self):
-        return ChatMessage.objects.filter(session__employee__user=self.request.user)
-
-    def perform_create(self, serializer):
-        session_id = self.request.data.get('session')
-        if not session_id:
-            raise ValidationError({"session": "Session ID is required"})
-        try:
-            session = ChatSession.objects.get(
-                id=session_id,
-                employee__user=self.request.user
-            )
-            serializer.save(session=session)
-            session.last_message_at = timezone.now()
-            session.save()
-        except ChatSession.DoesNotExist:
-            raise ValidationError({"session": "Invalid session ID"})
-
-    @action(detail=False, methods=['get'])
-    def by_session(self, request):
-        session_id = request.query_params.get('session_id')
-        if not session_id:
-            return Response({
-                "error": "session_id parameter required"
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        messages = self.get_queryset().filter(session_id=session_id)
-        serializer = self.get_serializer(messages, many=True)
-        return Response(serializer.data)
-
-
-class RecommendationLogViewSet(viewsets.ModelViewSet, EmployeeViewSetMixin):
-    serializer_class = RecommendationLogSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return RecommendationLog.objects.filter(employee__user=self.request.user)
-
-class MentalHealthAssessmentViewSet(viewsets.ModelViewSet):
-    """ViewSet for mental health assessments"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return MentalHealthAssessment.objects.filter(user=self.request.user)
-
-    def get_serializer_class(self):
-        if self.action == 'list':
-            return MentalHealthAssessmentListSerializer
-        return MentalHealthAssessmentSerializer
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-
-    @action(detail=False, methods=['post'], url_path='submit-assessment')
-    def submit_assessment(self, request):
-        """Submit a new assessment with responses"""
-        serializer = AssessmentResponseSerializer(data=request.data)
-        if serializer.is_valid():
-            data = serializer.validated_data
-            assessment_type = data['assessment_type']
-            gad7_responses = data.get('gad7_responses', [])
-            phq9_responses = data.get('phq9_responses', [])
-
-            # Create assessment instance
-            assessment_data = {
-                'assessment_type': assessment_type,
-                'gad7_scores': gad7_responses,
-                'phq9_scores': phq9_responses,
-            }
-            
-            assessment_serializer = MentalHealthAssessmentSerializer(data=assessment_data)
-            if assessment_serializer.is_valid():
-                assessment = assessment_serializer.save(user=request.user)
-                
-                return Response({
-                    'message': 'Assessment submitted successfully',
-                    'assessment': MentalHealthAssessmentSerializer(assessment).data
-                }, status=status.HTTP_201_CREATED)
-            else:
-                return Response(assessment_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=False, methods=['get'], url_path='my-results')
-    def my_results(self, request):
-        """Get user's assessment results with summary"""
-        assessments = self.get_queryset()
-        
-        if not assessments.exists():
-            return Response({
-                'message': 'No assessments found',
-                'assessments': [],
-                'summary': None
-            })
-
-        # Get latest assessment
-        latest = assessments.first()
-        
-        # Calculate summary statistics
-        all_assessments = list(assessments.values('gad7_total', 'phq9_total', 'assessment_date'))
-        
-        summary = {
-            'total_assessments': len(all_assessments),
-            'latest_assessment_date': latest.assessment_date,
-            'latest_gad7_score': latest.gad7_total,
-            'latest_phq9_score': latest.phq9_total,
-            'latest_gad7_severity': latest.gad7_severity,
-            'latest_phq9_severity': latest.phq9_severity,
-            'average_gad7_score': sum(a['gad7_total'] for a in all_assessments if a['gad7_total'] > 0) / max(1, len([a for a in all_assessments if a['gad7_total'] > 0])),
-            'average_phq9_score': sum(a['phq9_total'] for a in all_assessments if a['phq9_total'] > 0) / max(1, len([a for a in all_assessments if a['phq9_total'] > 0])),
-        }
-
-        return Response({
-            'assessments': MentalHealthAssessmentListSerializer(assessments, many=True).data,
-            'summary': summary
-        })
-
-    @action(detail=True, methods=['get'], url_path='detailed-results')
-    def detailed_results(self, request, pk=None):
-        """Get detailed results for a specific assessment"""
-        assessment = self.get_object()
-        
-        detailed_data = {
-            'assessment': MentalHealthAssessmentSerializer(assessment).data,
-            'interpretation': {
-                'gad7': {
-                    'score': assessment.gad7_total,
-                    'severity': assessment.gad7_severity,
-                    'recommendation': self._get_gad7_recommendation(assessment.gad7_total)
-                },
-                'phq9': {
-                    'score': assessment.phq9_total,
-                    'severity': assessment.phq9_severity,
-                    'recommendation': self._get_phq9_recommendation(assessment.phq9_total)
+    @extend_schema(
+        request=EmployeeInvitationAcceptSerializer,
+        responses={
+            200: {
+                "description": "Invitation validated successfully",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "valid": True,
+                            "invitation": {
+                                "email": "employee@company.com",
+                                "employer": "Company Name",
+                                "invited_by": "admin@company.com",
+                                "expires_at": "2025-11-06T19:13:03.648Z"
+                            }
+                        }
+                    }
                 }
-            }
-        }
-        
-        return Response(detailed_data)
-
-    def _get_gad7_recommendation(self, score):
-        """Get recommendation based on GAD-7 score"""
-        if score <= 4:
-            return "Your anxiety levels are minimal. Continue with current self-care practices."
-        elif score <= 9:
-            return "Mild anxiety detected. Consider stress management techniques and regular check-ins."
-        elif score <= 14:
-            return "Moderate anxiety levels. Consider speaking with a healthcare provider or mental health professional."
-        else:
-            return "Severe anxiety levels. Please consider reaching out to a mental health professional for support."
-
-    def _get_phq9_recommendation(self, score):
-        """Get recommendation based on PHQ-9 score"""
-        if score <= 4:
-            return "Your mood appears stable. Continue with current self-care practices."
-        elif score <= 9:
-            return "Mild depression symptoms detected. Consider mood tracking and self-care activities."
-        elif score <= 14:
-            return "Moderate depression symptoms. Consider speaking with a healthcare provider."
-        elif score <= 19:
-            return "Moderately severe depression symptoms. Please consider reaching out to a mental health professional."
-        else:
-            return "Severe depression symptoms detected. Please seek immediate support from a mental health professional."
-
-# --- Employee-specific: Badges and Engagement Streaks ---
-
-class MyBadgesView(viewsets.ReadOnlyModelViewSet):
-    serializer_class = UserBadgeSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return UserBadge.objects.filter(user=self.request.user)
-
-
-class MyStreaksView(viewsets.ReadOnlyModelViewSet):
-    serializer_class = EngagementStreakSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return EngagementStreak.objects.filter(user=self.request.user).order_by('-last_active_date')
-
-
-# --- Employer APIs ---
-class EmployerViewSet(viewsets.ModelViewSet):
-    queryset = Employer.objects.all()
-    serializer_class = EmployerSerializer
-    
-    def get_permissions(self):
-        """
-        Only employers can create organizations (not system admins).
-        System admins can only view, update, and delete.
-        """
-        if self.action == 'create':
-            # Block creation through this endpoint - use EmployerRegistrationView instead
-            return [permissions.IsAuthenticated()]
-        elif self.action in ['list', 'retrieve']:
-            return [permissions.IsAuthenticated()]
-        else:
-            # Update, delete require admin
-            return [IsCompanyAdmin()]
-    
-    def create(self, request, *args, **kwargs):
-        """
-        Block direct creation - employers should use /auth/register-organization/ endpoint
-        """
-        return Response(
-            {
-                "error": "Please use /auth/register-organization/ endpoint to create an organization",
-                "detail": "Direct organization creation is not allowed. Use the employer registration endpoint."
             },
-            status=status.HTTP_403_FORBIDDEN
+            400: {"description": "Invalid or expired token"}
+        }
+    )
+    def post(self, request):
+        """
+        Validate invitation token and return invitation details
+        """
+        serializer = EmployeeInvitationAcceptSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        token = serializer.validated_data['token']
+        invitation = EmployeeInvitation.objects.get(
+            token=token,
+            accepted=False,
+            expires_at__gt=timezone.now()
         )
         
-    def get_queryset(self):
-        """
-        Employers can only see their own organization.
-        Admins can see all organizations.
-        """
-        if self.request.user.is_staff:
-            return Employer.objects.all()
-        # Return organizations where user is linked
-        return Employer.objects.filter(
-            employees__user=self.request.user
-        ).distinct()
+        return Response({
+            'valid': True,
+            'invitation': {
+                'email': invitation.email,
+                'employer': invitation.employer.name,
+                'invited_by': invitation.invited_by.email if invitation.invited_by else 'Unknown',
+                'expires_at': invitation.expires_at
+            }
+        })
     
-    def perform_create(self, serializer):
-        """
-        When an employer creates an organization, link them to it.
-        """
-        employer = serializer.save()
-        # Create an employee profile linking the user to this organization
-        if not hasattr(self.request.user, 'employee_profile'):
-            Employee.objects.create(
-                employer=employer,
-                user=self.request.user,
-                first_name=self.request.user.first_name or self.request.user.username,
-                last_name=self.request.user.last_name or '',
-                email=self.request.user.email,
-                status='active'
-            )
-
-    @action(detail=True, methods=['get'])
-    def overview(self, request, pk=None):
-        employer = self.get_object()
-        data = {
-            "employee_count": Employee.objects.filter(employer=employer).count(),
-            "active_subscriptions": Subscription.objects.filter(employer=employer, is_active=True).count(),
-            "engagement_entries": EmployeeEngagement.objects.filter(employer=employer).count(),
-            "latest_hotline_activity": HotlineActivitySerializer(
-                HotlineActivity.objects.filter(employer=employer).order_by('-recorded_at').first()
-            ).data if HotlineActivity.objects.filter(employer=employer).exists() else None,
-            "recent_activities": RecentActivitySerializer(
-                RecentActivity.objects.filter(employer=employer).order_by('-timestamp')[:10], many=True
-            ).data,
+    @extend_schema(
+        request=EmployeeUserCreateSerializer,
+        responses={
+            201: {
+                "description": "Account created successfully",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "message": "Account created successfully",
+                            "user": {
+                                "id": 1,
+                                "email": "employee@company.com",
+                                "first_name": "John",
+                                "last_name": "Doe"
+                            },
+                            "employee_profile": {
+                                "id": 1,
+                                "employer": "Company Name"
+                            }
+                        }
+                    }
+                }
+            },
+            400: {"description": "Invalid data or token"}
         }
-        return Response(data)
-
-    @action(detail=True, methods=['get'])
-    def employees(self, request, pk=None):
-        employer = self.get_object()
-        qs = Employee.objects.filter(employer=employer).order_by('-joined_date')
-        return Response(EmployeeSerializer(qs, many=True).data)
-
-    @action(detail=True, methods=['get'])
-    def subscriptions(self, request, pk=None):
-        employer = self.get_object()
-        qs = Subscription.objects.filter(employer=employer).order_by('-start_date')
-        return Response(SubscriptionSerializer(qs, many=True).data)
-
-    @action(detail=True, methods=['get'])
-    def features(self, request, pk=None):
-        employer = self.get_object()
-        qs = AIManagement.objects.filter(employer=employer).order_by('-created_at')
-        return Response(AIManagementSerializer(qs, many=True).data)
-
-    @action(detail=True, methods=['get'])
-    def engagements(self, request, pk=None):
-        employer = self.get_object()
-        qs = EmployeeEngagement.objects.filter(employer=employer).order_by('-month')
-        return Response(EmployeeEngagementSerializer(qs, many=True).data)
-
-    @action(detail=True, methods=['get'])
-    def activities(self, request, pk=None):
-        employer = self.get_object()
-        qs = RecentActivity.objects.filter(employer=employer).order_by('-timestamp')
-        return Response(RecentActivitySerializer(qs, many=True).data)
-
-    @action(detail=True, methods=['post'], permission_classes=[IsCompanyAdmin])
-    def invite(self, request, pk=None):
-        employer = self.get_object()
-        serializer = EmployeeInvitationCreateSerializer(data=request.data, context={'employer': employer, 'user': request.user})
-        serializer.is_valid(raise_exception=True)
-        invite = serializer.save()
-        return Response({'message': 'Invitation created', 'token': invite.token}, status=status.HTTP_201_CREATED)
+    )
+    def put(self, request):
+        """
+        Create employee account using validated invitation
+        """
+        # First validate the token
+        token_serializer = EmployeeInvitationAcceptSerializer(data=request.data)
+        token_serializer.is_valid(raise_exception=True)
+        
+        token = token_serializer.validated_data['token']
+        invitation = EmployeeInvitation.objects.get(
+            token=token,
+            accepted=False,
+            expires_at__gt=timezone.now()
+        )
+        
+        # Create user account
+        user_data = {
+            'email': invitation.email,
+            'first_name': request.data.get('first_name'),
+            'last_name': request.data.get('last_name'),
+            'password': request.data.get('password'),
+            'password_confirm': request.data.get('password_confirm'),
+        }
+        
+        user_serializer = EmployeeUserCreateSerializer(data=user_data)
+        user_serializer.is_valid(raise_exception=True)
+        user = user_serializer.save()
+        
+        # Create employee profile
+        employee_profile = Employee.objects.create(
+            user=user,
+            employer=invitation.employer
+        )
+        
+        # Mark invitation as accepted
+        invitation.accepted = True
+        invitation.accepted_at = timezone.now()
+        invitation.save()
+        
+        return Response({
+            'message': 'Account created successfully',
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name
+            },
+            'employee_profile': {
+                'id': employee_profile.id,
+                'employer': invitation.employer.name
+            }
+        }, status=status.HTTP_201_CREATED)
 
 
 class InvitationVerifyView(APIView):
@@ -1269,6 +912,653 @@ class InvitationAcceptView(viewsets.ViewSet):
             'user': user_data
         }, status=status.HTTP_201_CREATED)
 
+
+# --- Employer Dashboard ---
+@extend_schema(tags=['Employer Dashboard'])
+class OverviewView(viewsets.ViewSet):
+    permission_classes = [IsCompanyAdmin]
+
+    def list(self, request):
+        employer_count = Employer.objects.count()
+        employee_count = Employee.objects.count()
+        active_subscriptions = Subscription.objects.filter(is_active=True).count()
+        recent = RecentActivity.objects.select_related("employer").order_by("-timestamp")[:10]
+        recent_serialized = RecentActivitySerializer(recent, many=True).data
+        return Response({
+            "employer_count": employer_count,
+            "employee_count": employee_count,
+            "active_subscriptions": active_subscriptions,
+            "recent_activities": recent_serialized,
+        })
+
+
+@extend_schema(tags=['Employer Dashboard'])
+class TrendsView(viewsets.ReadOnlyModelViewSet):
+    queryset = HotlineActivity.objects.select_related("employer").order_by("-recorded_at")
+    serializer_class = HotlineActivitySerializer
+    permission_classes = [IsCompanyAdmin]
+
+
+@extend_schema(tags=['Employer Dashboard'])
+class EmployeeEngagementView(viewsets.ModelViewSet):
+    queryset = EmployeeEngagement.objects.select_related("employer").order_by("-month")
+    serializer_class = EmployeeEngagementSerializer
+    permission_classes = [IsCompanyAdmin]
+
+
+@extend_schema(tags=['Employer Dashboard'])
+class FeaturesUsageView(viewsets.ModelViewSet):
+    queryset = AIManagement.objects.select_related("employer").order_by("-created_at")
+    serializer_class = AIManagementSerializer
+    permission_classes = [IsCompanyAdmin]
+
+    @action(detail=False, methods=['get'])
+    def by_category(self, request):
+        # Replace this with your actual logic
+        return Response({"message": "Feature flags grouped by category"})
+
+
+@extend_schema(tags=['Employer Dashboard'])
+class BillingView(viewsets.ModelViewSet):
+    queryset = Subscription.objects.select_related("employer").all()
+    serializer_class = SubscriptionSerializer
+    permission_classes = [IsCompanyAdmin]
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        subscriptions = self.get_queryset()
+        total_revenue = sum(float(s.amount) for s in subscriptions)
+        return Response({
+            "subscriptions": SubscriptionSerializer(subscriptions, many=True).data,
+            "total_revenue": total_revenue
+        })
+
+
+@extend_schema(tags=['Employer Dashboard'])
+class UsersView(viewsets.ModelViewSet):
+    queryset = Employee.objects.select_related("employer").all()
+    serializer_class = EmployeeSerializer
+    permission_classes = [IsCompanyAdmin]
+
+
+@extend_schema(tags=['Employer Dashboard'])
+class ReportsView(viewsets.ReadOnlyModelViewSet):
+    queryset = RecentActivity.objects.select_related("employer").order_by("-timestamp")
+    serializer_class = RecentActivitySerializer
+    permission_classes = [IsCompanyAdmin]
+
+
+@extend_schema(tags=['Employer Dashboard'])
+class CrisisInsightsView(viewsets.ReadOnlyModelViewSet):
+    queryset = HotlineActivity.objects.select_related("employer").order_by("-recorded_at")
+    serializer_class = HotlineActivitySerializer
+    permission_classes = [IsCompanyAdmin]
+
+
+def home(request):
+    return JsonResponse({"status": "ok", "app": "obeeomaapp"})
+
+
+class EmailConfigCheckView(APIView):
+    """Debug endpoint to check email configuration"""
+    permission_classes = [permissions.AllowAny]
+    
+    def get(self, request):
+        config = {
+            "email_backend": settings.EMAIL_BACKEND,
+            "email_host": settings.EMAIL_HOST,
+            "email_port": settings.EMAIL_PORT,
+            "email_use_tls": settings.EMAIL_USE_TLS,
+            "email_use_ssl": settings.EMAIL_USE_SSL,
+            "email_host_user": settings.EMAIL_HOST_USER,
+            "default_from_email": settings.DEFAULT_FROM_EMAIL,
+            "debug_mode": settings.DEBUG,
+            "has_email_password": bool(settings.EMAIL_HOST_PASSWORD),
+        }
+        return Response(config)
+
+
+# --- Employee App ---
+@extend_schema(tags=['Employee - Profile'])
+class EmployeeProfileView(viewsets.ModelViewSet):
+    serializer_class = EmployeeProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return EmployeeProfile.objects.filter(user=self.request.user)
+
+
+@extend_schema(tags=['Employee - Profile'])
+class AvatarProfileView(viewsets.ModelViewSet):
+    serializer_class = AvatarProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return AvatarProfile.objects.filter(employee__user=self.request.user)
+
+
+@extend_schema(tags=['Employee - Wellness'])
+class WellnessHubView(viewsets.ModelViewSet):
+    serializer_class = WellnessHubSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return WellnessHub.objects.filter(employee__user=self.request.user)
+
+
+@extend_schema(tags=['Employee - Wellness'])
+class MoodCheckInView(viewsets.ModelViewSet):
+    serializer_class = MoodCheckInSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['subscription_tier', 'is_premium_active']
+    search_fields = ['organization', 'role']
+
+    def get_queryset(self):
+        return EmployeeProfile.objects.filter(user=self.request.user)
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return EmployeeProfileCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return EmployeeProfileUpdateSerializer
+        elif self.action == 'set_wellness_status':
+            return WellnessStatusSerializer
+        return EmployeeProfileSerializer
+
+    def perform_create(self, serializer):
+        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
+        serializer.save(employee=employee)
+
+
+@extend_schema(tags=['Employee - Assessments'])
+class AssessmentResultView(viewsets.ModelViewSet):
+    serializer_class = AssessmentResultSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return AvatarProfile.objects.filter(employee__user=self.request.user)
+
+    def perform_create(self, serializer):
+        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
+        serializer.save(employee=employee)
+
+
+@extend_schema(tags=['Resources'])
+class SelfHelpResourceView(viewsets.ModelViewSet):
+    queryset = SelfHelpResource.objects.all()
+    serializer_class = SelfHelpResourceSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return WellnessHub.objects.filter(employee__user=self.request.user)
+
+
+@extend_schema(tags=['Resources'])
+class EducationalResourceView(viewsets.ModelViewSet):
+    queryset = EducationalResource.objects.all()
+    serializer_class = EducationalResourceSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return AssessmentResult.objects.filter(employee__user=self.request.user)
+
+@extend_schema(tags=['Employee - Crisis Support'])
+class CrisisTriggerView(viewsets.ModelViewSet):
+    serializer_class = CrisisTriggerSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return CrisisTrigger.objects.filter(employee__user=self.request.user)
+
+
+
+@extend_schema(tags=['Employee - Notifications'])
+class NotificationView(viewsets.ModelViewSet):
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['is_read', 'notification_type']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        return Notification.objects.filter(employee__user=self.request.user)
+
+
+@extend_schema(tags=['Employee - Engagement'])
+class EngagementTrackerView(viewsets.ModelViewSet):
+    serializer_class = EngagementTrackerSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return EngagementTracker.objects.filter(employee__user=self.request.user)
+
+
+@extend_schema(tags=['Employee - Feedback'])
+class FeedbackView(viewsets.ModelViewSet):
+    serializer_class = FeedbackSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['rating', 'feedback_type']
+    ordering_fields = ['created_at', 'rating']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        return Feedback.objects.filter(employee__user=self.request.user)
+
+    @action(detail=False, methods=['get'])
+    def average_rating(self, request):
+        from django.db.models import Avg
+        avg = self.get_queryset().aggregate(average=Avg('rating'))
+        return Response({
+            'average_rating': round(avg['average'], 2) if avg['average'] else 0,
+            'total_feedback': self.get_queryset().count()
+        })
+
+
+@extend_schema(tags=['Employee - AI Chat'])
+class ChatSessionView(viewsets.ModelViewSet):
+    serializer_class = ChatSessionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['is_active']
+    ordering_fields = ['created_at', 'last_message_at']
+    ordering = ['-last_message_at']
+
+    def get_queryset(self):
+        return ChatSession.objects.filter(employee__user=self.request.user)
+
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        active_sessions = self.get_queryset().filter(is_active=True)
+        serializer = self.get_serializer(active_sessions, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def end_session(self, request, pk=None):
+        session = self.get_object()
+        session.is_active = False
+        session.save()
+        return Response({
+            'message': 'Chat session ended successfully',
+            'session': self.get_serializer(session).data
+        })
+
+
+@extend_schema(tags=['Employee - AI Chat'])
+class ChatMessageView(viewsets.ModelViewSet):
+    serializer_class = ChatMessageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['created_at']
+    ordering = ['created_at']
+
+    def get_queryset(self):
+        return ChatMessage.objects.filter(session__employee__user=self.request.user)
+
+    def perform_create(self, serializer):
+        session = get_object_or_404(ChatSession, id=self.kwargs.get("session_id"), employee__user=self.request.user)
+        serializer.save(session=session)
+
+
+@extend_schema(tags=['Employee - Recommendations'])
+class RecommendationLogView(viewsets.ModelViewSet):
+    serializer_class = RecommendationLogSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return RecommendationLog.objects.filter(employee__user=self.request.user)
+
+    def perform_create(self, serializer):
+        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
+        serializer.save(employee=employee)
+
+
+@extend_schema(tags=['Employee - Assessments'])
+class MentalHealthAssessmentViewSet(viewsets.ModelViewSet):
+    """ViewSet for mental health assessments"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return MentalHealthAssessment.objects.filter(user=self.request.user)
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return MentalHealthAssessmentListSerializer
+        return MentalHealthAssessmentSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    @action(detail=False, methods=['get'], url_path='questionnaires')
+    def get_questionnaires(self, request):
+        """Get assessment questionnaires with all questions"""
+        questionnaires = {
+            "gad7": {
+                "name": "GAD-7 (Generalized Anxiety Disorder)",
+                "description": "This questionnaire measures anxiety symptoms over the past 2 weeks.",
+                "instructions": "Over the last 2 weeks, how often have you been bothered by the following problems?",
+                "response_options": [
+                    {"value": 0, "label": "Not at all"},
+                    {"value": 1, "label": "Several days"},
+                    {"value": 2, "label": "More than half the days"},
+                    {"value": 3, "label": "Nearly every day"}
+                ],
+                "questions": [
+                    {"id": 1, "text": "Feeling nervous, anxious, or on edge"},
+                    {"id": 2, "text": "Not being able to stop or control worrying"},
+                    {"id": 3, "text": "Worrying too much about different things"},
+                    {"id": 4, "text": "Trouble relaxing"},
+                    {"id": 5, "text": "Being so restless that it's hard to sit still"},
+                    {"id": 6, "text": "Becoming easily annoyed or irritable"},
+                    {"id": 7, "text": "Feeling afraid as if something awful might happen"}
+                ],
+                "scoring": {
+                    "minimal": {"range": "0-4", "description": "Minimal anxiety"},
+                    "mild": {"range": "5-9", "description": "Mild anxiety"},
+                    "moderate": {"range": "10-14", "description": "Moderate anxiety"},
+                    "severe": {"range": "15-21", "description": "Severe anxiety"}
+                }
+            },
+            "phq9": {
+                "name": "PHQ-9 (Patient Health Questionnaire)",
+                "description": "This questionnaire measures depression symptoms over the past 2 weeks.",
+                "instructions": "Over the last 2 weeks, how often have you been bothered by any of the following problems?",
+                "response_options": [
+                    {"value": 0, "label": "Not at all"},
+                    {"value": 1, "label": "Several days"},
+                    {"value": 2, "label": "More than half the days"},
+                    {"value": 3, "label": "Nearly every day"}
+                ],
+                "questions": [
+                    {"id": 1, "text": "Little interest or pleasure in doing things"},
+                    {"id": 2, "text": "Feeling down, depressed, or hopeless"},
+                    {"id": 3, "text": "Trouble falling or staying asleep, or sleeping too much"},
+                    {"id": 4, "text": "Feeling tired or having little energy"},
+                    {"id": 5, "text": "Poor appetite or overeating"},
+                    {"id": 6, "text": "Feeling bad about yourself - or that you are a failure or have let yourself or your family down"},
+                    {"id": 7, "text": "Trouble concentrating on things, such as reading the newspaper or watching television"},
+                    {"id": 8, "text": "Moving or speaking so slowly that other people could have noticed. Or the opposite - being so fidgety or restless that you have been moving around a lot more than usual"},
+                    {"id": 9, "text": "Thoughts that you would be better off dead, or of hurting yourself in some way"}
+                ],
+                "scoring": {
+                    "minimal": {"range": "0-4", "description": "Minimal depression"},
+                    "mild": {"range": "5-9", "description": "Mild depression"},
+                    "moderate": {"range": "10-14", "description": "Moderate depression"},
+                    "moderately_severe": {"range": "15-19", "description": "Moderately severe depression"},
+                    "severe": {"range": "20-27", "description": "Severe depression"}
+                },
+                "crisis_note": "If you answered question 9 with anything other than 'Not at all', please seek immediate help. Contact a mental health professional or call a crisis hotline."
+            },
+            "submission_format": {
+                "description": "How to submit your responses",
+                "example_gad7_only": {
+                    "assessment_type": "GAD-7",
+                    "gad7_responses": [0, 1, 2, 1, 0, 2, 1]
+                },
+                "example_phq9_only": {
+                    "assessment_type": "PHQ-9",
+                    "phq9_responses": [1, 2, 1, 0, 1, 2, 1, 0, 1]
+                },
+                "example_both": {
+                    "assessment_type": "BOTH",
+                    "gad7_responses": [0, 1, 2, 1, 0, 2, 1],
+                    "phq9_responses": [1, 2, 1, 0, 1, 2, 1, 0, 1]
+                },
+                "submit_endpoint": "/api/v1/mental-health/assessments/submit-assessment/"
+            }
+        }
+        
+        return Response(questionnaires)
+
+    @action(detail=False, methods=['post'], url_path='submit-assessment')
+    def submit_assessment(self, request):
+        """Submit a new assessment with responses"""
+        serializer = AssessmentResponseSerializer(data=request.data)
+        if serializer.is_valid():
+            data = serializer.validated_data
+            assessment_type = data['assessment_type']
+            gad7_responses = data.get('gad7_responses', [])
+            phq9_responses = data.get('phq9_responses', [])
+
+            # Create assessment instance
+            assessment_data = {
+                'assessment_type': assessment_type,
+                'gad7_scores': gad7_responses,
+                'phq9_scores': phq9_responses,
+            }
+            
+            assessment_serializer = MentalHealthAssessmentSerializer(data=assessment_data)
+            if assessment_serializer.is_valid():
+                assessment = assessment_serializer.save(user=request.user)
+                
+                return Response({
+                    'message': 'Assessment submitted successfully',
+                    'assessment': MentalHealthAssessmentSerializer(assessment).data
+                }, status=status.HTTP_201_CREATED)
+            else:
+                return Response(assessment_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'], url_path='my-results')
+    def my_results(self, request):
+        """Get user's assessment results with summary"""
+        assessments = self.get_queryset()
+        
+        if not assessments.exists():
+            return Response({
+                'message': 'No assessments found',
+                'assessments': [],
+                'summary': None
+            })
+
+        # Get latest assessment
+        latest = assessments.first()
+        
+        # Calculate summary statistics
+        all_assessments = list(assessments.values('gad7_total', 'phq9_total', 'assessment_date'))
+        
+        summary = {
+            'total_assessments': len(all_assessments),
+            'latest_assessment_date': latest.assessment_date,
+            'latest_gad7_score': latest.gad7_total,
+            'latest_phq9_score': latest.phq9_total,
+            'latest_gad7_severity': latest.gad7_severity,
+            'latest_phq9_severity': latest.phq9_severity,
+            'average_gad7_score': sum(a['gad7_total'] for a in all_assessments if a['gad7_total'] > 0) / max(1, len([a for a in all_assessments if a['gad7_total'] > 0])),
+            'average_phq9_score': sum(a['phq9_total'] for a in all_assessments if a['phq9_total'] > 0) / max(1, len([a for a in all_assessments if a['phq9_total'] > 0])),
+        }
+
+        return Response({
+            'assessments': MentalHealthAssessmentListSerializer(assessments, many=True).data,
+            'summary': summary
+        })
+
+    @action(detail=True, methods=['get'], url_path='detailed-results')
+    def detailed_results(self, request, pk=None):
+        """Get detailed results for a specific assessment"""
+        assessment = self.get_object()
+        
+        detailed_data = {
+            'assessment': MentalHealthAssessmentSerializer(assessment).data,
+            'interpretation': {
+                'gad7': {
+                    'score': assessment.gad7_total,
+                    'severity': assessment.gad7_severity,
+                    'recommendation': self._get_gad7_recommendation(assessment.gad7_total)
+                },
+                'phq9': {
+                    'score': assessment.phq9_total,
+                    'severity': assessment.phq9_severity,
+                    'recommendation': self._get_phq9_recommendation(assessment.phq9_total)
+                }
+            }
+        }
+        
+        return Response(detailed_data)
+
+    def _get_gad7_recommendation(self, score):
+        """Get recommendation based on GAD-7 score"""
+        if score <= 4:
+            return "Your anxiety levels are minimal. Continue with current self-care practices."
+        elif score <= 9:
+            return "Mild anxiety detected. Consider stress management techniques and regular check-ins."
+        elif score <= 14:
+            return "Moderate anxiety levels. Consider speaking with a healthcare provider or mental health professional."
+        else:
+            return "Severe anxiety levels. Please consider reaching out to a mental health professional for support."
+
+    def _get_phq9_recommendation(self, score):
+        """Get recommendation based on PHQ-9 score"""
+        if score <= 4:
+            return "Your mood appears stable. Continue with current self-care practices."
+        elif score <= 9:
+            return "Mild depression symptoms detected. Consider mood tracking and self-care activities."
+        elif score <= 14:
+            return "Moderate depression symptoms. Consider speaking with a healthcare provider."
+        elif score <= 19:
+            return "Moderately severe depression symptoms. Please consider reaching out to a mental health professional."
+        else:
+            return "Severe depression symptoms detected. Please seek immediate support from a mental health professional."
+
+
+# --- Employee-specific: Badges and Engagement Streaks ---
+@extend_schema(tags=['Employee - Engagement'])
+class MyBadgesView(viewsets.ReadOnlyModelViewSet):
+    serializer_class = UserBadgeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return UserBadge.objects.filter(user=self.request.user)
+
+
+@extend_schema(tags=['Employee - Engagement'])
+class MyStreaksView(viewsets.ReadOnlyModelViewSet):
+    serializer_class = EngagementStreakSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return EngagementStreak.objects.filter(user=self.request.user).order_by('-last_active_date')
+
+
+# --- Employer APIs ---
+@extend_schema(tags=['Employer - Organization'])
+class EmployerViewSet(viewsets.ModelViewSet):
+    queryset = Employer.objects.all()
+    serializer_class = EmployerSerializer
+    
+    def get_permissions(self):
+        """
+        Only employers can create organizations (not system admins).
+        System admins can only view, update, and delete.
+        """
+        if self.action == 'create':
+            # Block creation through this endpoint - use EmployerRegistrationView instead
+            return [permissions.IsAuthenticated()]
+        elif self.action in ['list', 'retrieve']:
+            return [permissions.IsAuthenticated()]
+        else:
+            # Update, delete require admin
+            return [IsCompanyAdmin()]
+    
+    def create(self, request, *args, **kwargs):
+        """
+        Block direct creation - employers should use /auth/register-organization/ endpoint
+        """
+        return Response(
+            {
+                "error": "Please use /auth/register-organization/ endpoint to create an organization",
+                "detail": "Direct organization creation is not allowed. Use the employer registration endpoint."
+            },
+            status=status.HTTP_403_FORBIDDEN
+        )
+        
+    def get_queryset(self):
+        """
+        Employers can only see their own organization.
+        Admins can see all organizations.
+        """
+        if self.request.user.is_staff:
+            return Employer.objects.all()
+        # Return organizations where user is linked
+        return Employer.objects.filter(
+            employees__user=self.request.user
+        ).distinct()
+    
+    def perform_create(self, serializer):
+        """
+        When an employer creates an organization, link them to it.
+        """
+        employer = serializer.save()
+        # Create an employee profile linking the user to this organization
+        if not hasattr(self.request.user, 'employee_profile'):
+            Employee.objects.create(
+                employer=employer,
+                user=self.request.user,
+                first_name=self.request.user.first_name or self.request.user.username,
+                last_name=self.request.user.last_name or '',
+                email=self.request.user.email,
+                status='active'
+            )
+
+    @action(detail=True, methods=['get'])
+    def overview(self, request, pk=None):
+        employer = self.get_object()
+        data = {
+            "employee_count": Employee.objects.filter(employer=employer).count(),
+            "active_subscriptions": Subscription.objects.filter(employer=employer, is_active=True).count(),
+            "engagement_entries": EmployeeEngagement.objects.filter(employer=employer).count(),
+            "latest_hotline_activity": HotlineActivitySerializer(
+                HotlineActivity.objects.filter(employer=employer).order_by('-recorded_at').first()
+            ).data if HotlineActivity.objects.filter(employer=employer).exists() else None,
+            "recent_activities": RecentActivitySerializer(
+                RecentActivity.objects.filter(employer=employer).order_by('-timestamp')[:10], many=True
+            ).data,
+        }
+        return Response(data)
+
+    @action(detail=True, methods=['get'])
+    def employees(self, request, pk=None):
+        employer = self.get_object()
+        qs = Employee.objects.filter(employer=employer).order_by('-joined_date')
+        return Response(EmployeeSerializer(qs, many=True).data)
+
+    @action(detail=True, methods=['get'])
+    def subscriptions(self, request, pk=None):
+        employer = self.get_object()
+        qs = Subscription.objects.filter(employer=employer).order_by('-start_date')
+        return Response(SubscriptionSerializer(qs, many=True).data)
+
+    @action(detail=True, methods=['get'])
+    def features(self, request, pk=None):
+        employer = self.get_object()
+        qs = AIManagement.objects.filter(employer=employer).order_by('-created_at')
+        return Response(AIManagementSerializer(qs, many=True).data)
+
+    @action(detail=True, methods=['get'])
+    def engagements(self, request, pk=None):
+        employer = self.get_object()
+        qs = EmployeeEngagement.objects.filter(employer=employer).order_by('-month')
+        return Response(EmployeeEngagementSerializer(qs, many=True).data)
+
+    @action(detail=True, methods=['get'])
+    def activities(self, request, pk=None):
+        employer = self.get_object()
+        qs = RecentActivity.objects.filter(employer=employer).order_by('-timestamp')
+        return Response(RecentActivitySerializer(qs, many=True).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsCompanyAdmin])
+    def invite(self, request, pk=None):
+        employer = self.get_object()
+        serializer = EmployeeInvitationCreateSerializer(data=request.data, context={'employer': employer, 'user': request.user})
+        serializer.is_valid(raise_exception=True)
+        invite = serializer.save()
+        return Response({'message': 'Invitation created', 'token': invite.token}, status=status.HTTP_201_CREATED)
+
+
+@extend_schema(tags=['Employee - Progress'])
 class ProgressViewSet(viewsets.ModelViewSet):
     queryset = Progress.objects.all()
     serializer_class = ProgressSerializer
@@ -1284,8 +1574,19 @@ class ProgressViewSet(viewsets.ModelViewSet):
         return Response(data)
 
 
-# New Dashboard Views
+@extend_schema(tags=['Resources'])
+class ResourceCategoryViewSet(viewsets.ModelViewSet):
+    """Mental health resource categories (Stress, Anxiety, Sleep, etc.)"""
+    queryset = ResourceCategory.objects.all()
+    serializer_class = ResourceCategorySerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'description']
+    ordering_fields = ['name', 'created_at']
 
+
+# New Dashboard Views
+@extend_schema(tags=['Employer Dashboard'])
 class OrganizationOverviewView(viewsets.ViewSet):
     """Organization overview dashboard data"""
     permission_classes = [IsCompanyAdmin]
@@ -1317,6 +1618,7 @@ class OrganizationOverviewView(viewsets.ViewSet):
         return Response(data)
 
 
+@extend_schema(tags=['Employer Dashboard'])
 class EmployeeManagementView(viewsets.ModelViewSet):
     """Employee management with search and filtering"""
     queryset = Employee.objects.select_related('employer', 'department').all()
@@ -1344,6 +1646,7 @@ class EmployeeManagementView(viewsets.ModelViewSet):
         serializer.save()
 
 
+@extend_schema(tags=['Employer Dashboard'])
 class DepartmentManagementView(viewsets.ModelViewSet):
     """Department management"""
     queryset = Department.objects.select_related('employer').all()
@@ -1363,6 +1666,7 @@ class DepartmentManagementView(viewsets.ModelViewSet):
         serializer.save(employer=employer)
 
 
+@extend_schema(tags=['Employer Dashboard'])
 class SubscriptionManagementView(viewsets.ModelViewSet):
     """Subscription management"""
     queryset = Subscription.objects.select_related('employer', 'plan_details', 'payment_method').all()
@@ -1393,6 +1697,7 @@ class SubscriptionManagementView(viewsets.ModelViewSet):
         return Response(BillingHistorySerializer(billing_history, many=True).data)
 
 
+@extend_schema(tags=['Employer Dashboard'])
 class WellnessReportsView(viewsets.ViewSet):
     """Wellness reports and analytics"""
     permission_classes = [IsCompanyAdmin]
@@ -1432,6 +1737,7 @@ class WellnessReportsView(viewsets.ViewSet):
         return Response(data)
 
 
+@extend_schema(tags=['Employer Dashboard'])
 class OrganizationSettingsView(viewsets.ModelViewSet):
     """Organization settings management"""
     queryset = OrganizationSettings.objects.select_related('employer').all()
@@ -1449,6 +1755,7 @@ class OrganizationSettingsView(viewsets.ModelViewSet):
         serializer.save(employer=employer)
 
 
+@extend_schema(tags=['Employer Dashboard'])
 class TestsByTypeView(viewsets.ViewSet):
     """Tests by type analytics"""
     permission_classes = [IsCompanyAdmin]
@@ -1461,6 +1768,7 @@ class TestsByTypeView(viewsets.ViewSet):
         return Response(list(tests_by_type))
 
 
+@extend_schema(tags=['Employer Dashboard'])
 class TestsByDepartmentView(viewsets.ViewSet):
     """Tests by department analytics"""
     permission_classes = [IsCompanyAdmin]
@@ -1477,7 +1785,7 @@ class TestsByDepartmentView(viewsets.ViewSet):
 
 
 # System Admin Views
-
+@extend_schema(tags=['System Admin'])
 class SystemAdminOverviewView(viewsets.ViewSet):
     """System Admin dashboard overview"""
     permission_classes = [IsCompanyAdmin]
@@ -1554,15 +1862,108 @@ class SystemAdminOverviewView(viewsets.ViewSet):
         return Response(data)
 
 
+@extend_schema(tags=['System Admin'])
 class OrganizationsManagementView(viewsets.ModelViewSet):
     """Organizations management for system admin"""
     queryset = Employer.objects.all()
     serializer_class = OrganizationsManagementSerializer
     permission_classes = [IsCompanyAdmin]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
     search_fields = ['name']
     ordering_fields = ['name', 'joined_date']
     ordering = ['-joined_date']
+    filterset_fields = ['is_active', 'name']
+    
+    def retrieve(self, request, *args, **kwargs):
+        """Get detailed information about a specific organization"""
+        organization = self.get_object()
+        
+        # Get comprehensive organization data
+        data = {
+            "id": organization.id,
+            "name": organization.name,
+            "is_active": organization.is_active,
+            "joined_date": organization.joined_date,
+            
+            # Employee statistics
+            "total_employees": organization.employees.count(),
+            "active_employees": organization.employees.filter(status='active').count(),
+            "inactive_employees": organization.employees.filter(status='inactive').count(),
+            
+            # Department information
+            "total_departments": organization.departments.count(),
+            "at_risk_departments": organization.departments.filter(at_risk=True).count(),
+            "departments": DepartmentSerializer(organization.departments.all(), many=True).data,
+            
+            # Subscription information
+            "active_subscriptions": organization.subscriptions.filter(is_active=True).count(),
+            "current_subscription": SubscriptionSerializer(
+                organization.subscriptions.filter(is_active=True).first()
+            ).data if organization.subscriptions.filter(is_active=True).exists() else None,
+            
+            # Activity metrics
+            "total_assessments": Assessment.objects.filter(employee__employer=organization).count(),
+            "recent_activities": RecentActivitySerializer(
+                organization.activities.order_by('-timestamp')[:10], many=True
+            ).data,
+            
+            # Engagement metrics
+            "engagement_rate": organization.engagements.order_by('-month').first().engagement_rate if organization.engagements.exists() else 0,
+            
+            # Hotline activity
+            "hotline_calls": organization.hotline_activities.count(),
+            "latest_hotline_activity": HotlineActivitySerializer(
+                organization.hotline_activities.order_by('-recorded_at').first()
+            ).data if organization.hotline_activities.exists() else None,
+            
+            # Billing information
+            "total_revenue": organization.billing_history.filter(status='paid').aggregate(
+                total=Sum('amount')
+            )['total'] or 0,
+            "pending_invoices": organization.billing_history.filter(status='pending').count(),
+        }
+        
+        return Response(data)
+    
+    @action(detail=False, methods=['get'], url_path='search-by-name')
+    def search_by_name(self, request):
+        """Search organizations by name and return detailed results"""
+        name = request.query_params.get('name', '')
+        
+        if not name:
+            return Response(
+                {"error": "Please provide a 'name' query parameter"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Search for organizations matching the name
+        organizations = Employer.objects.filter(name__icontains=name)
+        
+        if not organizations.exists():
+            return Response(
+                {"message": f"No organizations found matching '{name}'"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Return detailed info for each match
+        results = []
+        for org in organizations:
+            results.append({
+                "id": org.id,
+                "name": org.name,
+                "is_active": org.is_active,
+                "joined_date": org.joined_date,
+                "total_employees": org.employees.count(),
+                "active_employees": org.employees.filter(status='active').count(),
+                "total_departments": org.departments.count(),
+                "current_plan": org.subscriptions.filter(is_active=True).first().plan if org.subscriptions.filter(is_active=True).exists() else "No active plan",
+                "detail_url": f"/admin/organizations/{org.id}/"
+            })
+        
+        return Response({
+            "count": len(results),
+            "results": results
+        })
     
     @action(detail=False, methods=['get'])
     def growth_chart(self, request):
@@ -1600,6 +2001,7 @@ class OrganizationsManagementView(viewsets.ModelViewSet):
         return Response(list(distribution))
 
 
+@extend_schema(tags=['System Admin'])
 class HotlineActivityView(viewsets.ViewSet):
     """Hotline activity management for system admin"""
     permission_classes = [IsCompanyAdmin]
@@ -1685,6 +2087,7 @@ class HotlineActivityView(viewsets.ViewSet):
         return Response(data)
 
 
+@extend_schema(tags=['System Admin'])
 class AIManagementView(viewsets.ViewSet):
     """AI Management dashboard for system admin"""
     permission_classes = [IsCompanyAdmin]
@@ -1766,6 +2169,7 @@ class AIManagementView(viewsets.ViewSet):
         return Response(data)
 
 
+@extend_schema(tags=['System Admin'])
 class ClientEngagementView(viewsets.ViewSet):
     """Client engagement and rewards dashboard"""
     permission_classes = [IsCompanyAdmin]
@@ -1860,6 +2264,7 @@ class ClientEngagementView(viewsets.ViewSet):
         return Response(data)
 
 
+@extend_schema(tags=['System Admin'])
 class ReportsAnalyticsView(viewsets.ViewSet):
     """Reports and analytics for system admin"""
     permission_classes = [IsCompanyAdmin]
@@ -1937,6 +2342,7 @@ class ReportsAnalyticsView(viewsets.ViewSet):
         return Response(data)
 
 
+@extend_schema(tags=['System Admin'])
 class SystemSettingsView(viewsets.ModelViewSet):
     """System settings management"""
     queryset = SystemSettings.objects.all()
@@ -1948,6 +2354,56 @@ class SystemSettingsView(viewsets.ModelViewSet):
     ordering = ['setting_name']
 
 
+@extend_schema(tags=['Resources'])
+class EducationalVideoViewSet(viewsets.ModelViewSet):
+    queryset = EducationalVideo.objects.filter(is_active=True)
+    serializer_class = EducationalVideoSerializer
+    permission_classes = [AllowAny]
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated()]
+        return [AllowAny()]
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def mark_helpful(self, request, pk=None):
+        video = self.get_object()
+        video.helpful_count += 1
+        video.save()
+        return Response({'status': 'marked helpful', 'helpful_count': video.helpful_count})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def save_video(self, request, pk=None):
+        video = self.get_object()
+        video.saved_count += 1
+        video.save()
+        return Response({'status': 'video saved', 'saved_count': video.saved_count})
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.views_count += 1
+        instance.save()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+
+@extend_schema(tags=['Resources'])
+class UserVideoInteractionViewSet(viewsets.ModelViewSet):
+    serializer_class = UserVideoInteractionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return UserVideoInteraction.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+@extend_schema(tags=['Resources'])
+class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = ResourceCategory.objects.all()
+    serializer_class = ResourceCategorySerializer
+    permission_classes = [AllowAny]
 """class FeatureFlagsView(viewsets.ModelViewSet):
     queryset = FeatureFlag.objects.all()
     serializer_class = FeatureFlagSerializer
