@@ -2270,7 +2270,6 @@ class ReportsAnalyticsView(viewsets.ViewSet):
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
-        # Get platform usage chart data (real data from last 9 months)
         from datetime import datetime, timedelta
         from django.db.models import Count
         platform_usage_chart = []
@@ -2282,7 +2281,6 @@ class ReportsAnalyticsView(viewsets.ViewSet):
             ).count()
             platform_usage_chart.append(month_users)
         
-        # Get health conditions distribution (real data from assessments)
         total_assessments = MentalHealthAssessment.objects.count()
         health_conditions = []
         
@@ -2354,56 +2352,8 @@ class SystemSettingsView(viewsets.ModelViewSet):
     ordering = ['setting_name']
 
 
-@extend_schema(tags=['Resources'])
-class EducationalVideoViewSet(viewsets.ModelViewSet):
-    queryset = EducationalVideo.objects.filter(is_active=True)
-    serializer_class = EducationalVideoSerializer
-    permission_classes = [AllowAny]
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAuthenticated()]
-        return [AllowAny()]
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def mark_helpful(self, request, pk=None):
-        video = self.get_object()
-        video.helpful_count += 1
-        video.save()
-        return Response({'status': 'marked helpful', 'helpful_count': video.helpful_count})
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def save_video(self, request, pk=None):
-        video = self.get_object()
-        video.saved_count += 1
-        video.save()
-        return Response({'status': 'video saved', 'saved_count': video.saved_count})
-
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        instance.views_count += 1
-        instance.save()
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
 
 
-@extend_schema(tags=['Resources'])
-class UserVideoInteractionViewSet(viewsets.ModelViewSet):
-    serializer_class = UserVideoInteractionSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        return UserVideoInteraction.objects.filter(user=self.request.user)
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-
-
-@extend_schema(tags=['Resources'])
-class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = ResourceCategory.objects.all()
-    serializer_class = ResourceCategorySerializer
-    permission_classes = [AllowAny]
 """class FeatureFlagsView(viewsets.ModelViewSet):
     queryset = FeatureFlag.objects.all()
     serializer_class = FeatureFlagSerializer

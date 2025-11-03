@@ -28,8 +28,7 @@ from obeeomaapp.views import (
     ChatMessageView, RecommendationLogView, InvitationAcceptView, 
     InvitationVerifyView, EmployerRegistrationView, home, CustomTokenObtainPairView,
     InvitationAcceptanceView, InviteView  # Added missing views
-    InviteView, UsersView, ReportsView, CrisisInsightsView,
-       EmployeeProfileViewSet,
+    InviteView, UsersView, ReportsView, CrisisInsightsView, EmployeeViewSet,
     AvatarProfileViewSet,
     WellnessHubViewSet,           # make sure this exists in views.py
     AssessmentResultViewSet,
