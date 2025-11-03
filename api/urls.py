@@ -6,14 +6,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 def api_root(request):
     """API root endpoint with available routes"""
     return JsonResponse({
-        "message": "Welcome to Obeeoma API",
-        "version": "1.0",
-        "endpoints": {
-            "api": "/api/v1/",
-            "docs": "/api/docs/",
-            "schema": "/api/schema/",
-            "admin": "/admin/"
-        }
+        "message": "Welcome to Obeeoma APIs",
     })
 
 urlpatterns = [
