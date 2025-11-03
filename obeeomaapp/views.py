@@ -31,6 +31,10 @@ import string
 from django.template.loader import render_to_string
 import logging
 from django_filters.rest_framework import DjangoFilterBackend
+from .serializers import (
+    EmployeeProfileSerializer
+)
+
 
 # Remove the circular import that tries to import from the same file
 
