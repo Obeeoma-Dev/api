@@ -9,7 +9,6 @@ from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 from .views import CustomTokenObtainPairView
 from obeeomaapp.views import (
     MentalHealthAssessmentViewSet, ResourceCategoryViewSet,
-    EducationalVideoViewSet, UserVideoInteractionViewSet,
     OrganizationOverviewView, EmployeeManagementView,
     DepartmentManagementView, SubscriptionManagementView,
     WellnessReportsView, OrganizationSettingsView, TestsByTypeView,
@@ -57,7 +56,7 @@ router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'progress', ProgressViewSet)
 router.register(r'resource-categories', ResourceCategoryViewSet, basename='resource-category')
-router.register(r'video-interactions', UserVideoInteractionViewSet, basename='video-interactions'), E
+
 
 # Dashboard routers (Employer Dashboard)
 
@@ -88,7 +87,7 @@ router.register(r'dashboard/tests-by-department', TestsByDepartmentView, basenam
 
 
 
-router.register(r'categories', EducationalResourceViewSet, basename='resource-category')
+
 router.register(r'videos', VideoViewSet, basename='educational-video')
 router.register(r'audios', AudioViewSet, basename='calming-audio')
 router.register(r'articles', ArticleViewSet, basename='mental-health-article')
