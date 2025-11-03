@@ -922,16 +922,15 @@ class ReportsAnalyticsSerializer(serializers.Serializer):
 
 
 # Serializers for Educational Resources 
-class ResourceCategorySerializer(serializers.ModelSerializer):
+class EducationalResourceSerializer(serializers.ModelSerializer):
     video_count = serializers.SerializerMethodField()
     audio_count = serializers.SerializerMethodField()
     article_count = serializers.SerializerMethodField()
     meditation_count = serializers.SerializerMethodField()
     
     class Meta:
-        model = ResourceCategory
-        fields = ['id', 'name', 'description', 'icon', 'color_code', 
-                  'video_count', 'audio_count', 'article_count', 'meditation_count']
+        model = EducationalResource
+        fields = '__all__'
     
     def get_video_count(self, obj):
         return obj.videos.filter(is_active=True).count()
@@ -946,12 +945,12 @@ class ResourceCategorySerializer(serializers.ModelSerializer):
         return obj.meditations.filter(is_active=True).count()
 
 
-class EducationalVideoSerializer(serializers.ModelSerializer):
+class VideoSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     is_saved = serializers.SerializerMethodField()
     
     class Meta:
-        model = EducationalVideo
+        model = Video
         fields = ['id', 'title', 'description', 'youtube_url', 'thumbnail', 
                   'category', 'category_name', 'duration', 'views', 'is_saved', 
                   'created_at']
@@ -964,13 +963,13 @@ class EducationalVideoSerializer(serializers.ModelSerializer):
         return False
 
 
-class CalmingAudioSerializer(serializers.ModelSerializer):
+class AudioSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     is_saved = serializers.SerializerMethodField()
     audio_url_full = serializers.SerializerMethodField()
     
     class Meta:
-        model = CalmingAudio
+        model = Audio
         fields = ['id', 'title', 'description', 'audio_file', 'audio_url', 
                   'audio_url_full', 'category', 'category_name', 'duration', 
                   'plays', 'is_saved', 'created_at']
@@ -990,13 +989,13 @@ class CalmingAudioSerializer(serializers.ModelSerializer):
         return obj.audio_url
 
 
-class MentalHealthArticleSerializer(serializers.ModelSerializer):
+class ArticleSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     author_name = serializers.CharField(source='author.username', read_only=True, allow_null=True)
     is_saved = serializers.SerializerMethodField()
     
     class Meta:
-        model = MentalHealthArticle
+        model = Article
         fields = ['id', 'title', 'slug', 'content', 'excerpt', 'author_name', 
                   'category', 'category_name', 'featured_image', 'reading_time', 
                   'views', 'is_saved', 'published_date']

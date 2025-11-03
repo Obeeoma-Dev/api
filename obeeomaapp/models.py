@@ -953,29 +953,41 @@ class Report(models.Model):
 
 
 # --Educational Resources Models--
-
-class ResourceCategory(models.Model):
-    name = models.CharField(max_length=100, help_text="e.g., Stress Management, Anxiety Relief")
-    description = models.TextField(blank=True)
-    icon = models.CharField(max_length=50, blank=True, help_text="Emoji or icon name")
-    color_code = models.CharField(max_length=7, default="#667eea")
-    created_at = models.DateTimeField(auto_now_add=True)
+class EducationalResource(models.Model):
+    """Company resources and documents"""
+    TYPE_CHOICES = [
+        ('pdf', 'PDF'),
+        ('audio', 'Audio'),
+        ('video', 'Video'),
+        ('article', 'Article'),
+        ('meditation technique', 'Meditation Technique'),
+    ]
+    
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
+    resource_type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    file = models.FileField(upload_to='resources/')
+    thumbnail = models.ImageField(upload_to='thumbnails/', blank=True, null=True)
+    file_size = models.CharField(max_length=20, blank=True, null=True)
+    uploaded_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='uploaded_resources')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    is_public = models.BooleanField(default=True)
+    download_count = models.IntegerField(default=0)
     
     class Meta:
-        verbose_name = "Resource Category"
-        verbose_name_plural = "Resource Categories"
-        ordering = ['name']
+        db_table = 'resources'
+        ordering = ['-uploaded_at']
     
     def __str__(self):
-        return self.name
+        return self.title
 
 
-class EducationalVideo(models.Model):
+class Video(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField(help_text="What will users learn?")
     youtube_url = models.URLField(help_text="YouTube video URL")
     thumbnail = models.URLField(blank=True, null=True)
-    category = models.ForeignKey(ResourceCategory, on_delete=models.CASCADE, related_name='videos')
+    category = models.ForeignKey(EducationalResource, on_delete=models.CASCADE, related_name='videos')
     duration = models.CharField(max_length=20, blank=True, help_text="e.g., 10:30")
     views = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
@@ -984,18 +996,18 @@ class EducationalVideo(models.Model):
     
     class Meta:
         ordering = ['-created_at']
-        verbose_name = "Educational Video"
+        verbose_name = " Video"
     
     def __str__(self):
         return self.title
 
 
-class CalmingAudio(models.Model):
+class Audio(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField(help_text="What does this audio help with?")
     audio_file = models.FileField(upload_to='audios/', blank=True, null=True)
     audio_url = models.URLField(blank=True, null=True, help_text="External audio URL")
-    category = models.ForeignKey(ResourceCategory, on_delete=models.CASCADE, related_name='audios')
+    category = models.ForeignKey(EducationalResource, on_delete=models.CASCADE, related_name='audios')
     duration = models.CharField(max_length=20, blank=True)
     plays = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
@@ -1004,19 +1016,19 @@ class CalmingAudio(models.Model):
     
     class Meta:
         ordering = ['-created_at']
-        verbose_name = "Calming Audio"
+        verbose_name = " Audio"
     
     def __str__(self):
         return self.title
 
 
-class MentalHealthArticle(models.Model):
+class Article(models.Model):
     title = models.CharField(max_length=200)
     slug = models.SlugField(unique=True, max_length=250, blank=True)
     content = models.TextField()
     excerpt = models.TextField(max_length=500, blank=True, help_text="Short summary")
     author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    category = models.ForeignKey(ResourceCategory, on_delete=models.CASCADE, related_name='articles')
+    category = models.ForeignKey(EducationalResource, on_delete=models.CASCADE, related_name='articles')
     featured_image = models.ImageField(upload_to='articles/', blank=True, null=True)
     reading_time = models.IntegerField(default=5, help_text="Minutes to read")
     views = models.IntegerField(default=0)
@@ -1026,7 +1038,7 @@ class MentalHealthArticle(models.Model):
     
     class Meta:
         ordering = ['-published_date']
-        verbose_name = "Mental Health Article"
+        verbose_name = " Article"
     
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -1038,7 +1050,6 @@ class MentalHealthArticle(models.Model):
 
 
 class MeditationTechnique(models.Model):
-    """Guided meditation and mindfulness practices"""
     DIFFICULTY_CHOICES = [
         ('beginner', 'Beginner'),
         ('intermediate', 'Intermediate'),
@@ -1050,7 +1061,7 @@ class MeditationTechnique(models.Model):
     instructions = models.TextField(help_text="Step-by-step guide")
     duration = models.IntegerField(help_text="Duration in minutes")
     difficulty = models.CharField(max_length=20, choices=DIFFICULTY_CHOICES, default='beginner')
-    category = models.ForeignKey(ResourceCategory, on_delete=models.CASCADE, related_name='meditations')
+    category = models.ForeignKey(EducationalResource, on_delete=models.CASCADE, related_name='meditations')
     benefits = models.TextField(blank=True)
     image = models.ImageField(upload_to='meditation/', blank=True, null=True)
     times_practiced = models.IntegerField(default=0)
@@ -1069,9 +1080,9 @@ class MeditationTechnique(models.Model):
 class SavedResource(models.Model):
     """Track resources saved by users"""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='saved_resources')
-    video = models.ForeignKey(EducationalVideo, on_delete=models.CASCADE, null=True, blank=True)
-    audio = models.ForeignKey(CalmingAudio, on_delete=models.CASCADE, null=True, blank=True)
-    article = models.ForeignKey(MentalHealthArticle, on_delete=models.CASCADE, null=True, blank=True)
+    video = models.ForeignKey(Video, on_delete=models.CASCADE, null=True, blank=True)
+    audio = models.ForeignKey(Audio, on_delete=models.CASCADE, null=True, blank=True)
+    article = models.ForeignKey(Article, on_delete=models.CASCADE, null=True, blank=True)
     meditation = models.ForeignKey(MeditationTechnique, on_delete=models.CASCADE, null=True, blank=True)
     saved_at = models.DateTimeField(auto_now_add=True)
     
@@ -1086,9 +1097,9 @@ class SavedResource(models.Model):
 class UserActivity(models.Model):
     """Track user engagement with resources"""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activities')
-    video = models.ForeignKey(EducationalVideo, on_delete=models.CASCADE, null=True, blank=True)
-    audio = models.ForeignKey(CalmingAudio, on_delete=models.CASCADE, null=True, blank=True)
-    article = models.ForeignKey(MentalHealthArticle, on_delete=models.CASCADE, null=True, blank=True)
+    video = models.ForeignKey(Video, on_delete=models.CASCADE, null=True, blank=True)
+    audio = models.ForeignKey(Audio, on_delete=models.CASCADE, null=True, blank=True)
+    article = models.ForeignKey(Article, on_delete=models.CASCADE, null=True, blank=True)
     meditation = models.ForeignKey(MeditationTechnique, on_delete=models.CASCADE, null=True, blank=True)
     completed = models.BooleanField(default=False)
     progress_percentage = models.IntegerField(default=0)

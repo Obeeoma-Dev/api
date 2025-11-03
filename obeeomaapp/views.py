@@ -1970,18 +1970,18 @@ class SystemSettingsView(viewsets.ModelViewSet):
 
 
 # views for educational resources
-class ResourceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = ResourceCategory.objects.all()
-    serializer_class = ResourceCategorySerializer
+class EducationalResourceViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = EducationalResource.objects.all()
+    serializer_class = EducationalResourceSerializer
     permission_classes = [AllowAny]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'description']
     ordering_fields = ['name']
 
 
-class EducationalVideoViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = EducationalVideo.objects.filter(is_active=True)
-    serializer_class = EducationalVideoSerializer
+class VideoViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Video.objects.filter(is_active=True)
+    serializer_class = VideoSerializer
     permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
@@ -2024,10 +2024,10 @@ class EducationalVideoViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
 
-class CalmingAudioViewSet(viewsets.ReadOnlyModelViewSet):
+class AudioViewSet(viewsets.ReadOnlyModelViewSet):
    
-    queryset = CalmingAudio.objects.filter(is_active=True)
-    serializer_class = CalmingAudioSerializer
+    queryset = Audio.objects.filter(is_active=True)
+    serializer_class = AudioSerializer
     permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
@@ -2062,9 +2062,9 @@ class CalmingAudioViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'message': 'Audio removed from library'})
 
 
-class MentalHealthArticleViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = MentalHealthArticle.objects.filter(is_published=True)
-    serializer_class = MentalHealthArticleSerializer
+class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Article.objects.filter(is_published=True)
+    serializer_class = ArticleSerializer
     permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']

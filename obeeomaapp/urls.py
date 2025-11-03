@@ -38,13 +38,13 @@ from obeeomaapp.views import (
 )
 
 
-from .views import (ResourceCategoryViewSet, EducationalVideoViewSet, CalmingAudioViewSet,
-                    MentalHealthArticleViewSet, MeditationTechniqueViewSet, 
+from .views import (EducationalResourceViewSet, VideoViewSet, AudioViewSet,
+                    ArticleViewSet, MeditationTechniqueViewSet, 
                     SavedResourceViewSet, UserActivityViewSet)
 
 app_name = "obeeomaapp"
 
-# --- Swagger schema view ---
+# --- Swagger schema view ---       
 schema_view = get_schema_view(
     openapi.Info(
         title="Obeeoma API",
@@ -92,10 +92,10 @@ router.register(r'dashboard/tests-by-department', TestsByDepartmentView, basenam
 
 
 
-router.register(r'categories', ResourceCategoryViewSet, basename='resource-category')
-router.register(r'videos', EducationalVideoViewSet, basename='educational-video')
-router.register(r'audios', CalmingAudioViewSet, basename='calming-audio')
-router.register(r'articles', MentalHealthArticleViewSet, basename='mental-health-article')
+router.register(r'categories', EducationalResourceViewSet, basename='resource-category')
+router.register(r'videos', VideoViewSet, basename='educational-video')
+router.register(r'audios', AudioViewSet, basename='calming-audio')
+router.register(r'articles', ArticleViewSet, basename='mental-health-article')
 router.register(r'meditations', MeditationTechniqueViewSet, basename='meditation-technique')
 router.register(r'saved', SavedResourceViewSet, basename='saved-resource')
 router.register(r'activity', UserActivityViewSet, basename='user-activity')
