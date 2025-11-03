@@ -1141,3 +1141,12 @@ class UserActivitySerializer(serializers.ModelSerializer):
         model = UserActivity
         fields = ['id', 'video', 'audio', 'article', 'meditation', 
                   'completed', 'progress_percentage', 'notes', 'accessed_at']
+        
+from rest_framework import serializers
+from .models import OnboardingState
+
+class OnboardingStateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OnboardingState
+        fields = ['goal', 'completed', 'first_action_done']
+

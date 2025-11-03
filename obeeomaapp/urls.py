@@ -29,7 +29,7 @@ from obeeomaapp.views import (
     InvitationVerifyView, EmployerRegistrationView, home, CustomTokenObtainPairView,
     InvitationAcceptanceView, InviteView, VideoViewSet, AudioViewSet,
     ArticleViewSet, MeditationTechniqueViewSet, SavedResourceViewSet, EducationalResourceViewSet,
-    UserActivityViewSet
+    UserActivityViewSet, onboarding_view, complete_onboarding
 )
 
 
@@ -163,6 +163,10 @@ urlpatterns = [
     path('sana/sessions/<int:session_id>/messages/', ChatMessageView.as_view({'get': 'list', 'post': 'create'}), name='chat-messages'),
     path('employee/recommendations/', RecommendationLogView.as_view({'get': 'list', 'post': 'create'}), name='recommendation-log'),
     
+    path('onboarding/', onboarding_view, name='onboarding'),
+    path('onboarding/complete/', complete_onboarding, name='complete_onboarding'),
+
+
     # Invitation acceptance (public) - Updated to use InvitationAcceptanceView
     path('auth/verify-invite/', InvitationVerifyView.as_view(), name='verify-invite'),
     path('auth/accept-invite/', InvitationAcceptanceView.as_view(), name='accept-invite'),

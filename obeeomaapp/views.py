@@ -9,6 +9,11 @@ from django.contrib.auth import authenticate, get_user_model
 from rest_framework import status, permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+#
+from .models import OnboardingState
+from .serializers import OnboardingStateSerializer
 from rest_framework.permissions import (
     IsAuthenticated,
     BasePermission,
@@ -2598,3 +2603,35 @@ class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):
         }
         
         return Response(stats)
+
+
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def onboarding_view(request):
+    try:
+        state = OnboardingState.objects.get(user=request.user)
+    except OnboardingState.DoesNotExist:
+        state = OnboardingState.objects.create(user=request.user)
+
+    if request.method == 'POST':
+        serializer = OnboardingStateSerializer(state, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    serializer = OnboardingStateSerializer(state)
+    return Response(serializer.data)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def complete_onboarding(request):
+    try:
+        state = OnboardingState.objects.get(user=request.user)
+        state.completed = True
+        state.save()
+        return Response({'message': 'Onboarding completed.'})
+    except OnboardingState.DoesNotExist:
+        return Response({'error': 'Onboarding state not found.'}, status=404)
