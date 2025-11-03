@@ -15,6 +15,7 @@ from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly,
     AllowAny,
 )
+from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import *  # Import serializers from the same app
@@ -1049,9 +1050,21 @@ class WellnessHubView(viewsets.ModelViewSet):
 class MoodCheckInView(viewsets.ModelViewSet):
     serializer_class = MoodCheckInSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['subscription_tier', 'is_premium_active']
+    search_fields = ['organization', 'role']
 
     def get_queryset(self):
-        return MoodCheckIn.objects.filter(employee__user=self.request.user)
+        return EmployeeProfile.objects.filter(user=self.request.user)
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return EmployeeProfileCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return EmployeeProfileUpdateSerializer
+        elif self.action == 'set_wellness_status':
+            return WellnessStatusSerializer
+        return EmployeeProfileSerializer
 
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
@@ -1064,7 +1077,7 @@ class AssessmentResultView(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return AssessmentResult.objects.filter(employee__user=self.request.user)
+        return AvatarProfile.objects.filter(employee__user=self.request.user)
 
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
@@ -1077,6 +1090,9 @@ class SelfHelpResourceView(viewsets.ModelViewSet):
     serializer_class = SelfHelpResourceSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        return WellnessHub.objects.filter(employee__user=self.request.user)
+
 
 @extend_schema(tags=['Resources'])
 class EducationalResourceView(viewsets.ModelViewSet):
@@ -1084,6 +1100,8 @@ class EducationalResourceView(viewsets.ModelViewSet):
     serializer_class = EducationalResourceSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        return AssessmentResult.objects.filter(employee__user=self.request.user)
 
 @extend_schema(tags=['Employee - Crisis Support'])
 class CrisisTriggerView(viewsets.ModelViewSet):
@@ -1093,15 +1111,16 @@ class CrisisTriggerView(viewsets.ModelViewSet):
     def get_queryset(self):
         return CrisisTrigger.objects.filter(employee__user=self.request.user)
 
-    def perform_create(self, serializer):
-        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
-        serializer.save(employee=employee)
 
 
 @extend_schema(tags=['Employee - Notifications'])
 class NotificationView(viewsets.ModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['is_read', 'notification_type']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         return Notification.objects.filter(employee__user=self.request.user)
@@ -1120,36 +1139,63 @@ class EngagementTrackerView(viewsets.ModelViewSet):
 class FeedbackView(viewsets.ModelViewSet):
     serializer_class = FeedbackSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['rating', 'feedback_type']
+    ordering_fields = ['created_at', 'rating']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         return Feedback.objects.filter(employee__user=self.request.user)
 
-    def perform_create(self, serializer):
-        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
-        serializer.save(employee=employee)
+    @action(detail=False, methods=['get'])
+    def average_rating(self, request):
+        from django.db.models import Avg
+        avg = self.get_queryset().aggregate(average=Avg('rating'))
+        return Response({
+            'average_rating': round(avg['average'], 2) if avg['average'] else 0,
+            'total_feedback': self.get_queryset().count()
+        })
 
 
 @extend_schema(tags=['Employee - AI Chat'])
 class ChatSessionView(viewsets.ModelViewSet):
     serializer_class = ChatSessionSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['is_active']
+    ordering_fields = ['created_at', 'last_message_at']
+    ordering = ['-last_message_at']
 
     def get_queryset(self):
         return ChatSession.objects.filter(employee__user=self.request.user)
 
-    def perform_create(self, serializer):
-        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
-        serializer.save(employee=employee)
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        active_sessions = self.get_queryset().filter(is_active=True)
+        serializer = self.get_serializer(active_sessions, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def end_session(self, request, pk=None):
+        session = self.get_object()
+        session.is_active = False
+        session.save()
+        return Response({
+            'message': 'Chat session ended successfully',
+            'session': self.get_serializer(session).data
+        })
 
 
 @extend_schema(tags=['Employee - AI Chat'])
 class ChatMessageView(viewsets.ModelViewSet):
     serializer_class = ChatMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['created_at']
+    ordering = ['created_at']
 
     def get_queryset(self):
-        session_id = self.kwargs.get("session_id")
-        return ChatMessage.objects.filter(session__id=session_id, session__employee__user=self.request.user)
+        return ChatMessage.objects.filter(session__employee__user=self.request.user)
 
     def perform_create(self, serializer):
         session = get_object_or_404(ChatSession, id=self.kwargs.get("session_id"), employee__user=self.request.user)

@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
-from .models import (ResourceCategory, EducationalVideo, UserVideoInteraction,)
+
 
 User = get_user_model()
 
@@ -411,7 +411,7 @@ class AvatarProfileSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['employee']
 
-# --- Wellness Hub ---
+
 class WellnessHubSerializer(serializers.ModelSerializer):
     class Meta:
         model = WellnessHub
@@ -419,48 +419,42 @@ class WellnessHubSerializer(serializers.ModelSerializer):
         read_only_fields = ['employee', 'updated_at']
 
 
-# --- Assessment Results ---
+
 class AssessmentResultSerializer(serializers.ModelSerializer):
     class Meta:
         model = AssessmentResult
         fields = '__all__'
         read_only_fields = ['employee', 'submitted_on']
 
-# --- Educational Resources ---
-class EducationalResourceSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = EducationalResource
-        fields = '__all__'
 
-# --- Crisis Trigger ---
+
+
 class CrisisTriggerSerializer(serializers.ModelSerializer):
     class Meta:
         model = CrisisTrigger
         fields = '__all__'
         read_only_fields = ['employee', 'triggered_on']
 
-# --- Notifications ---
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = '__all__'
         read_only_fields = ['employee', 'sent_on']
 
-# --- Engagement Tracker ---
+
 class EngagementTrackerSerializer(serializers.ModelSerializer):
     class Meta:
         model = EngagementTracker
         fields = '__all__'
         read_only_fields = ['employee']
 
-# --- Feedback ---
 class FeedbackSerializer(serializers.ModelSerializer):
     class Meta:
         model = Feedback
         fields = '__all__'
         read_only_fields = ['employee', 'submitted_on']
 
-# --- Sana Chat Sessions ---
+
 class ChatSessionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatSession
@@ -473,7 +467,7 @@ class ChatMessageSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['session', 'timestamp']
 
-# --- Recommendations ---
+
 class RecommendationLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = RecommendationLog
@@ -482,7 +476,7 @@ class RecommendationLogSerializer(serializers.ModelSerializer):
 
 
 
-# Assessment Response Serializers
+
 class AssessmentResponseSerializer(serializers.Serializer):
     """Serializer for handling assessment responses"""
     assessment_type = serializers.ChoiceField(choices=['GAD-7', 'PHQ-9', 'BOTH'])
@@ -584,28 +578,7 @@ class MentalHealthAssessmentListSerializer(serializers.ModelSerializer):
             'gad7_severity', 'phq9_severity', 'assessment_date'
         ]
 
-class ResourceCategorySerializer(serializers.ModelSerializer):
-    total_videos = serializers.SerializerMethodField()
-    total_audios = serializers.SerializerMethodField()
-    total_articles = serializers.SerializerMethodField()
-    total_meditations = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = ResourceCategory
-        fields = ['id', 'name', 'description', 'icon', 'color_code', 'total_videos', 
-                  'total_audios', 'total_articles', 'total_meditations', 'created_at']
-    
-    def get_total_videos(self, obj):
-        return obj.educational_videos.filter(is_active=True).count()
-    
-    def get_total_audios(self, obj):
-        return obj.calming_audios.filter(is_active=True).count()
-    
-    def get_total_articles(self, obj):
-        return obj.articles.filter(is_published=True).count()
-    
-    def get_total_meditations(self, obj):
-        return obj.guided_meditations.filter(is_active=True).count()
+
 
 
 # New Serializers for Dashboard Functionality
