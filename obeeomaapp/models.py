@@ -1355,3 +1355,22 @@ class UserActivity(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.accessed_at.date()}"
+    
+from django.db import models
+from django.contrib.auth.models import User
+
+class OnboardingState(models.Model):
+    GOAL_CHOICES = [
+        ('reduce_stress', 'Reduce Stress'),
+        ('improve_focus', 'Improve Focus'),
+        ('support_team', 'Support My Team'),
+        
+    ]
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    goal = models.CharField(max_length=50, choices=GOAL_CHOICES, blank=True)
+    completed = models.BooleanField(default=False)
+    first_action_done = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.user.username} - Onboarding"
