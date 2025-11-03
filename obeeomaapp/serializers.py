@@ -1,13 +1,16 @@
 # serializers.py
+from datetime import timedelta
+from secrets import token_urlsafe
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from drf_spectacular.utils import extend_schema_field
-
+from django.utils import timezone
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
+
 
 from rest_framework import serializers
 User = get_user_model()
@@ -24,7 +27,7 @@ class SignupSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         if attrs['password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({"confirm_password": "Passwords don’t match."})
+            raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
         return attrs
 
     def create(self, validated_data):
@@ -40,8 +43,6 @@ class SignupSerializer(serializers.ModelSerializer):
         user.save()
 
         return user
-
-
 
 # Login Serializer
 class LoginSerializer(serializers.Serializer):
@@ -117,6 +118,9 @@ class LogoutSerializer(serializers.Serializer):
 
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
+    code = serializers.CharField(required=False)
+    new_password = serializers.CharField(required=False, validators=[validate_password])
+    token = serializers.CharField(required=False)
 
     def create(self, validated_data):
         return validated_data
@@ -143,24 +147,48 @@ class EmployerSerializer(serializers.ModelSerializer):
 
 
 class EmployerRegistrationSerializer(serializers.Serializer):
-    """Serializer for employer organization registration"""
+    """Serializer for employer organization registration - creates both user and organization"""
+    # Organization fields
     organization_name = serializers.CharField(
         max_length=255,
         required=True,
         help_text="Name of your organization/company"
     )
-    industry = serializers.CharField(
-        max_length=100,
+    
+    # User account fields
+    email = serializers.EmailField(
+        required=True,
+        help_text="Your email address (will be used for login)"
+    )
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'},
+        help_text="Your password (minimum 8 characters)"
+    )
+    employer_name = serializers.CharField(
+        max_length=255,
+        required=True,
+        help_text="Your full name"
+    )
+    phone_number = serializers.CharField(
+        max_length=20,
         required=False,
         allow_blank=True,
-        help_text="Industry sector (e.g., Technology, Healthcare, Finance)"
+        help_text="Your phone number (optional)"
     )
-    size = serializers.CharField(
-        max_length=50,
-        required=False,
-        allow_blank=True,
-        help_text="Company size (e.g., 1-10, 11-50, 51-200, 200+)"
-    )
+    
+    def validate_email(self, value):
+        """Check if email already exists"""
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
+    
+    def validate_password(self, value):
+        """Validate password strength"""
+        if len(value) < 8:
+            raise serializers.ValidationError("Password must be at least 8 characters long.")
+        return value
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
@@ -241,8 +269,113 @@ class EngagementStreakSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'streak_count', 'last_active_date']
 
 
+class EmployeeUserCreateSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, min_length=8)
+    password_confirm = serializers.CharField(write_only=True)
+    
+    class Meta:
+        model = User
+        fields = ['email', 'first_name', 'last_name', 'password', 'password_confirm']
+    
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password_confirm']:
+            raise serializers.ValidationError({"password_confirm": "Passwords don't match"})
+        return attrs
+    
+    def create(self, validated_data):
+        validated_data.pop('password_confirm')
+        user = User.objects.create_user(
+            username=validated_data['email'],  # Use email as username
+            email=validated_data['email'],
+            password=validated_data['password'],
+            first_name=validated_data['first_name'],
+            last_name=validated_data['last_name'],
+            is_active=True
+        )
+        return user
+
+class EmployeeInvitationAcceptSerializer(serializers.Serializer):
+    token = serializers.CharField(
+        required=True,
+        help_text="Invitation token from the email link"
+    )
+    password = serializers.CharField(
+        required=True,
+        write_only=True,
+        min_length=8,
+        help_text="Password for the new account"
+    )
+    first_name = serializers.CharField(
+        required=True,
+        help_text="User's first name"
+    )
+    last_name = serializers.CharField(
+        required=True,
+        help_text="User's last name"
+    )
+    
+    def validate_token(self, value):
+        try:
+            invitation = EmployeeInvitation.objects.get(
+                token=value,
+                accepted=False,
+                expires_at__gt=timezone.now()
+            )
+            return value
+        except EmployeeInvitation.DoesNotExist:
+            raise serializers.ValidationError("Invalid or expired invitation token")
+
+    def create(self, validated_data):
+        token = validated_data['token']
+        password = validated_data['password']
+        first_name = validated_data['first_name']
+        last_name = validated_data['last_name']
+        
+        # Get the invitation
+        invitation = EmployeeInvitation.objects.get(
+            token=token,
+            accepted=False,
+            expires_at__gt=timezone.now()
+        )
+        
+        # Create user account
+        user = User.objects.create_user(
+            username=invitation.email,  # Use email as username
+            email=invitation.email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+            is_active=True
+        )
+        
+        # Create employee profile
+        employee_profile = Employee.objects.create(
+            user=user,
+            employer=invitation.employer
+        )
+        
+        # Mark invitation as accepted
+        invitation.accepted = True
+        invitation.accepted_at = timezone.now()
+        invitation.save()
+        
+        return user
+
+# --- Employee Invitation Serializer ---
 class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
-    expires_at = serializers.DateTimeField(required=False, help_text="Invitation expiration date (defaults to 7 days from now)")
+    email = serializers.EmailField(
+        required=True,
+        help_text="Email address of the person to invite"
+    )
+    message = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Optional welcome message for the invitee"
+    )
+    expires_at = serializers.DateTimeField(
+        required=False,
+        help_text="Invitation expiration date (defaults to 7 days from now)"
+    )
     
     class Meta:
         model = EmployeeInvitation
@@ -250,10 +383,6 @@ class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
     def create(self, validated_data):
-        from secrets import token_urlsafe
-        from django.utils import timezone
-        from datetime import timedelta
-        
         employer = self.context['employer']
         inviter = self.context['user']
         token = token_urlsafe(32)
@@ -269,173 +398,14 @@ class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
             **validated_data
         )
 
-
-class EmployeeInvitationAcceptSerializer(serializers.Serializer):
-    token = serializers.CharField()
-    username = serializers.CharField()
-    password = serializers.CharField(write_only=True)
-
-    def validate(self, attrs):
-        token = attrs['token']
-        try:
-            invitation = EmployeeInvitation.objects.get(token=token, accepted=False)
-        except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError('Invalid or used invitation token.')
-        from django.utils import timezone
-        if invitation.expires_at < timezone.now():
-            raise serializers.ValidationError('Invitation has expired.')
-        attrs['invitation'] = invitation
-        return attrs
-
-    def create(self, validated_data):
-        invitation = validated_data['invitation']
-        username = validated_data['username']
-        password = validated_data['password']
-
-        # Create user
-        user = User.objects.create_user(
-            username=username,
-            email=invitation.email,
-            role='employee',
-            password=password
-        )
-        # Link to employer in Employee model
-        Employee.objects.create(
-            employer=invitation.employer,
-            name=username,
-            email=invitation.email
-        )
-        from django.utils import timezone
-        invitation.accepted = True
-        invitation.accepted_at = timezone.now()
-        invitation.save(update_fields=['accepted', 'accepted_at'])
-        return user
-
-
 # --- Employee Profile ---
-from rest_framework import serializers
-from django.contrib.auth import get_user_model
-from .models import EmployeeProfile
-
-User = get_user_model()
-
-
-class UserBasicSerializer(serializers.ModelSerializer):
-    """Basic user information for nested serialization"""
-    class Meta:
-        model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name']
-        read_only_fields = ['id', 'username', 'email']
-
-
 class EmployeeProfileSerializer(serializers.ModelSerializer):
-    """Complete employee profile with user details"""
-    user_details = UserBasicSerializer(source='user', read_only=True)
-    username = serializers.CharField(source='user.username', read_only=True)
-    email = serializers.EmailField(source='user.email', read_only=True)
-    
     class Meta:
         model = EmployeeProfile
-        fields = [
-            'id',
-            'user',
-            'user_details',
-            'username',
-            'email',
-            'avatar',
-            'organization',
-            'role',
-            'joined_on',
-            'subscription_tier',
-            'is_premium_active',
-            'is_anonymous',
-            'receive_notifications',
-            'current_wellness_status',
-        ]
-        read_only_fields = ['id', 'user', 'joined_on', 'user_details', 'username', 'email']
-    
-    def validate_subscription_tier(self, value):
-        """Validate subscription tier choices"""
-        valid_tiers = ['freemium', 'premium']
-        if value not in valid_tiers:
-            raise serializers.ValidationError(
-                f"Invalid subscription tier. Choose from: {', '.join(valid_tiers)}"
-            )
-        return value
-    
-    def validate_avatar(self, value):
-        """Validate avatar file size and type"""
-        if value:
-            # Check file size (max 5MB)
-            if value.size > 5 * 1024 * 1024:
-                raise serializers.ValidationError("Avatar image size cannot exceed 5MB")
-            
-            # Check file type
-            valid_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif']
-            if value.content_type not in valid_types:
-                raise serializers.ValidationError(
-                    "Invalid image type. Only JPEG, PNG, and GIF are allowed"
-                )
-        return value
+        fields = '__all__'
+        read_only_fields = ['user', 'joined_on']
 
-
-class EmployeeProfileCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating a new employee profile"""
-    class Meta:
-        model = EmployeeProfile
-        fields = [
-            'avatar',
-            'organization',
-            'role',
-            'subscription_tier',
-            'is_premium_active',
-            'is_anonymous',
-            'receive_notifications',
-            'current_wellness_status',
-        ]
-    
-    def create(self, validated_data):
-        """Create profile for the authenticated user"""
-        user = self.context['request'].user
-        validated_data['user'] = user
-        return super().create(validated_data)
-
-
-class EmployeeProfileUpdateSerializer(serializers.ModelSerializer):
-    """Serializer for updating employee profile"""
-    class Meta:
-        model = EmployeeProfile
-        fields = [
-            'avatar',
-            'organization',
-            'role',
-            'subscription_tier',
-            'is_premium_active',
-            'is_anonymous',
-            'receive_notifications',
-            'current_wellness_status',
-        ]
-    
-    def validate(self, attrs):
-        """Custom validation for updates"""
-        # If upgrading to premium, activate premium status
-        if attrs.get('subscription_tier') == 'premium':
-            attrs['is_premium_active'] = True
-        
-        # If downgrading to freemium, deactivate premium
-        if attrs.get('subscription_tier') == 'freemium':
-            attrs['is_premium_active'] = False
-        
-        return attrs
-
-
-class WellnessStatusSerializer(serializers.ModelSerializer):
-    """Quick update for wellness status only"""
-    class Meta:
-        model = EmployeeProfile
-        fields = ['current_wellness_status']
-
-
+# --- Avatar ---
 class AvatarProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = AvatarProfile
@@ -708,6 +678,7 @@ class ProgressSerializer(serializers.ModelSerializer):
     class Meta:
         model = Progress
         fields = '__all__'
+
 # Dashboard Overview Serializers
 class OrganizationOverviewSerializer(serializers.Serializer):
     total_employees = serializers.IntegerField()
@@ -720,10 +691,11 @@ class OrganizationOverviewSerializer(serializers.Serializer):
 class EmployeeManagementSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
+    name = serializers.CharField(read_only=True)
+
     class Meta:
         model = Employee
-        fields = ['id', 'name', 'email', 'department', 'department_name', 'status', 'status_display', 'joined_date', 'avatar']
+        fields = ['id', 'first_name', 'last_name', 'name', 'email', 'department', 'department_name', 'status', 'status_display', 'joined_date', 'avatar']
 
 # subscription Management Serializer
 class SubscriptionManagementSerializer(serializers.ModelSerializer):
@@ -745,11 +717,6 @@ class WellnessReportsSerializer(serializers.Serializer):
     department_contributions = DepartmentContributionSerializer(many=True)
     recent_activities = OrganizationActivitySerializer(many=True)
 
-
-class ProgressSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Progress
-        fields = '__all__'
 
 # System Admin Serializers
 
@@ -822,12 +789,6 @@ class RewardProgramSerializer(serializers.ModelSerializer):
     class Meta:
         model = RewardProgram
         fields = '__all__'
-
-
-"""class FeatureFlagSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = FeatureFlag
-        fields = '__all__'  """
 
 
 class SystemSettingsSerializer(serializers.ModelSerializer):
@@ -921,6 +882,118 @@ class ReportsAnalyticsSerializer(serializers.Serializer):
     formats = serializers.ListField()
 
 
+class ResourceCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ResourceCategory
+        fields = ['id', 'name', 'description', 'icon']
+
+class EducationalVideoSerializer(serializers.ModelSerializer):
+    resource_category_name = serializers.CharField(source='resource_category.name', read_only=True)
+    is_saved = serializers.SerializerMethodField()
+    is_helpful_marked = serializers.SerializerMethodField()
+    youtube_embed_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = EducationalVideo
+        fields = [
+            'id', 'title', 'description', 'youtube_url', 'youtube_embed_url',
+            'thumbnail', 'resource_category', 'resource_category_name',
+            'duration', 'views_count', 'helpful_count', 'saved_count',
+            'target_mood', 'intensity_level', 'crisis_support_text',
+            'is_professionally_reviewed', 'reviewed_by', 'review_date',
+            'is_active', 'created_at', 'updated_at',
+            'is_saved', 'is_helpful_marked'
+        ]
+        read_only_fields = [
+            'views_count', 'helpful_count', 'saved_count', 'created_at', 'updated_at'
+        ]
+    
+    @extend_schema_field(bool)
+    def get_is_saved(self, obj) -> bool:
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return UserVideoInteraction.objects.filter(
+                user=request.user,
+                video=obj,
+                saved_for_later=True
+            ).exists()
+        return False
+    
+    @extend_schema_field(bool)
+    def get_is_helpful_marked(self, obj) -> bool:
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return UserVideoInteraction.objects.filter(
+                user=request.user,
+                video=obj,
+                marked_helpful=True
+            ).exists()
+        return False
+    
+    @extend_schema_field(str)
+    def get_youtube_embed_url(self, obj) -> str:
+        """Convert YouTube URL to embed URL"""
+        if 'youtube.com' in obj.youtube_url:
+            video_id = obj.youtube_url.split('v=')[1]
+            return f'https://www.youtube.com/embed/{video_id}'
+        elif 'youtu.be' in obj.youtube_url:
+            video_id = obj.youtube_url.split('/')[-1]
+            return f'https://www.youtube.com/embed/{video_id}'
+        return obj.youtube_url
+    
+    def validate_youtube_url(self, value: str) -> str:
+        """Validate that the URL is a valid YouTube URL"""
+        if 'youtube.com' not in value and 'youtu.be' not in value:
+            raise serializers.ValidationError("Please provide a valid YouTube URL")
+        return value
+    
+    def validate(self, data: dict) -> dict:
+        """Additional validation for mental health content"""
+        if data.get('crisis_support_text') and data.get('intensity_level', 1) != 1:
+            raise serializers.ValidationError(
+                "Crisis support videos should have gentle intensity level (1)"
+            )
+        return data
+
+class UserVideoInteractionSerializer(serializers.ModelSerializer):
+    video_title = serializers.CharField(source='video.title', read_only=True)
+    video_target_mood = serializers.CharField(source='video.target_mood', read_only=True)
+    video_thumbnail = serializers.URLField(source='video.thumbnail', read_only=True)
+    video_duration = serializers.CharField(source='video.duration', read_only=True)
+    
+    class Meta:
+        model = UserVideoInteraction
+        fields = [
+            'id', 'video', 'video_title', 'video_target_mood', 'video_thumbnail', 'video_duration',
+            'mood_before', 'mood_after', 'watched_full_video', 'marked_helpful',
+            'saved_for_later', 'watched_at'
+        ]
+        read_only_fields = ['user', 'watched_at']
+    
+    def validate(self, data):
+        """Validate mood tracking"""
+        mood_before = data.get('mood_before')
+        mood_after = data.get('mood_after')
+        
+        if mood_before and mood_after:
+            if int(mood_after) < int(mood_before):
+                # This is okay - sometimes people feel worse, but we might want to flag for support
+                pass
+        
+        return data
+
+class VideoRecommendationSerializer(serializers.ModelSerializer):
+    resource_category_name = serializers.CharField(source='resource_category.name', read_only=True)
+    mood_display = serializers.CharField(source='get_target_mood_display', read_only=True)
+    intensity_display = serializers.CharField(source='get_intensity_level_display', read_only=True)
+    
+    class Meta:
+        model = EducationalVideo
+        fields = [
+            'id', 'title', 'description', 'thumbnail', 'duration',
+            'views_count', 'helpful_count', 'resource_category_name',
+            'target_mood', 'mood_display', 'intensity_level', 'intensity_display',
+        ]
 # Serializers for Educational Resources 
 class EducationalResourceSerializer(serializers.ModelSerializer):
     video_count = serializers.SerializerMethodField()

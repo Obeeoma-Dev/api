@@ -20,6 +20,14 @@ from obeeomaapp.views import (
     EmailConfigCheckView, SignupView, LoginView, LogoutView, 
     PasswordResetView, PasswordResetConfirmView, PasswordChangeView,
     OverviewView, TrendsView, EmployeeEngagementView, BillingView,
+    UsersView, ReportsView, CrisisInsightsView,
+    EmployeeProfileView, AvatarProfileView, WellnessHubView,
+    MoodCheckInView, AssessmentResultView, SelfHelpResourceView,
+    EducationalResourceView, CrisisTriggerView, NotificationView, 
+    EngagementTrackerView, FeedbackView, ChatSessionView, 
+    ChatMessageView, RecommendationLogView, InvitationAcceptView, 
+    InvitationVerifyView, EmployerRegistrationView, home, CustomTokenObtainPairView,
+    InvitationAcceptanceView, InviteView  # Added missing views
     InviteView, UsersView, ReportsView, CrisisInsightsView,
        EmployeeProfileViewSet,
     AvatarProfileViewSet,
@@ -63,8 +71,9 @@ router.register(r'employers', EmployerViewSet, basename='employer')
 router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'progress', ProgressViewSet)
-
-
+router.register(r'resource-categories', ResourceCategoryViewSet, basename='resource-category')
+router.register(r'videos', EducationalVideoViewSet, basename='videos')
+router.register(r'video-interactions', UserVideoInteractionViewSet, basename='video-interactions')
 
 # Dashboard routers (Employer Dashboard)
 
@@ -110,6 +119,9 @@ router.register(r'admin/reports-analytics', ReportsAnalyticsView, basename='repo
 router.register(r'admin/system-settings', SystemSettingsView, basename='system-settings')
 router.register(r'admin/feature-flags', FeaturesUsageView, basename='feature-flags')
 
+# Employee Invitations
+router.register(r'invitations', InviteView, basename='invitations')
+
 urlpatterns = [
     # Home
     path("", home, name="home"),
@@ -134,7 +146,6 @@ urlpatterns = [
     path("dashboard/employee-engagement/", EmployeeEngagementView.as_view({'get': 'list', 'post': 'create'}), name="employee-engagement"),
     path("dashboard/features-usage/", FeaturesUsageView.as_view({'get': 'list'}), name="features-usage"),
     path("dashboard/billing/", BillingView.as_view({'get': 'list', 'post': 'create'}), name="billing"),
-    path("dashboard/invites/", InviteView.as_view({'get': 'list', 'post': 'create'}), name="employee-invitations"),
     path("dashboard/users/", UsersView.as_view({'get': 'list', 'post': 'create'}), name="users"),
     path("dashboard/reports/", ReportsView.as_view({'get': 'list'}), name="reports"),
     path("dashboard/crisis-insights/", CrisisInsightsView.as_view({'get': 'list'}), name="crisis-insights"),
@@ -147,12 +158,28 @@ urlpatterns = [
     # System Admin Endpoints
     path("admin/organizations/growth-chart/", OrganizationsManagementView.as_view({'get': 'growth_chart'}), name="organizations-growth-chart"),
     path("admin/organizations/client-distribution/", OrganizationsManagementView.as_view({'get': 'client_distribution'}), name="organizations-client-distribution"),
+    path("admin/organizations/search-by-name/", OrganizationsManagementView.as_view({'get': 'search_by_name'}), name="organizations-search-by-name"),
     path("admin/feature-flags/by-category/", FeaturesUsageView.as_view({'get': 'by_category'}), name="feature-flags-by-category"),
 
- 
-    # Invitation acceptance (public)
+    # Employee endpoints
+    path('employee/profile/', EmployeeProfileView.as_view({'get': 'list', 'post': 'create'}), name='employee-profile'),
+    path('employee/avatar/', AvatarProfileView.as_view({'get': 'list', 'post': 'create'}), name='avatar-profile'),
+    path('employee/wellness/', WellnessHubView.as_view({'get': 'list', 'post': 'create'}), name='wellness-hub'),
+    path('employee/mood-checkin/', MoodCheckInView.as_view({'get': 'list', 'post': 'create'}), name='mood-checkin'),
+    path('employee/assessments/', AssessmentResultView.as_view({'get': 'list', 'post': 'create'}), name='assessment-results'),
+    path('resources/self-help/', SelfHelpResourceView.as_view({'get': 'list', 'post': 'create'}), name='self-help-resources'),
+    path('resources/educational/', EducationalResourceView.as_view({'get': 'list', 'post': 'create'}), name='educational-resources'),
+    path('employee/crisis/', CrisisTriggerView.as_view({'get': 'list', 'post': 'create'}), name='crisis-trigger'),
+    path('employee/notifications/', NotificationView.as_view({'get': 'list', 'post': 'create'}), name='notifications'),
+    path('employee/engagement/', EngagementTrackerView.as_view({'get': 'list', 'post': 'create'}), name='engagement-tracker'),
+    path('employee/feedback/', FeedbackView.as_view({'get': 'list', 'post': 'create'}), name='feedback'),
+    path('sana/sessions/', ChatSessionView.as_view({'get': 'list', 'post': 'create'}), name='chat-sessions'),
+    path('sana/sessions/<int:session_id>/messages/', ChatMessageView.as_view({'get': 'list', 'post': 'create'}), name='chat-messages'),
+    path('employee/recommendations/', RecommendationLogView.as_view({'get': 'list', 'post': 'create'}), name='recommendation-log'),
+    
+    # Invitation acceptance (public) - Updated to use InvitationAcceptanceView
     path('auth/verify-invite/', InvitationVerifyView.as_view(), name='verify-invite'),
-    path('auth/accept-invite/', InvitationAcceptView.as_view({'post': 'create'}), name='accept-invite'),
+    path('auth/accept-invite/', InvitationAcceptanceView.as_view(), name='accept-invite'),
 
     # Include router URLs
     path("", include(router.urls)),
