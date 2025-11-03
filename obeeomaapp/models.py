@@ -302,12 +302,18 @@ class EmployeeProfile(models.Model):
     receive_notifications = models.BooleanField(default=True)
     current_wellness_status = models.CharField(max_length=50, blank=True)
 
+    def __str__(self):
+        return f"{self.user.username} - {self.organization}"
+
 
 class AvatarProfile(models.Model):
     employee = models.OneToOneField('EmployeeProfile', on_delete=models.CASCADE)
     style = models.CharField(max_length=50)
     color_theme = models.CharField(max_length=30)
     accessory = models.CharField(max_length=50, blank=True)
+
+    def __str__(self):
+        return f"Avatar for {self.employee.user.username}"
 
 
 class WellnessHub(models.Model):
@@ -334,12 +340,18 @@ class AssessmentResult(models.Model):
     score = models.IntegerField()
     submitted_on = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return f"Assessment - {self.employee.user.username} - {self.type}"
+
 
 class EducationalResource(models.Model):
     title = models.CharField(max_length=100)
     type = models.CharField(max_length=20)  # article, podcast, video
     url = models.URLField()
     description = models.TextField()
+
+    def __str__(self):
+        return self.title
 
 
 class CrisisTrigger(models.Model):
@@ -348,6 +360,9 @@ class CrisisTrigger(models.Model):
     triggered_on = models.DateTimeField(auto_now_add=True)
     escalated = models.BooleanField(default=False)
 
+    def __str__(self):
+        return f"Crisis Trigger - {self.employee.user.username}"
+
 
 class Notification(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE)
@@ -355,11 +370,17 @@ class Notification(models.Model):
     sent_on = models.DateTimeField(auto_now_add=True)
     read = models.BooleanField(default=False)
 
+    def __str__(self):
+        return f"Notification - {self.employee.user.username}"
+
 
 class EngagementTracker(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE)
     streak_days = models.IntegerField(default=0)
     badges = models.CharField(max_length=255, blank=True)
+
+    def __str__(self):
+        return f"Engagement - {self.employee.user.username}"
 
 
 class Feedback(models.Model):
@@ -367,6 +388,10 @@ class Feedback(models.Model):
     rating = models.IntegerField()
     comment = models.TextField()
     submitted_on = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Feedback - {self.employee.user.username}"
+
 
 class Progress(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -382,6 +407,9 @@ class ChatSession(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
 
+    def __str__(self):
+        return f"Chat Session - {self.employee.user.username}"
+
 
 class ChatMessage(models.Model):
     ROLE_CHOICES = [
@@ -394,12 +422,18 @@ class ChatMessage(models.Model):
     message = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return f"Message - {self.session.employee.user.username}"
+
 
 class RecommendationLog(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE)
     resource = models.ForeignKey(SelfHelpResource, on_delete=models.SET_NULL, null=True, blank=True)
     recommended_on = models.DateTimeField(auto_now_add=True)
     clicked = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Recommendation - {self.employee.user.username}"
 
 
 
@@ -491,7 +525,7 @@ class Assessment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.employee.user.username} - {self.assessment_type} ({self.score})"
+        return f"{self.employee.name} - {self.assessment_type} ({self.score})"
 
     class Meta:
         ordering = ["-created_at"]
@@ -889,21 +923,6 @@ class RewardProgram(models.Model):
         ordering = ['points_required']
 
 
-"""class FeatureFlag(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-    description = models.TextField()
-    is_enabled = models.BooleanField(default=False)
-    category = models.CharField(max_length=50, default='general')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def _str_(self):
-        return f"{self.name} - {'Enabled' if self.is_enabled else 'Disabled'}"
-
-    class Meta:
-        ordering = ['category', 'name']"""
-
-
 class SystemSettings(models.Model):
     """System-wide settings for admin"""
     setting_name = models.CharField(max_length=100, unique=True)
@@ -955,23 +974,21 @@ class Report(models.Model):
         ordering = ['-generated_date']
 
 
-# models.py
-
-
+# Resource Models
 class ResourceCategory(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     icon = models.CharField(max_length=50, blank=True)
+    color_code = models.CharField(max_length=7, default='#000000')  # Hex color
+    created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
         return self.name
     
     class Meta:
-        # Add any Meta options here, for example:
         verbose_name = "Resource Category"
         verbose_name_plural = "Resource Categories"
-        # ordering = ['name']  # Optional: uncomment if you want default ordering
-        verbose_name_plural = "Resource Categories"
+
 
 class EducationalVideo(models.Model):
     title = models.CharField(max_length=200)
@@ -1024,13 +1041,12 @@ class EducationalVideo(models.Model):
     def __str__(self):
         return self.title
 
+
 class UserVideoInteraction(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     video = models.ForeignKey(EducationalVideo, on_delete=models.CASCADE)
     progress = models.FloatField(default=0.0)
     completed = models.BooleanField(default=False)
-
-    
     mood_before = models.CharField(max_length=50, blank=True, null=True)
     mood_after = models.CharField(max_length=50, blank=True, null=True)
     watched_full_video = models.BooleanField(default=False)

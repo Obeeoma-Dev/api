@@ -21,13 +21,14 @@ from obeeomaapp.views import (
     EmailConfigCheckView, SignupView, LoginView, LogoutView, 
     PasswordResetView, PasswordResetConfirmView, PasswordChangeView,
     OverviewView, TrendsView, EmployeeEngagementView, BillingView,
-    InviteView, UsersView, ReportsView, CrisisInsightsView,
+    UsersView, ReportsView, CrisisInsightsView,
     EmployeeProfileView, AvatarProfileView, WellnessHubView,
     MoodCheckInView, AssessmentResultView, SelfHelpResourceView,
     EducationalResourceView, CrisisTriggerView, NotificationView, 
     EngagementTrackerView, FeedbackView, ChatSessionView, 
     ChatMessageView, RecommendationLogView, InvitationAcceptView, 
-    InvitationVerifyView, EmployerRegistrationView, home, CustomTokenObtainPairView
+    InvitationVerifyView, EmployerRegistrationView, home, CustomTokenObtainPairView,
+    InvitationAcceptanceView, InviteView  # Added missing views
 )
 
 app_name = "obeeomaapp"
@@ -53,17 +54,6 @@ router.register(r'progress', ProgressViewSet)
 router.register(r'resource-categories', ResourceCategoryViewSet, basename='resource-category')
 router.register(r'videos', EducationalVideoViewSet, basename='videos')
 router.register(r'video-interactions', UserVideoInteractionViewSet, basename='video-interactions')
-"""# router.register(r'anxiety-mastery', AnxietyDistressMasteryViewSet, basename='anxiety-mastery')
-# router.register(r'depression-activities', DepressionOvercomeViewSet, basename='depression-activities')
-# router.register(r'classical-articles', ClassicalArticleViewSet, basename='classical-articles')
-# router.register(r'user-content', CustomerGeneratedContentViewSet, basename='user-content')
-router.register(r'categories', ResourceCategoryViewSet, basename='categories')"""
-"""router.register(r'calming-audios', CalmingAudioViewSet, basename='calming-audio')
-router.register(r'mental-health-articles', MentalHealthArticleViewSet, basename='mental-health-article')
-router.register(r'guided-meditations', GuidedMeditationViewSet, basename='guided-meditation')
-router.register(r'my-learning-progress', UserLearningProgressViewSet, basename='learning-progress')
-router.register(r'saved-resources', SavedResourceViewSet, basename='saved-resource')
-router.register(r'categories', ResourceCategoryViewSet, basename='categories')"""
 
 # Dashboard routers (Employer Dashboard)
 router.register(r'dashboard/organization-overview', OrganizationOverviewView, basename='organization-overview')
@@ -84,6 +74,9 @@ router.register(r'admin/client-engagement', ClientEngagementView, basename='clie
 router.register(r'admin/reports-analytics', ReportsAnalyticsView, basename='reports-analytics')
 router.register(r'admin/system-settings', SystemSettingsView, basename='system-settings')
 router.register(r'admin/feature-flags', FeaturesUsageView, basename='feature-flags')
+
+# Employee Invitations
+router.register(r'invitations', InviteView, basename='invitations')
 
 urlpatterns = [
     # Home
@@ -109,7 +102,6 @@ urlpatterns = [
     path("dashboard/employee-engagement/", EmployeeEngagementView.as_view({'get': 'list', 'post': 'create'}), name="employee-engagement"),
     path("dashboard/features-usage/", FeaturesUsageView.as_view({'get': 'list'}), name="features-usage"),
     path("dashboard/billing/", BillingView.as_view({'get': 'list', 'post': 'create'}), name="billing"),
-    path("dashboard/invites/", InviteView.as_view({'get': 'list', 'post': 'create'}), name="employee-invitations"),
     path("dashboard/users/", UsersView.as_view({'get': 'list', 'post': 'create'}), name="users"),
     path("dashboard/reports/", ReportsView.as_view({'get': 'list'}), name="reports"),
     path("dashboard/crisis-insights/", CrisisInsightsView.as_view({'get': 'list'}), name="crisis-insights"),
@@ -122,6 +114,7 @@ urlpatterns = [
     # System Admin Endpoints
     path("admin/organizations/growth-chart/", OrganizationsManagementView.as_view({'get': 'growth_chart'}), name="organizations-growth-chart"),
     path("admin/organizations/client-distribution/", OrganizationsManagementView.as_view({'get': 'client_distribution'}), name="organizations-client-distribution"),
+    path("admin/organizations/search-by-name/", OrganizationsManagementView.as_view({'get': 'search_by_name'}), name="organizations-search-by-name"),
     path("admin/feature-flags/by-category/", FeaturesUsageView.as_view({'get': 'by_category'}), name="feature-flags-by-category"),
 
     # Employee endpoints
@@ -140,9 +133,9 @@ urlpatterns = [
     path('sana/sessions/<int:session_id>/messages/', ChatMessageView.as_view({'get': 'list', 'post': 'create'}), name='chat-messages'),
     path('employee/recommendations/', RecommendationLogView.as_view({'get': 'list', 'post': 'create'}), name='recommendation-log'),
     
-    # Invitation acceptance (public)
+    # Invitation acceptance (public) - Updated to use InvitationAcceptanceView
     path('auth/verify-invite/', InvitationVerifyView.as_view(), name='verify-invite'),
-    path('auth/accept-invite/', InvitationAcceptView.as_view({'post': 'create'}), name='accept-invite'),
+    path('auth/accept-invite/', InvitationAcceptanceView.as_view(), name='accept-invite'),
 
     # Include router URLs
     path("", include(router.urls)),
