@@ -117,12 +117,10 @@ class LogoutSerializer(serializers.Serializer):
 
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    code = serializers.CharField(required=False)
-    new_password = serializers.CharField(required=False, validators=[validate_password])
-    token = serializers.CharField(required=False)
 
     def create(self, validated_data):
         return validated_data
+
 
 class PasswordChangeSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
