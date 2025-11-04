@@ -28,6 +28,8 @@ from datetime import timedelta
 import secrets
 from rest_framework import filters
 import string
+from .models import Organization
+from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string
 import logging
 from django_filters.rest_framework import DjangoFilterBackend
@@ -35,8 +37,6 @@ from .serializers import (
     EmployeeProfileSerializer
 )
 
-
-# Remove the circular import that tries to import from the same file
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -51,11 +51,17 @@ class IsCompanyAdmin(BasePermission):
         return bool(request.user and request.user.is_authenticated and request.user.is_staff)
 
 
-# --- Authentication Views ---
+# Authentication Views ---Signup
 @extend_schema(tags=['Authentication'])
 class SignupView(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = SignupSerializer
+    permission_classes = [permissions.AllowAny]
+
+# VIEWS FOR CREATING AN ORGANIZATION
+class OrganizationSignupView(viewsets.ModelViewSet):
+    queryset = Organization.objects.all()
+    serializer_class = OrganizationCreateSerializer
     permission_classes = [permissions.AllowAny]
 
 
@@ -96,86 +102,86 @@ class SignupView(viewsets.ModelViewSet):
     After successful registration, you'll receive JWT tokens for immediate login.
     """
 )
-class EmployerRegistrationView(APIView):
-    """
-    Single-step employer registration: creates user account and organization together.
-    """
-    permission_classes = [permissions.AllowAny]  # Public endpoint
+# class EmployerRegistrationView(APIView):
+#     """
+#     Single-step employer registration: creates user account and organization together.
+#     """
+#     permission_classes = [permissions.AllowAny]  # Public endpoint
     
-    def post(self, request):
-        """Register employer with organization in one step."""
-        serializer = EmployerRegistrationSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+#     def post(self, request):
+#         """Register employer with organization in one step."""
+#         serializer = EmployerRegistrationSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
         
-        # Extract validated data
-        organization_name = serializer.validated_data['organization_name']
-        email = serializer.validated_data['email']
-        password = serializer.validated_data['password']
-        employer_name = serializer.validated_data['employer_name']
-        phone_number = serializer.validated_data.get('phone_number', '')
+#         # Extract validated data
+#         organization_name = serializer.validated_data['organization_name']
+#         email = serializer.validated_data['email']
+#         password = serializer.validated_data['password']
+#         employer_name = serializer.validated_data['employer_name']
+#         phone_number = serializer.validated_data.get('phone_number', '')
         
-        # Create user account (email as username)
-        user = User.objects.create_user(
-            username=email,  # Use email as username
-            email=email,
-            password=password,
-            role='employer',
-            first_name=employer_name.split()[0] if ' ' in employer_name else employer_name,
-            last_name=' '.join(employer_name.split()[1:]) if ' ' in employer_name else ''
-        )
+#         # Create user account (email as username)
+#         user = User.objects.create_user(
+#             username=email,  # Use email as username
+#             email=email,
+#             password=password,
+#             role='employer',
+#             first_name=employer_name.split()[0] if ' ' in employer_name else employer_name,
+#             last_name=' '.join(employer_name.split()[1:]) if ' ' in employer_name else ''
+#         )
         
-        # Create the organization
-        employer = Employer.objects.create(
-            name=organization_name,
-            is_active=True
-        )
+#         # Create the organization
+#         employer = Employer.objects.create(
+#             name=organization_name,
+#             is_active=True
+#         )
         
-        # Link the user to this organization as an employee
-        employee = Employee.objects.create(
-            employer=employer,
-            user=user,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            email=email,
-            status='active'
-        )
+#         # Link the user to this organization as an employee
+#         employee = Employee.objects.create(
+#             employer=employer,
+#             user=user,
+#             first_name=user.first_name,
+#             last_name=user.last_name,
+#             email=email,
+#             status='active'
+#         )
         
-        # Create a recent activity log
-        RecentActivity.objects.create(
-            employer=employer,
-            activity_type="New Employer",
-            details=f"Organization '{organization_name}' was created by {employer_name}",
-            is_important=True
-        )
+#         # Create a recent activity log
+#         RecentActivity.objects.create(
+#             employer=employer,
+#             activity_type="New Employer",
+#             details=f"Organization '{organization_name}' was created by {employer_name}",
+#             is_important=True
+#         )
         
-        # Generate JWT tokens for immediate login
-        refresh = RefreshToken.for_user(user)
+#         # Generate JWT tokens for immediate login
+#         refresh = RefreshToken.for_user(user)
         
-        return Response(
-            {
-                "message": "Account and organization created successfully",
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),
-                "user": {
-                    "id": user.id,
-                    "email": user.email,
-                    "username": user.username,
-                    "role": user.role,
-                    "name": employer_name
-                },
-                "organization": {
-                    "id": employer.id,
-                    "name": employer.name,
-                    "is_active": employer.is_active,
-                    "joined_date": employer.joined_date
-                },
-                "employee_profile": {
-                    "id": employee.id,
-                    "status": employee.status
-                }
-            },
-            status=status.HTTP_201_CREATED
-        )
+#         return Response(
+#             {
+#                 "message": "Account and organization created successfully",
+#                 "access": str(refresh.access_token),
+#                 "refresh": str(refresh),
+#                 "user": {
+#                     "id": user.id,
+#                     "email": user.email,
+#                     "username": user.username,
+#                     "role": user.role,
+#                     "name": employer_name
+#                 },
+#                 "organization": {
+#                     "id": employer.id,
+#                     "name": employer.name,
+#                     "is_active": employer.is_active,
+#                     "joined_date": employer.joined_date
+#                 },
+#                 "employee_profile": {
+#                     "id": employee.id,
+#                     "status": employee.status
+#                 }
+#             },
+#             status=status.HTTP_201_CREATED
+#         )
 
 
 # login view
