@@ -6,15 +6,24 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from drf_spectacular.utils import extend_schema_field
 from django.utils import timezone
 from rest_framework import serializers
+from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import make_password
+from .models import Organization, ContactPerson
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
-
-
+from .models import OnboardingState
 User = get_user_model()
 
 # signup serializer
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.hashers import check_password
+
+User = get_user_model()
+
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
@@ -25,8 +34,23 @@ class SignupSerializer(serializers.ModelSerializer):
         fields = ('username', 'email', 'password', 'confirm_password', 'role')
 
     def validate(self, attrs):
-        if attrs['password'] != attrs['confirm_password']:
+        username = attrs.get('username')
+        email = attrs.get('email')
+        password = attrs.get('password')
+        confirm_password = attrs.get('confirm_password')
+
+        if password != confirm_password:
             raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
+
+        if User.objects.filter(username__iexact=username).exists():
+            raise serializers.ValidationError({"username": "This username is already taken."})
+        if User.objects.filter(email__iexact=email).exists():
+            raise serializers.ValidationError({"email": "This email is already registered."})
+
+        for user in User.objects.all():
+            if check_password(password, user.password):
+                raise serializers.ValidationError({"password": "This password is already in use. Please choose a different one."})
+
         return attrs
 
     def create(self, validated_data):
@@ -42,6 +66,58 @@ class SignupSerializer(serializers.ModelSerializer):
         user.save()
 
         return user
+
+    
+    # SERIALIZER FOR CREATING AN ORGANIZATION
+class ContactPersonSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContactPerson
+        fields = ['fullname', 'role', 'email']
+
+
+class OrganizationCreateSerializer(serializers.ModelSerializer):
+    contactPerson = ContactPersonSerializer()
+    confirmPassword = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = Organization
+        fields = [
+            'organizationName',
+            'organisationSize',
+            'phoneNumber',
+            'companyEmail',
+            'Location',
+            'password',
+            'confirmPassword',
+            'contactPerson',
+        ]
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def validate(self, data):
+        if data['password'] != data['confirmPassword']:
+            raise serializers.ValidationError({"confirmPassword": "Passwords do not match."})
+        validate_password(data['password'])
+        return data
+
+    def create(self, validated_data):
+        contact_data = validated_data.pop('contactPerson')
+        validated_data.pop('confirmPassword')
+        user = User.objects.create(
+            username=validated_data['companyEmail'],
+            email=validated_data['companyEmail'],
+            role='employer'
+        )
+        user.set_password(validated_data['password'])
+        user.save()
+
+        contact_person = ContactPerson.objects.create(**contact_data)
+        validated_data['password'] = make_password(validated_data['password'])
+        validated_data['owner'] = user
+        validated_data['contactPerson'] = contact_person
+
+        organization = Organization.objects.create(**validated_data)
+        return organization 
+      
 
 # Login Serializer
 class LoginSerializer(serializers.Serializer):
@@ -117,12 +193,10 @@ class LogoutSerializer(serializers.Serializer):
 
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    code = serializers.CharField(required=False)
-    new_password = serializers.CharField(required=False, validators=[validate_password])
-    token = serializers.CharField(required=False)
 
     def create(self, validated_data):
         return validated_data
+
 
 class PasswordChangeSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
@@ -236,12 +310,11 @@ class SelfAssessmentSerializer(serializers.ModelSerializer):
         model = SelfAssessment
         fields = ['id', 'user', 'assessment_type', 'score', 'submitted_at']
 
-
-class MoodCheckInSerializer(serializers.ModelSerializer):
+class MoodTrackingSerializer(serializers.ModelSerializer):
     class Meta:
-        model = MoodCheckIn
-        fields = ['id', 'user', 'mood', 'note', 'checked_in_at']
-
+        model = MoodTracking
+        fields = ['id', 'mood', 'note', 'checked_in_at']
+        read_only_fields = ['id', 'checked_in_at']
 
 class SelfHelpResourceSerializer(serializers.ModelSerializer):
     class Meta:
@@ -398,11 +471,20 @@ class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
         )
 
 # --- Employee Profile ---
+
+
 class EmployeeProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmployeeProfile
-        fields = '__all__'
-        read_only_fields = ['user', 'joined_on']
+        exclude = ['user', 'joined_on']  # Exclude these from input
+
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+   
+
 
 # --- Avatar ---
 class AvatarProfileSerializer(serializers.ModelSerializer):
@@ -885,115 +967,205 @@ class ReportsAnalyticsSerializer(serializers.Serializer):
     formats = serializers.ListField()
 
 
-class ResourceCategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ResourceCategory
-        fields = ['id', 'name', 'description', 'icon']
+from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
+from .models import (
+    Video, Audio, Article, MeditationTechnique, SavedResource,
+    EducationalResource, UserActivity, OnboardingState
+)
 
-class EducationalVideoSerializer(serializers.ModelSerializer):
-    resource_category_name = serializers.CharField(source='resource_category.name', read_only=True)
-    is_saved = serializers.SerializerMethodField()
-    is_helpful_marked = serializers.SerializerMethodField()
-    youtube_embed_url = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = EducationalVideo
-        fields = [
-            'id', 'title', 'description', 'youtube_url', 'youtube_embed_url',
-            'thumbnail', 'resource_category', 'resource_category_name',
-            'duration', 'views_count', 'helpful_count', 'saved_count',
-            'target_mood', 'intensity_level', 'crisis_support_text',
-            'is_professionally_reviewed', 'reviewed_by', 'review_date',
-            'is_active', 'created_at', 'updated_at',
-            'is_saved', 'is_helpful_marked'
-        ]
-        read_only_fields = [
-            'views_count', 'helpful_count', 'saved_count', 'created_at', 'updated_at'
-        ]
-    
-    @extend_schema_field(bool)
-    def get_is_saved(self, obj) -> bool:
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return UserVideoInteraction.objects.filter(
-                user=request.user,
-                video=obj,
-                saved_for_later=True
-            ).exists()
-        return False
-    
-    @extend_schema_field(bool)
-    def get_is_helpful_marked(self, obj) -> bool:
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return UserVideoInteraction.objects.filter(
-                user=request.user,
-                video=obj,
-                marked_helpful=True
-            ).exists()
-        return False
-    
-    @extend_schema_field(str)
-    def get_youtube_embed_url(self, obj) -> str:
-        """Convert YouTube URL to embed URL"""
-        if 'youtube.com' in obj.youtube_url:
-            video_id = obj.youtube_url.split('v=')[1]
-            return f'https://www.youtube.com/embed/{video_id}'
-        elif 'youtu.be' in obj.youtube_url:
-            video_id = obj.youtube_url.split('/')[-1]
-            return f'https://www.youtube.com/embed/{video_id}'
-        return obj.youtube_url
-    
-    def validate_youtube_url(self, value: str) -> str:
-        """Validate that the URL is a valid YouTube URL"""
-        if 'youtube.com' not in value and 'youtu.be' not in value:
-            raise serializers.ValidationError("Please provide a valid YouTube URL")
-        return value
-    
-    def validate(self, data: dict) -> dict:
-        """Additional validation for mental health content"""
-        if data.get('crisis_support_text') and data.get('intensity_level', 1) != 1:
-            raise serializers.ValidationError(
-                "Crisis support videos should have gentle intensity level (1)"
-            )
-        return data
-
-class UserVideoInteractionSerializer(serializers.ModelSerializer):
-    video_title = serializers.CharField(source='video.title', read_only=True)
-    video_target_mood = serializers.CharField(source='video.target_mood', read_only=True)
-    video_thumbnail = serializers.URLField(source='video.thumbnail', read_only=True)
-    video_duration = serializers.CharField(source='video.duration', read_only=True)
-    
-    class Meta:
-        model = UserVideoInteraction
-        fields = [
-            'id', 'video', 'video_title', 'video_target_mood', 'video_thumbnail', 'video_duration',
-            'mood_before', 'mood_after', 'watched_full_video', 'marked_helpful',
-            'saved_for_later', 'watched_at'
-        ]
-        read_only_fields = ['user', 'watched_at']
-    
-    def validate(self, data):
-        """Validate mood tracking"""
-        mood_before = data.get('mood_before')
-        mood_after = data.get('mood_after')
-        
-        if mood_before and mood_after:
-            if int(mood_after) < int(mood_before):
-                # This is okay - sometimes people feel worse, but we might want to flag for support
-                pass
-        
-        return data
-
+# Video Recommendation Serializer
 class VideoRecommendationSerializer(serializers.ModelSerializer):
     resource_category_name = serializers.CharField(source='resource_category.name', read_only=True)
     mood_display = serializers.CharField(source='get_target_mood_display', read_only=True)
     intensity_display = serializers.CharField(source='get_intensity_level_display', read_only=True)
-    
+
     class Meta:
-        model = EducationalVideo
+        model = Video
         fields = [
             'id', 'title', 'description', 'thumbnail', 'duration',
             'views_count', 'helpful_count', 'resource_category_name',
             'target_mood', 'mood_display', 'intensity_level', 'intensity_display',
         ]
+
+# Educational Resource Serializer
+class EducationalResourceSerializer(serializers.ModelSerializer):
+    video_count = serializers.SerializerMethodField()
+    audio_count = serializers.SerializerMethodField()
+    article_count = serializers.SerializerMethodField()
+    meditation_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EducationalResource
+        fields = '__all__'
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_video_count(self, obj) -> int:
+        return obj.videos.filter(is_active=True).count()
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_audio_count(self, obj) -> int:
+        return obj.audios.filter(is_active=True).count()
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_article_count(self, obj) -> int:
+        return obj.articles.filter(is_published=True).count()
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_meditation_count(self, obj) -> int:
+        return obj.meditations.filter(is_active=True).count()
+
+# Video Serializer
+class VideoSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    is_saved = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Video
+        fields = [
+            'id', 'title', 'description', 'youtube_url', 'thumbnail',
+            'is_professionally_reviewed', 'reviewed_by', 'review_date',
+            'category', 'category_name', 'duration', 'views', 'is_saved',
+            'target_mood', 'updated_at', 'created_at'
+        ]
+        read_only_fields = ['views']
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_is_saved(self, obj) -> bool:
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return SavedResource.objects.filter(user=request.user, video=obj).exists()
+        return False
+
+# Audio Serializer
+class AudioSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    is_saved = serializers.SerializerMethodField()
+    audio_url_full = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Audio
+        fields = [
+            'id', 'title', 'description', 'audio_file', 'audio_url',
+            'audio_url_full', 'category', 'category_name', 'duration',
+            'plays', 'is_saved', 'created_at'
+        ]
+        read_only_fields = ['plays']
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_is_saved(self, obj) -> bool:
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return SavedResource.objects.filter(user=request.user, audio=obj).exists()
+        return False
+
+    @extend_schema_field(serializers.URLField())
+    def get_audio_url_full(self, obj) -> str:
+        if obj.audio_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.audio_file.url)
+        return obj.audio_url
+
+# Article Serializer
+class ArticleSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    author_name = serializers.CharField(source='author.username', read_only=True, allow_null=True)
+    is_saved = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Article
+        fields = [
+            'id', 'title', 'slug', 'content', 'excerpt', 'author_name',
+            'category', 'category_name', 'featured_image', 'reading_time',
+            'views', 'is_saved', 'published_date'
+        ]
+        read_only_fields = ['slug', 'views']
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_is_saved(self, obj) -> bool:
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return SavedResource.objects.filter(user=request.user, article=obj).exists()
+        return False
+
+# Meditation Technique Serializer
+class MeditationTechniqueSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    difficulty_display = serializers.CharField(source='get_difficulty_display', read_only=True)
+    is_saved = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MeditationTechnique
+        fields = [
+            'id', 'title', 'description', 'instructions', 'duration',
+            'difficulty', 'difficulty_display', 'category', 'category_name',
+            'benefits', 'image', 'times_practiced', 'is_saved', 'created_at'
+        ]
+        read_only_fields = ['times_practiced']
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_is_saved(self, obj) -> bool:
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return SavedResource.objects.filter(user=request.user, meditation=obj).exists()
+        return False
+
+# Saved Resource Serializer
+class SavedResourceSerializer(serializers.ModelSerializer):
+    resource_type = serializers.SerializerMethodField()
+    resource_title = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SavedResource
+        fields = [
+            'id', 'video', 'audio', 'article', 'meditation',
+            'resource_type', 'resource_title', 'saved_at'
+        ]
+
+    @extend_schema_field(serializers.CharField())
+    def get_resource_type(self, obj) -> str:
+        if obj.video:
+            return 'video'
+        elif obj.audio:
+            return 'audio'
+        elif obj.article:
+            return 'article'
+        elif obj.meditation:
+            return 'meditation'
+        return 'unknown'
+
+    @extend_schema_field(serializers.CharField())
+    def get_resource_title(self, obj) -> str:
+        if obj.video:
+            return obj.video.title
+        elif obj.audio:
+            return obj.audio.title
+        elif obj.article:
+            return obj.article.title
+        elif obj.meditation:
+            return obj.meditation.title
+        return 'Unknown'
+
+# User Activity Serializer
+class UserActivitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserActivity
+        fields = [
+            'id', 'video', 'audio', 'article', 'meditation',
+            'completed', 'progress_percentage', 'notes', 'accessed_at'
+        ]
+
+# Onboarding State Serializer
+class OnboardingStateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OnboardingState
+        fields = ['goal', 'completed', 'first_action_done']
+
+from rest_framework import serializers
+from .models import DynamicQuestion
+
+class DynamicQuestionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DynamicQuestion
+        fields = ['id', 'text', 'category', 'is_active', 'created_at']
