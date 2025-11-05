@@ -25,14 +25,11 @@ from obeeomaapp.views import (
     EducationalResourceView, CrisisTriggerView, NotificationView, 
     EngagementTrackerView, FeedbackView, ChatSessionView, 
     ChatMessageView, RecommendationLogView, InvitationAcceptView, 
-    InvitationVerifyView,  home, CustomTokenObtainPairView,
-    InvitationAcceptanceView, InviteView,OrganizationSignupView
-    
-    InvitationVerifyView, EmployerRegistrationView, home, CustomTokenObtainPairView,
-    InvitationAcceptanceView, InviteView, VideoViewSet, AudioViewSet,
-    ArticleViewSet, MeditationTechniqueViewSet, SavedResourceViewSet, EducationalResourceViewSet,
-    UserActivityViewSet, OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet
-
+    InvitationVerifyView, home, OrganizationSignupView,
+    InvitationAcceptanceView, InviteView, 
+    VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
+    SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
+    OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet
 )
 
 
@@ -122,7 +119,7 @@ urlpatterns = [
     path("auth/logout/", LogoutView.as_view(), name="logout"),
     
     # Employer Registration
-    # path("auth/register-organization/", EmployerRegistrationView.as_view(), name="register-organization"),
+
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
     path("auth/reset-password/confirm/", PasswordResetConfirmView.as_view({'post': 'create'}), name="password-reset-confirm"),
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
