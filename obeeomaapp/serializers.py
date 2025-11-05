@@ -6,6 +6,9 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from drf_spectacular.utils import extend_schema_field
 from django.utils import timezone
 from rest_framework import serializers
+from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import make_password
+from .models import Organization, ContactPerson
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
@@ -41,6 +44,57 @@ class SignupSerializer(serializers.ModelSerializer):
         user.save()
 
         return user
+    
+    # SERIALIZERS FOR CREATING AN ORGANIZATION
+class ContactPersonSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContactPerson
+        fields = ['fullname', 'role', 'email']
+
+
+class OrganizationCreateSerializer(serializers.ModelSerializer):
+    contactPerson = ContactPersonSerializer()
+    confirmPassword = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = Organization
+        fields = [
+            'organizationName',
+            'organisationSize',
+            'phoneNumber',
+            'companyEmail',
+            'Location',
+            'password',
+            'confirmPassword',
+            'contactPerson',
+        ]
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def validate(self, data):
+        if data['password'] != data['confirmPassword']:
+            raise serializers.ValidationError({"confirmPassword": "Passwords do not match."})
+        validate_password(data['password'])
+        return data
+
+    def create(self, validated_data):
+        contact_data = validated_data.pop('contactPerson')
+        validated_data.pop('confirmPassword')
+        user = User.objects.create(
+            username=validated_data['companyEmail'],
+            email=validated_data['companyEmail'],
+            role='employer'
+        )
+        user.set_password(validated_data['password'])
+        user.save()
+
+        contact_person = ContactPerson.objects.create(**contact_data)
+        validated_data['password'] = make_password(validated_data['password'])
+        validated_data['owner'] = user
+        validated_data['contactPerson'] = contact_person
+
+        organization = Organization.objects.create(**validated_data)
+        return organization 
+      
 
 # Login Serializer
 class LoginSerializer(serializers.Serializer):
@@ -116,12 +170,10 @@ class LogoutSerializer(serializers.Serializer):
 
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    code = serializers.CharField(required=False)
-    new_password = serializers.CharField(required=False, validators=[validate_password])
-    token = serializers.CharField(required=False)
 
     def create(self, validated_data):
         return validated_data
+
 
 class PasswordChangeSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
