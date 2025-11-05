@@ -234,3 +234,8 @@ GMAIL_SCOPES = [
     "https://mail.google.com/",  # Full Gmail access (includes send)
 ]
 
+SPECTACULAR_SETTINGS = {
+    'ENUM_NAME_OVERRIDES': {
+        'NameEnum': 'ResourceTypeEnum'
+    }
+}
