@@ -4,7 +4,8 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.utils.text import slugify
-
+from django.conf import settings
+from django.utils import timezone
 User = settings.AUTH_USER_MODEL
 
 # --- User & Authentication ---
@@ -127,16 +128,34 @@ class SelfAssessment(models.Model):
         ordering = ['-submitted_at']
 
 
-class MoodCheckIn(models.Model):
+class MoodTracking(models.Model):
+    MOOD_STATES = [
+        ("depressed", "Depressed"),
+        ("stressed", "Stressed"),
+        ("anxious", "Anxious"),
+        ("burned_out", "Burned Out"),
+        ("grieving", "Grieving"),
+        ("overwhelmed", "Overwhelmed"),
+        ("lonely", "Lonely"),
+        ("angry", "Angry"),
+        ("neutral", "Neutral"),
+        ("hopeful", "Hopeful"),
+        ("other", "Other"),
+    ]
+
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mood_checkins")
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE, null=True, blank=True, related_name="mood_checkins_employee")
-    mood = models.CharField(max_length=50)
+    mood = models.CharField(max_length=50, choices=MOOD_STATES)
     note = models.TextField(blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
     checked_in_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-checked_in_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.mood} ({self.checked_in_at.date()})"
+
 
 
 class SelfHelpResource(models.Model):
@@ -729,7 +748,6 @@ class DepartmentContribution(models.Model):
 
 
 class OrganizationActivity(models.Model):
-    """Recent activities in the organization"""
     ACTIVITY_TYPES = [
         ('wellness_test_completed', 'Wellness Test Completed'),
         ('monthly_assessment', 'Monthly Assessment'),
@@ -737,17 +755,14 @@ class OrganizationActivity(models.Model):
         ('employee_joined', 'Employee Joined'),
         ('department_created', 'Department Created'),
     ]
-    
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="organization_activities")
     activity_type = models.CharField(max_length=50, choices=ACTIVITY_TYPES)
     description = models.TextField()
     department = models.ForeignKey('Department', on_delete=models.SET_NULL, null=True, blank=True)
     employee = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
     def __str__(self):
         return f"{self.activity_type} - {self.employer.name}"
-
     class Meta:
         ordering = ['-created_at']
 
@@ -755,7 +770,6 @@ class OrganizationActivity(models.Model):
 # System Admin Models
 
 class PlatformMetrics(models.Model):
-    """Platform-wide metrics for system admin dashboard"""
     total_organizations = models.PositiveIntegerField(default=0)
     total_clients = models.PositiveIntegerField(default=0)
     monthly_revenue = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
@@ -774,7 +788,6 @@ class PlatformMetrics(models.Model):
 
 
 class PlatformUsage(models.Model):
-    """Platform usage tracking for charts"""
     week_number = models.PositiveIntegerField()
     usage_count = models.PositiveIntegerField()
     recorded_date = models.DateField(auto_now_add=True)
@@ -784,10 +797,7 @@ class PlatformUsage(models.Model):
 
     class Meta:
         ordering = ['week_number']
-
-
 class SubscriptionRevenue(models.Model):
-    """Monthly subscription revenue tracking"""
     month = models.CharField(max_length=10)  # Jan, Feb, etc.
     revenue = models.DecimalField(max_digits=12, decimal_places=2)
     year = models.PositiveIntegerField()
@@ -798,10 +808,7 @@ class SubscriptionRevenue(models.Model):
 
     class Meta:
         ordering = ['year', 'month']
-
-
 class SystemActivity(models.Model):
-    """System-wide activities for admin dashboard"""
     ACTIVITY_TYPES = [
         ('new_organization', 'New Organization'),
         ('ai_recommendation', 'AI Recommendation'),
@@ -809,12 +816,10 @@ class SystemActivity(models.Model):
         ('patient_engagement', 'Patient Engagement'),
         ('subscription', 'Subscription'),
     ]
-    
     activity_type = models.CharField(max_length=50, choices=ACTIVITY_TYPES)
     details = models.TextField()
     organization = models.ForeignKey(Employer, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
     def __str__(self):
         return f"{self.activity_type} - {self.created_at}"
 
@@ -823,21 +828,18 @@ class SystemActivity(models.Model):
 
 
 class HotlineCall(models.Model):
-    """Hotline calls for system admin tracking"""
     URGENCY_LEVELS = [
         ('low', 'Low'),
         ('medium', 'Medium'),
         ('high', 'High'),
         ('critical', 'Critical'),
     ]
-    
     STATUS_CHOICES = [
         ('resolved', 'Resolved'),
         ('referred', 'Referred'),
         ('escalated', 'Escalated'),
         ('pending', 'Pending'),
     ]
-    
     REASON_CHOICES = [
         ('anxiety', 'Anxiety'),
         ('depression', 'Depression'),
@@ -845,7 +847,6 @@ class HotlineCall(models.Model):
         ('information', 'Information'),
         ('other', 'Other'),
     ]
-    
     call_id = models.CharField(max_length=20, unique=True)
     duration_minutes = models.PositiveIntegerField()
     reason = models.CharField(max_length=20, choices=REASON_CHOICES)
@@ -864,7 +865,6 @@ class HotlineCall(models.Model):
 
 
 class AIResource(models.Model):
-    """AI-managed resources for effectiveness tracking"""
     RESOURCE_TYPES = [
         ('article', 'Article'),
         ('video', 'Video'),
@@ -889,7 +889,6 @@ class AIResource(models.Model):
 
 
 class ClientEngagement(models.Model):
-    """Client engagement tracking for rewards system"""
     client_name = models.CharField(max_length=255)
     organization = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="client_engagements")
     sessions_completed = models.PositiveIntegerField(default=0)
@@ -911,7 +910,6 @@ class ClientEngagement(models.Model):
 
 
 class RewardProgram(models.Model):
-    """Reward programs for client engagement"""
     name = models.CharField(max_length=255)
     points_required = models.PositiveIntegerField()
     redemption_count = models.PositiveIntegerField(default=0)
@@ -926,7 +924,6 @@ class RewardProgram(models.Model):
 
 
 class SystemSettings(models.Model):
-    """System-wide settings for admin"""
     setting_name = models.CharField(max_length=100, unique=True)
     setting_value = models.TextField()
     setting_type = models.CharField(max_length=50, choices=[
@@ -946,7 +943,6 @@ class SystemSettings(models.Model):
 
 
 class Report(models.Model):
-    """Generated reports for system admin"""
     REPORT_TYPES = [
         ('platform_usage', 'Platform Usage'),
         ('organization_performance', 'Organization Performance'),
@@ -975,228 +971,8 @@ class Report(models.Model):
     class Meta:
         ordering = ['-generated_date']
 
-
-# Resource Models
-class ResourceCategory(models.Model):
-    name = models.CharField(max_length=100)
-    description = models.TextField(blank=True)
-    icon = models.CharField(max_length=50, blank=True)
-    color_code = models.CharField(max_length=7, default='#000000')  # Hex color
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    def __str__(self):
-        return self.name
-    
-    class Meta:
-        verbose_name = "Resource Category"
-        verbose_name_plural = "Resource Categories"
-
-
-class EducationalVideo(models.Model):
-    title = models.CharField(max_length=200)
-    description = models.TextField()
-    youtube_url = models.URLField()
-    thumbnail = models.URLField(blank=True, null=True)
-    resource_category = models.ForeignKey(ResourceCategory, on_delete=models.CASCADE, related_name='educational_videos')
-    duration = models.CharField(max_length=20, blank=True)
-    
-    MOOD_CHOICES = [
-        ('anxiety', 'Anxiety Relief'),
-        ('depression', 'Depression Support'),
-        ('stress', 'Stress Management'),
-        ('mindfulness', 'Mindfulness & Meditation'),
-        ('self_esteem', 'Self-Esteem Building'),
-        ('coping', 'Coping Skills'),
-        ('sleep', 'Sleep Improvement'),
-        ('anger', 'Anger Management'),
-        ('grief', 'Grief & Loss'),
-        ('general', 'General Wellness'),
-    ]
-    
-    INTENSITY_LEVEL = [
-        (1, 'Gentle - For difficult moments'),
-        (2, 'Moderate - Daily practice'),
-        (3, 'Deep - Intensive work'),
-    ]
-    
-    target_mood = models.CharField(max_length=50, choices=MOOD_CHOICES, default='general')
-    intensity_level = models.IntegerField(choices=INTENSITY_LEVEL, default=1)
-    crisis_support_text = models.TextField(blank=True)
-    
-    views_count = models.IntegerField(default=0)
-    helpful_count = models.IntegerField(default=0)
-    saved_count = models.IntegerField(default=0)
-    
-    is_professionally_reviewed = models.BooleanField(default=False)
-    reviewed_by = models.CharField(max_length=100, blank=True)
-    review_date = models.DateField(blank=True, null=True)
-    
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        verbose_name = "Educational Video"
-        verbose_name_plural = "Educational Videos"
-        ordering = ['-created_at']
-    
-    def __str__(self):
-        return self.title
-
-
-class UserVideoInteraction(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    video = models.ForeignKey(EducationalVideo, on_delete=models.CASCADE)
-    progress = models.FloatField(default=0.0)
-    completed = models.BooleanField(default=False)
-    mood_before = models.CharField(max_length=50, blank=True, null=True)
-    mood_after = models.CharField(max_length=50, blank=True, null=True)
-    watched_full_video = models.BooleanField(default=False)
-    marked_helpful = models.BooleanField(default=False)
-    saved_for_later = models.BooleanField(default=False)
-    watched_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['watched_at']
-
-    def __str__(self):
-        return f"{self.user.username} - {self.video.title}"
-
-
-class CalmingAudio(models.Model):
-    """Relaxing audio tracks for stress relief and meditation"""
-    title = models.CharField(max_length=200, help_text="Audio track name")
-    description = models.TextField(help_text="What this audio helps with")
-    audio_file = models.FileField(upload_to='calming_audios/', blank=True, null=True)
-    audio_url = models.URLField(blank=True, null=True, help_text="External audio URL (if not uploading file)")
-    resource_category = models.ForeignKey(ResourceCategory, on_delete=models.CASCADE, related_name='calming_audios')
-    duration = models.CharField(max_length=20, blank=True, help_text="e.g., 15:00")
-    play_count = models.IntegerField(default=0)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        verbose_name = "Calming Audio"
-        verbose_name_plural = "Calming Audios"
-        ordering = ['-created_at']
-    
-    def __str__(self):
-        return self.title
-
-
-class MentalHealthArticle(models.Model):
-    """Educational articles about mental health and wellness"""
-    title = models.CharField(max_length=200, help_text="Article headline")
-    slug = models.SlugField(unique=True, max_length=250)
-    content = models.TextField(help_text="Full article content")
-    excerpt = models.TextField(max_length=500, blank=True, help_text="Short summary for preview")
-    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='mental_health_articles')
-    resource_category = models.ForeignKey(ResourceCategory, on_delete=models.CASCADE, related_name='articles')
-    featured_image = models.ImageField(upload_to='article_images/', blank=True, null=True)
-    estimated_read_time = models.IntegerField(default=5, help_text="Reading time in minutes")
-    views_count = models.IntegerField(default=0)
-    is_published = models.BooleanField(default=True)
-    published_date = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        verbose_name = "Mental Health Article"
-        verbose_name_plural = "Mental Health Articles"
-        ordering = ['-published_date']
-    
-    def __str__(self):
-        return self.title
-
-
-class GuidedMeditation(models.Model):
-    """Meditation and mindfulness exercises"""
-    DIFFICULTY_LEVELS = [
-        ('beginner', '🌱 Beginner - New to meditation'),
-        ('intermediate', '🌿 Intermediate - Some experience'),
-        ('advanced', '🌳 Advanced - Regular practitioner'),
-    ]
-    
-    title = models.CharField(max_length=200, help_text="Meditation technique name")
-    description = models.TextField(help_text="What this meditation helps achieve")
-    step_by_step_guide = models.TextField(help_text="Detailed instructions for practice")
-    duration_minutes = models.IntegerField(help_text="Recommended duration in minutes")
-    difficulty_level = models.CharField(max_length=20, choices=DIFFICULTY_LEVELS, default='beginner')
-    resource_category = models.ForeignKey(ResourceCategory, on_delete=models.CASCADE, related_name='guided_meditations')
-    health_benefits = models.TextField(blank=True, help_text="Mental health benefits of this practice")
-    practice_image = models.ImageField(upload_to='meditation_images/', blank=True, null=True)
-    times_practiced = models.IntegerField(default=0)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        verbose_name = "Guided Meditation"
-        verbose_name_plural = "Guided Meditations"
-        ordering = ['difficulty_level', 'title']
-    
-    def __str__(self):
-        return f"{self.title} ({self.get_difficulty_level_display()})"
-
-
-class UserLearningProgress(models.Model):
-    """Track user's progress through mental health resources"""
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='learning_progress')
-    
-    # What resource they're tracking
-    educational_video = models.ForeignKey(EducationalVideo, on_delete=models.CASCADE, null=True, blank=True)
-    calming_audio = models.ForeignKey(CalmingAudio, on_delete=models.CASCADE, null=True, blank=True)
-    mental_health_article = models.ForeignKey(MentalHealthArticle, on_delete=models.CASCADE, null=True, blank=True)
-    guided_meditation = models.ForeignKey(GuidedMeditation, on_delete=models.CASCADE, null=True, blank=True)
-    
-    # Progress tracking
-    is_completed = models.BooleanField(default=False)
-    completion_percentage = models.IntegerField(default=0, help_text="0-100%")
-    personal_notes = models.TextField(blank=True, help_text="User's private notes about this resource")
-    started_at = models.DateTimeField(auto_now_add=True)
-    last_accessed = models.DateTimeField(auto_now=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-    
-    class Meta:
-        verbose_name = "User Learning Progress"
-        verbose_name_plural = "User Learning Progress"
-        ordering = ['-last_accessed']
-    
-    def __str__(self):
-        return f"{self.user.username}'s progress - {self.completion_percentage}% complete"
-
-
-class SavedResource(models.Model):
-    """Resources saved/favorited by users for quick access"""
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='saved_resources')
-    
-    # What they saved
-    educational_video = models.ForeignKey(EducationalVideo, on_delete=models.CASCADE, null=True, blank=True)
-    calming_audio = models.ForeignKey(CalmingAudio, on_delete=models.CASCADE, null=True, blank=True)
-    mental_health_article = models.ForeignKey(MentalHealthArticle, on_delete=models.CASCADE, null=True, blank=True)
-    guided_meditation = models.ForeignKey(GuidedMeditation, on_delete=models.CASCADE, null=True, blank=True)
-    
-    saved_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        verbose_name = "Saved Resource"
-        verbose_name_plural = "Saved Resources"
-        ordering = ['-saved_at']
-        unique_together = [
-            ['user', 'educational_video'],
-            ['user', 'calming_audio'],
-            ['user', 'mental_health_article'],
-            ['user', 'guided_meditation']
-        ]
-    
-    def __str__(self):
-        return f"{self.user.username}'s saved resource"
-
-
-
 # --Educational Resources Models--
 class EducationalResource(models.Model):
-    """Company resources and documents"""
     TYPE_CHOICES = [
         ('pdf', 'PDF'),
         ('audio', 'Audio'),
@@ -1204,20 +980,22 @@ class EducationalResource(models.Model):
         ('article', 'Article'),
         ('meditation technique', 'Meditation Technique'),
     ]
-    
+    icon = models.CharField(max_length=50, blank=True)
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True, null=True)
-    resource_type = models.CharField(max_length=20, choices=TYPE_CHOICES)
-    file = models.FileField(upload_to='resources/')
+    resource_type = models.CharField(max_length=20, choices=TYPE_CHOICES, null=True, blank=True)
+    file = models.FileField(upload_to='educational_files/', null=True, blank=True)
     thumbnail = models.ImageField(upload_to='thumbnails/', blank=True, null=True)
     file_size = models.CharField(max_length=20, blank=True, null=True)
     uploaded_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='uploaded_resources')
-    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)  # ✅ Remove default
     is_public = models.BooleanField(default=True)
     download_count = models.IntegerField(default=0)
     
     class Meta:
         db_table = 'resources'
+        verbose_name = " Educational Resource"
+        verbose_name_plural = " Educational Resources"
         ordering = ['-uploaded_at']
     
     def __str__(self):
@@ -1231,14 +1009,35 @@ class Video(models.Model):
     thumbnail = models.URLField(blank=True, null=True)
     category = models.ForeignKey(EducationalResource, on_delete=models.CASCADE, related_name='videos')
     duration = models.CharField(max_length=20, blank=True, help_text="e.g., 10:30")
+    MOOD_CHOICES = [
+        ('anxiety', 'Anxiety Relief'),
+        ('depression', 'Depression Support'),
+        ('stress', 'Stress Management'),
+        ('mindfulness', 'Mindfulness & Meditation'),
+        ('self_esteem', 'Self-Esteem Building'),
+        ('coping', 'Coping Skills'),
+        ('sleep', 'Sleep Improvement'),
+        ('anger', 'Anger Management'),
+        ('grief', 'Grief & Loss'),
+        ('general', 'General Wellness'),
+    ]
     views = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now=True)  # ✅ Remove default
+    target_mood = models.CharField(max_length=50, choices=MOOD_CHOICES, default='general')
+    is_professionally_reviewed = models.BooleanField(default=False)
+    reviewed_by = models.CharField(max_length=100, blank=True)
+    review_date = models.DateField(blank=True, null=True)
+    crisis_support_text = models.TextField(blank=True)
     
+    views_count = models.IntegerField(default=0)
+    helpful_count = models.IntegerField(default=0)
+    saved_count = models.IntegerField(default=0)
     class Meta:
         ordering = ['-created_at']
         verbose_name = " Video"
+        verbose_name_plural = " Videos"
     
     def __str__(self):
         return self.title
@@ -1254,11 +1053,13 @@ class Audio(models.Model):
     plays = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now=True)  
+
     
     class Meta:
         ordering = ['-created_at']
         verbose_name = " Audio"
+        verbose_name_plural = " Audios"
     
     def __str__(self):
         return self.title
@@ -1276,9 +1077,13 @@ class Article(models.Model):
     views = models.IntegerField(default=0)
     is_published = models.BooleanField(default=True)
     published_date = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)  
+
     
     class Meta:
+        
+        verbose_name_plural = " Articles"
         ordering = ['-published_date']
         verbose_name = " Article"
     
@@ -1299,7 +1104,7 @@ class MeditationTechnique(models.Model):
     ]
     
     title = models.CharField(max_length=200)
-    description = models.TextField()
+    description = models.TextField(help_text="what you want to achieve with this meditation")
     instructions = models.TextField(help_text="Step-by-step guide")
     duration = models.IntegerField(help_text="Duration in minutes")
     difficulty = models.CharField(max_length=20, choices=DIFFICULTY_CHOICES, default='beginner')
@@ -1309,10 +1114,11 @@ class MeditationTechnique(models.Model):
     times_practiced = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
+    updated_at = models.DateTimeField(auto_now=True)  # ✅ Remove default
+  
     class Meta:
         ordering = ['difficulty', 'title']
+        verbose_name_plural = "Guided Meditations"
         verbose_name = "Meditation Technique"
     
     def __str__(self):
@@ -1320,18 +1126,24 @@ class MeditationTechnique(models.Model):
 
 
 class SavedResource(models.Model):
-    """Track resources saved by users"""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='saved_resources')
     video = models.ForeignKey(Video, on_delete=models.CASCADE, null=True, blank=True)
     audio = models.ForeignKey(Audio, on_delete=models.CASCADE, null=True, blank=True)
     article = models.ForeignKey(Article, on_delete=models.CASCADE, null=True, blank=True)
     meditation = models.ForeignKey(MeditationTechnique, on_delete=models.CASCADE, null=True, blank=True)
-    saved_at = models.DateTimeField(auto_now_add=True)
-    
+    saved_at = models.DateTimeField(auto_now_add=True)  # ✅ Already correct
+
+
     class Meta:
         ordering = ['-saved_at']
         verbose_name = "Saved Resource"
-    
+        unique_together = [
+            ['user', 'video'],
+            ['user', 'audio'],
+            ['user', 'article'],
+            ['user', 'meditation'] 
+        ]
+
     def __str__(self):
         return f"{self.user.username}'s saved resource"
 
@@ -1343,10 +1155,11 @@ class UserActivity(models.Model):
     audio = models.ForeignKey(Audio, on_delete=models.CASCADE, null=True, blank=True)
     article = models.ForeignKey(Article, on_delete=models.CASCADE, null=True, blank=True)
     meditation = models.ForeignKey(MeditationTechnique, on_delete=models.CASCADE, null=True, blank=True)
-    completed = models.BooleanField(default=False)
+    completed = models.BooleanField(default=True)
     progress_percentage = models.IntegerField(default=0)
     notes = models.TextField(blank=True)
-    accessed_at = models.DateTimeField(auto_now_add=True)
+    accessed_at = models.DateTimeField(auto_now_add=True)  
+
     
     class Meta:
         ordering = ['-accessed_at']
@@ -1356,21 +1169,58 @@ class UserActivity(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.accessed_at.date()}"
     
-from django.db import models
-from django.contrib.auth.models import User
+
+class UserLearningProgress(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='learning_progress')
+    
+    # What resource they're tracking
+    video = models.ForeignKey(Video, on_delete=models.CASCADE, null=True, blank=True)
+    audio = models.ForeignKey(Audio, on_delete=models.CASCADE, null=True, blank=True)
+    article = models.ForeignKey(Article, on_delete=models.CASCADE, null=True, blank=True)
+    meditation_technique = models.ForeignKey(MeditationTechnique, on_delete=models.CASCADE, null=True, blank=True)
+    
+    # Progress tracking
+    is_completed = models.BooleanField(default=False)
+    completion_percentage = models.IntegerField(default=0, help_text="0-100%")
+    personal_notes = models.TextField(blank=True, help_text="User's private notes about this resource")
+    started_at = models.DateTimeField(auto_now_add=True)
+    last_accessed = models.DateTimeField(auto_now=True)  # ✅ Remove default
+    completed_at = models.DateTimeField(null=True, blank=True)  # ✅ Already correct
+
+    class Meta:
+        verbose_name = "User Learning Progress"
+        verbose_name_plural = "User Learning Progress"
+        ordering = ['-last_accessed']
+    
+    def __str__(self):
+        return f"{self.user.username}'s progress - {self.completion_percentage}% complete"
 
 class OnboardingState(models.Model):
     GOAL_CHOICES = [
         ('reduce_stress', 'Reduce Stress'),
         ('improve_focus', 'Improve Focus'),
         ('support_team', 'Support My Team'),
-        
-    ]
+        ('improve_focus', 'Improve Focus'),
+        ('improve_sleep', 'Improve Sleep Quality'),
+        ('manage_anxiety', 'Manage Anxiety'),
+        ('manage_depression', 'Manage Depression'),
+        ('self_awareness', 'Increase Self-Awareness'),
+        ('mental_fitness', 'Strengthen Mental Fitness'),
+        ('navigate_change', 'Navigate Life or Work Transitions'),
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    goal = models.CharField(max_length=50, choices=GOAL_CHOICES, blank=True)
-    completed = models.BooleanField(default=False)
-    first_action_done = models.BooleanField(default=False)
+        ]
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    goal = models.CharField(default='manage_depression', max_length=50, choices=GOAL_CHOICES)
+    completed = models.BooleanField(default=True)
+    first_action_done = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"{self.user.username} - Onboarding"
+        return f"{self.user.username} - Onboarding"    
+    
+
+class DynamicQuestion(models.Model):
+    text = models.TextField()
+    category = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)

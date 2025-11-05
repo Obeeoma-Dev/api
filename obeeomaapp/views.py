@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-#
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 from .models import OnboardingState
 from .serializers import OnboardingStateSerializer
 from rest_framework.permissions import (
@@ -20,6 +20,39 @@ from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly,
     AllowAny,
 )
+
+
+from drf_spectacular.utils import extend_schema_view, extend_schema
+from django.db.models import Avg
+
+from .models import Feedback
+from .serializers import FeedbackSerializer
+import logging
+
+logger = logging.getLogger(__name__)
+from django.db.models import Avg
+from rest_framework import viewsets, permissions, filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter
+from drf_spectacular.utils import extend_schema, extend_schema_view
+
+from .models import Feedback
+from .serializers import FeedbackSerializer
+import django_filters
+from .models import Feedback 
+from .models import DynamicQuestion
+from .serializers import DynamicQuestionSerializer
+import random
+from rest_framework import viewsets, permissions, filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import (
+    extend_schema, extend_schema_view, OpenApiParameter
+)
+
+from rest_framework.generics import RetrieveUpdateAPIView, UpdateAPIView
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -40,7 +73,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 # Remove the circular import that tries to import from the same file
 
 # Set up logging
-logger = logging.getLogger(__name__)
+logging.getLogger(__name__)
 
 # Get User model
 User = get_user_model()
@@ -951,7 +984,19 @@ class EmployeeEngagementView(viewsets.ModelViewSet):
     permission_classes = [IsCompanyAdmin]
 
 
-@extend_schema(tags=['Employer Dashboard'])
+from drf_spectacular.utils import extend_schema, extend_schema_view
+
+@extend_schema_view(
+    list=extend_schema(
+        operation_id="features_usage_list",
+        tags=["Employer Dashboard"]
+    ),
+    by_category=extend_schema(
+        operation_id="features_usage_by_category",
+        tags=["Employer Dashboard"],
+        description="Returns feature usage grouped by category."
+    )
+)
 class FeaturesUsageView(viewsets.ModelViewSet):
     queryset = AIManagement.objects.select_related("employer").order_by("-created_at")
     serializer_class = AIManagementSerializer
@@ -959,7 +1004,6 @@ class FeaturesUsageView(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def by_category(self, request):
-        # Replace this with your actual logic
         return Response({"message": "Feature flags grouped by category"})
 
 
@@ -1024,6 +1068,7 @@ class EmailConfigCheckView(APIView):
 
 
 # --- Employee App ---
+
 @extend_schema(tags=['Employee - Profile'])
 class EmployeeProfileView(viewsets.ModelViewSet):
     serializer_class = EmployeeProfileSerializer
@@ -1031,6 +1076,9 @@ class EmployeeProfileView(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return EmployeeProfile.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 
 @extend_schema(tags=['Employee - Profile'])
@@ -1050,30 +1098,20 @@ class WellnessHubView(viewsets.ModelViewSet):
     def get_queryset(self):
         return WellnessHub.objects.filter(employee__user=self.request.user)
 
-
-@extend_schema(tags=['Employee - Wellness'])
-class MoodCheckInView(viewsets.ModelViewSet):
-    serializer_class = MoodCheckInSerializer
+@extend_schema(tags=['Employee - Mood Tracking'])
+class MoodTrackingView(viewsets.ModelViewSet):
+    serializer_class = MoodTrackingSerializer
     permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['subscription_tier', 'is_premium_active']
-    search_fields = ['organization', 'role']
+    filterset_fields = ['mood']
+    search_fields = ['note']
 
     def get_queryset(self):
-        return EmployeeProfile.objects.filter(user=self.request.user)
-
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return EmployeeProfileCreateSerializer
-        elif self.action in ['update', 'partial_update']:
-            return EmployeeProfileUpdateSerializer
-        elif self.action == 'set_wellness_status':
-            return WellnessStatusSerializer
-        return EmployeeProfileSerializer
+        return MoodTracking.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
-        serializer.save(employee=employee)
+        serializer.save(user=self.request.user, employee=employee)
+
 
 
 @extend_schema(tags=['Employee - Assessments'])
@@ -1140,6 +1178,17 @@ class EngagementTrackerView(viewsets.ModelViewSet):
         return EngagementTracker.objects.filter(employee__user=self.request.user)
 
 
+class FeedbackFilterSet(FilterSet):
+    feedback_type = CharFilter(method='filter_feedback_type')
+
+    def filter_feedback_type(self, queryset, name, value):
+        return queryset.filter(feedback_type__icontains=value)
+
+    class Meta:
+        model = Feedback
+        fields = ['rating']  # Only include actual model fields here
+
+
 @extend_schema(tags=['Employee - Feedback'])
 class FeedbackView(viewsets.ModelViewSet):
     serializer_class = FeedbackSerializer
@@ -1160,6 +1209,8 @@ class FeedbackView(viewsets.ModelViewSet):
             'average_rating': round(avg['average'], 2) if avg['average'] else 0,
             'total_feedback': self.get_queryset().count()
         })
+
+
 
 
 @extend_schema(tags=['Employee - AI Chat'])
@@ -1577,19 +1628,6 @@ class ProgressViewSet(viewsets.ModelViewSet):
             "progress_entries": Progress.objects.count(),
         }
         return Response(data)
-
-
-@extend_schema(tags=['Resources'])
-class ResourceCategoryViewSet(viewsets.ModelViewSet):
-    """Mental health resource categories (Stress, Anxiety, Sleep, etc.)"""
-    queryset = ResourceCategory.objects.all()
-    serializer_class = ResourceCategorySerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['name', 'description']
-    ordering_fields = ['name', 'created_at']
-
-
 # New Dashboard Views
 @extend_schema(tags=['Employer Dashboard'])
 class OrganizationOverviewView(viewsets.ViewSet):
@@ -2381,13 +2419,14 @@ class SystemSettingsView(viewsets.ModelViewSet):
 
 
 # views for educational resources
+@extend_schema(tags=['Educational_Resources'])
 class EducationalResourceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = EducationalResource.objects.all()
     serializer_class = EducationalResourceSerializer
     permission_classes = [AllowAny]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'description']
-    ordering_fields = ['name']
+    ordering_fields = ['name', 'created_at']
 
 
 class VideoViewSet(viewsets.ReadOnlyModelViewSet):
@@ -2606,32 +2645,63 @@ class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 
+@extend_schema(
+    request=OnboardingStateSerializer,
+    responses=OnboardingStateSerializer,
+    methods=["GET", "PATCH"]
+)
+class OnboardingView(RetrieveUpdateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = OnboardingStateSerializer
 
-@api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated])
-def onboarding_view(request):
-    try:
-        state = OnboardingState.objects.get(user=request.user)
-    except OnboardingState.DoesNotExist:
-        state = OnboardingState.objects.create(user=request.user)
+    def get_object(self):
+        obj, _ = OnboardingState.objects.get_or_create(user=self.request.user)
+        return obj
 
-    if request.method == 'POST':
-        serializer = OnboardingStateSerializer(state, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+# POST to mark onboarding as complete
+@extend_schema(
+    request=None,
+    responses={200: {"message": "Onboarding completed."}, 404: {"error": "Onboarding state not found."}},
+    methods=["POST"]
+)
+class CompleteOnboardingView(UpdateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = OnboardingStateSerializer
 
-    serializer = OnboardingStateSerializer(state)
-    return Response(serializer.data)
+    def get_object(self):
+        try:
+            return OnboardingState.objects.get(user=self.request.user)
+        except OnboardingState.DoesNotExist:
+            return None
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def complete_onboarding(request):
-    try:
-        state = OnboardingState.objects.get(user=request.user)
+    def update(self, request, *args, **kwargs):
+        state = self.get_object()
+        if not state:
+            return Response({'error': 'Onboarding state not found.'}, status=404)
         state.completed = True
         state.save()
         return Response({'message': 'Onboarding completed.'})
-    except OnboardingState.DoesNotExist:
-        return Response({'error': 'Onboarding state not found.'}, status=404)
+
+
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['Dynamic Questions']),
+    retrieve=extend_schema(tags=['Dynamic Questions']),
+    random=extend_schema(
+        description="Returns a random set of active dynamic questions.",
+        responses=DynamicQuestionSerializer(many=True),
+        tags=['Dynamic Questions']
+    )
+)
+class DynamicQuestionViewSet(viewsets.ModelViewSet):
+    queryset = DynamicQuestion.objects.filter(is_active=True)
+    serializer_class = DynamicQuestionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=False, methods=['get'])
+    def random(self, request):
+        count = int(request.query_params.get('count', 5))
+        questions = list(self.queryset.order_by('?')[:count])
+        serializer = self.get_serializer(questions, many=True)
+        return Response(serializer.data)
