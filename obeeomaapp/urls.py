@@ -1,15 +1,14 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework import permissions
+
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 from .views import CustomTokenObtainPairView
 from obeeomaapp.views import (
-    MentalHealthAssessmentViewSet, ResourceCategoryViewSet,
-    EducationalVideoViewSet, UserVideoInteractionViewSet,
-    OrganizationOverviewView, EmployeeManagementView,
+    MentalHealthAssessmentViewSet, OrganizationOverviewView, EmployeeManagementView,
     DepartmentManagementView, SubscriptionManagementView,
     WellnessReportsView, OrganizationSettingsView, TestsByTypeView,
     TestsByDepartmentView, SystemAdminOverviewView, 
@@ -22,20 +21,22 @@ from obeeomaapp.views import (
     OverviewView, TrendsView, EmployeeEngagementView, BillingView,
     UsersView, ReportsView, CrisisInsightsView,
     EmployeeProfileView, AvatarProfileView, WellnessHubView,
-    MoodCheckInView, AssessmentResultView, SelfHelpResourceView,
+    MoodTrackingView, AssessmentResultView, SelfHelpResourceView,
     EducationalResourceView, CrisisTriggerView, NotificationView, 
     EngagementTrackerView, FeedbackView, ChatSessionView, 
     ChatMessageView, RecommendationLogView, InvitationAcceptView, 
-    InvitationVerifyView,  home, CustomTokenObtainPairView,
-    InvitationAcceptanceView, InviteView,OrganizationSignupView
-    
+    InvitationVerifyView, home, OrganizationSignupView,
+    InvitationAcceptanceView, InviteView, 
+    VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
+    SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
+    OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet
 )
 
 
 
 app_name = "obeeomaapp"
 
-# --- Swagger schema view ---
+# --- Swagger schema view ---       
 schema_view = get_schema_view(
     openapi.Info(
         title="Obeeoma API",
@@ -57,16 +58,14 @@ router.register(r'employers', EmployerViewSet, basename='employer')
 router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'progress', ProgressViewSet)
-router.register(r'resource-categories', ResourceCategoryViewSet, basename='resource-category')
-router.register(r'videos', EducationalVideoViewSet, basename='videos')
-router.register(r'video-interactions', UserVideoInteractionViewSet, basename='video-interactions')
+
 
 # Dashboard routers (Employer Dashboard)
 
 router.register(r'employee/profile', EmployeeProfileView, basename='employee-profile')
 router.register(r'employee/avatar', AvatarProfileView, basename='avatar-profile')
 router.register(r'employee/wellness', WellnessHubView, basename='wellness-hub')
-router.register(r'employee/mood-checkin', MoodCheckInView, basename='mood-checkin')
+router.register(r'employee/mood-tracking', MoodTrackingView, basename='mood-tracking')
 router.register(r'employee/assessments', AssessmentResultView, basename='assessment-results')
 router.register(r'resources/self-help', SelfHelpResourceView, basename='self-help-resources')
 router.register(r'resources/educational', EducationalResourceView, basename='educational-resources')
@@ -87,6 +86,13 @@ router.register(r'dashboard/settings', OrganizationSettingsView, basename='organ
 router.register(r'dashboard/tests-by-type', TestsByTypeView, basename='tests-by-type')
 router.register(r'dashboard/tests-by-department', TestsByDepartmentView, basename='tests-by-department')
 
+router.register(r'videos', VideoViewSet, basename='educational-video')
+router.register(r'audios', AudioViewSet, basename='calming-audio')
+router.register(r'articles', ArticleViewSet, basename='mental-health-article')
+router.register(r'meditations', MeditationTechniqueViewSet, basename='meditation-technique')
+router.register(r'saved', SavedResourceViewSet, basename='saved-resource')
+router.register(r'activity', UserActivityViewSet, basename='user-activity')
+
 # System Admin routers
 router.register(r'admin/overview', SystemAdminOverviewView, basename='system-admin-overview')
 router.register(r'admin/organizations', OrganizationsManagementView, basename='organizations-management')
@@ -96,7 +102,7 @@ router.register(r'admin/client-engagement', ClientEngagementView, basename='clie
 router.register(r'admin/reports-analytics', ReportsAnalyticsView, basename='reports-analytics')
 router.register(r'admin/system-settings', SystemSettingsView, basename='system-settings')
 router.register(r'admin/feature-flags', FeaturesUsageView, basename='feature-flags')
-
+router.register(r'dynamic-questions', DynamicQuestionViewSet, basename='dynamic-question')
 # Employee Invitations
 router.register(r'invitations', InviteView, basename='invitations')
 
@@ -113,7 +119,7 @@ urlpatterns = [
     path("auth/logout/", LogoutView.as_view(), name="logout"),
     
     # Employer Registration
-    # path("auth/register-organization/", EmployerRegistrationView.as_view(), name="register-organization"),
+
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
     path("auth/reset-password/confirm/", PasswordResetConfirmView.as_view({'post': 'create'}), name="password-reset-confirm"),
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
@@ -143,9 +149,10 @@ urlpatterns = [
     path('employee/profile/', EmployeeProfileView.as_view({'get': 'list', 'post': 'create'}), name='employee-profile'),
     path('employee/avatar/', AvatarProfileView.as_view({'get': 'list', 'post': 'create'}), name='avatar-profile'),
     path('employee/wellness/', WellnessHubView.as_view({'get': 'list', 'post': 'create'}), name='wellness-hub'),
-    path('employee/mood-checkin/', MoodCheckInView.as_view({'get': 'list', 'post': 'create'}), name='mood-checkin'),
     path('employee/assessments/', AssessmentResultView.as_view({'get': 'list', 'post': 'create'}), name='assessment-results'),
     path('resources/self-help/', SelfHelpResourceView.as_view({'get': 'list', 'post': 'create'}), name='self-help-resources'),
+    path('assessment-result/<int:id>/', AssessmentResultView.as_view({'get': 'retrieve'}), name='assessment-result'),
+
     path('resources/educational/', EducationalResourceView.as_view({'get': 'list', 'post': 'create'}), name='educational-resources'),
     path('employee/crisis/', CrisisTriggerView.as_view({'get': 'list', 'post': 'create'}), name='crisis-trigger'),
     path('employee/notifications/', NotificationView.as_view({'get': 'list', 'post': 'create'}), name='notifications'),
@@ -155,6 +162,13 @@ urlpatterns = [
     path('sana/sessions/<int:session_id>/messages/', ChatMessageView.as_view({'get': 'list', 'post': 'create'}), name='chat-messages'),
     path('employee/recommendations/', RecommendationLogView.as_view({'get': 'list', 'post': 'create'}), name='recommendation-log'),
     
+
+
+    path('onboarding/', OnboardingView.as_view(), name='onboarding'),
+    path('onboarding/complete/', CompleteOnboardingView.as_view(), name='complete-onboarding'),
+
+
+
     # Invitation acceptance (public) - Updated to use InvitationAcceptanceView
     path('auth/verify-invite/', InvitationVerifyView.as_view(), name='verify-invite'),
     path('auth/accept-invite/', InvitationAcceptanceView.as_view(), name='accept-invite'),
