@@ -122,7 +122,7 @@ urlpatterns = [
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
     path("auth/reset-password/confirm/", PasswordResetConfirmView.as_view({'post': 'create'}), name="password-reset-confirm"),
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
-    path('verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
+    path('auth/verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
 
     # Dashboard
     path("dashboard/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),
