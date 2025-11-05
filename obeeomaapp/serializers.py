@@ -197,13 +197,39 @@ class PasswordResetSerializer(serializers.Serializer):
     def create(self, validated_data):
         return validated_data
 
-
+# Serializer for passwordchange or reset
 class PasswordChangeSerializer(serializers.Serializer):
-    old_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True, validators=[validate_password])
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        new_password = attrs.get('new_password')
+        confirm_password = attrs.get('confirm_password')
+
+        if new_password != confirm_password:
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        
+        return attrs
 
     def create(self, validated_data):
         return validated_data
+
+    
+# SERIAILZER FOR VERIFYING OTP
+class OTPVerificationSerializer(serializers.Serializer):
+    code = serializers.CharField(max_length=6)
+
+    def validate_code(self, value):
+        try:
+            otp_record = PasswordResetOTP.objects.get(code=value)
+        except PasswordResetOTP.DoesNotExist:
+            raise serializers.ValidationError("Invalid verification code.")
+
+        # This part helps the system to Check expiry of the OTP
+        if otp_record.is_expired():
+            raise serializers.ValidationError("This code has expired. Please request a new one.")
+        self.context['user'] = otp_record.user
+        return value
 
 
 class UserSerializer(serializers.ModelSerializer):
