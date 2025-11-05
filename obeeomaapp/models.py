@@ -23,7 +23,7 @@ class User(AbstractUser):
         return f"{self.username} ({self.role})"
 
 
-class Employer(models.Model):
+class  Employer(models.Model):
     name = models.CharField(max_length=255, unique=True)
     joined_date = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)

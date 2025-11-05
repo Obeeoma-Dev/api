@@ -12,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret-key")
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 PORT = os.getenv("PORT", "8000")
-ALLOWED_HOSTS = ['127.0.0.1', 'api-0904.onrender.com', 'localhost']
+ALLOWED_HOSTS = ['127.0.0.1', 'api-0904.onrender.com', 'http://64.225.122.101','localhost']
 
 # CSRF Trusted Origins
 CSRF_TRUSTED_ORIGINS = [
@@ -145,6 +145,12 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
 }
 
 SPECTACULAR_SETTINGS = {
