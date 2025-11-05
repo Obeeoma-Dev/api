@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 from django.utils.text import slugify
 from django.conf import settings
 from django.utils import timezone
+from datetime import timedelta
 User = settings.AUTH_USER_MODEL
 
 # --- User & Authentication ---
@@ -52,6 +53,16 @@ class Organization(models.Model):
 
     def __str__(self):
         return self.organizationName
+
+# MODELS FOR VERIFYING THE OTP
+class PasswordResetOTP(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_expired(self):
+        # OTP expires after 15 minutes
+        return timezone.now() > self.created_at + timedelta(minutes=15)
 
 
 

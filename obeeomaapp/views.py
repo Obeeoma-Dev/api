@@ -67,6 +67,7 @@ import secrets
 from rest_framework import filters
 import string
 from .models import Organization
+from .serializers import OTPVerificationSerializer
 from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string
 import logging
@@ -101,6 +102,19 @@ class OrganizationSignupView(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationCreateSerializer
     permission_classes = [permissions.AllowAny]
+
+# VIEWS FOR VERIFYING THE OTP
+class VerifyOTPView(APIView):
+    def post(self, request):
+        serializer = OTPVerificationSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.context['user']
+            user.passwordresetotp_set.all().delete()
+            return Response(
+                {"message": "OTP verified successfully. You can now reset your password."},
+                status=status.HTTP_200_OK
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # Employer Registration View
@@ -341,7 +355,7 @@ class PasswordResetConfirmView(viewsets.ViewSet):
         except PasswordResetToken.DoesNotExist:
             return Response({"error": "Invalid verification code"}, status=status.HTTP_400_BAD_REQUEST)
 
-
+# View for changing or updating password
 @extend_schema(tags=['Authentication'])
 class PasswordChangeView(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
@@ -352,12 +366,16 @@ class PasswordChangeView(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
 
         user = request.user
-        if not user.check_password(serializer.validated_data['old_password']):
-            return Response({"error": "Old password is incorrect"}, status=status.HTTP_400_BAD_REQUEST)
+        new_password = serializer.validated_data['new_password']
 
-        user.set_password(serializer.validated_data['new_password'])
+        # This logic helps in Setting a new password
+        user.set_password(new_password)
         user.save()
-        return Response({"message": "Password updated successfully"})
+
+        return Response(
+            {"message": "Password updated successfully"},
+            status=status.HTTP_200_OK
+        )
 
 
 # --- Missing Serializers for Invitation Flow ---
