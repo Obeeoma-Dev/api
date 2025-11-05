@@ -19,9 +19,6 @@ CSRF_TRUSTED_ORIGINS = [
     "https://api-0904.onrender.com",
 ]
 
-# Database
-tmpPostgres = urlparse(os.getenv("DATABASE_URL", ""))
-
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -33,8 +30,8 @@ if DATABASE_URL and DATABASE_URL.startswith("sqlite"):
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
-else:
-    # Use PostgreSQL for production
+elif DATABASE_URL:
+    # Use PostgreSQL for production (Neon DB)
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
@@ -48,6 +45,14 @@ else:
             },
             "CONN_MAX_AGE": 600,
             "CONN_HEALTH_CHECKS": True,
+        }
+    }
+else:
+    # Fallback to SQLite if no DATABASE_URL
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
         }
     }
 
@@ -129,7 +134,6 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://64.225.122.101",
 ]
-CORS_ALLOW_ALL_ORIGINS = True
 
 # Frontend URL for email links
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
@@ -147,19 +151,6 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
-from datetime import timedelta
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-}
-
-SPECTACULAR_SETTINGS = {
-    "TITLE": "My API",
-    "DESCRIPTION": "API documentation",
-    "VERSION": "1.0.0",
-}
-
-# JWT Settings
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
@@ -173,6 +164,15 @@ SIMPLE_JWT = {
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "My API",
+    "DESCRIPTION": "API documentation",
+    "VERSION": "1.0.0",
+    'ENUM_NAME_OVERRIDES': {
+        'NameEnum': 'ResourceTypeEnum'
+    }
 }
 
 # Logging Configuration
@@ -219,6 +219,7 @@ LOGGING = {
         },
     },
 }
+
 # EMAIL CONFIGURATION SETTINGS
 EMAIL_BACKEND = ("django.core.mail.backends.console.EmailBackend")
 DEFAULT_EMAIL_FROM = os.getenv("DEFAULT_EMAIL_FROM", default="Obeeoma256@gmail.com")
@@ -226,16 +227,9 @@ EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", default="obeeoma256@gmail.com")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI" , default="https://developers.google.com/oauthplayground"
-)
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI" , default="https://developers.google.com/oauthplayground")
 
 # OAuth Scopes for Gmail API (for the authorization flow)
 GMAIL_SCOPES = [
     "https://mail.google.com/",  # Full Gmail access (includes send)
 ]
-
-SPECTACULAR_SETTINGS = {
-    'ENUM_NAME_OVERRIDES': {
-        'NameEnum': 'ResourceTypeEnum'
-    }
-}
