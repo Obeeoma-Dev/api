@@ -18,6 +18,13 @@ from obeeomaapp.models import *
 User = get_user_model()
 
 # signup serializer
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.hashers import check_password
+
+User = get_user_model()
+
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
@@ -28,8 +35,23 @@ class SignupSerializer(serializers.ModelSerializer):
         fields = ('username', 'email', 'password', 'confirm_password', 'role')
 
     def validate(self, attrs):
-        if attrs['password'] != attrs['confirm_password']:
+        username = attrs.get('username')
+        email = attrs.get('email')
+        password = attrs.get('password')
+        confirm_password = attrs.get('confirm_password')
+
+        if password != confirm_password:
             raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
+
+        if User.objects.filter(username__iexact=username).exists():
+            raise serializers.ValidationError({"username": "This username is already taken."})
+        if User.objects.filter(email__iexact=email).exists():
+            raise serializers.ValidationError({"email": "This email is already registered."})
+
+        for user in User.objects.all():
+            if check_password(password, user.password):
+                raise serializers.ValidationError({"password": "This password is already in use. Please choose a different one."})
+
         return attrs
 
     def create(self, validated_data):
@@ -45,8 +67,9 @@ class SignupSerializer(serializers.ModelSerializer):
         user.save()
 
         return user
+
     
-    # SERIALIZERS FOR CREATING AN ORGANIZATION
+    # SERIALIZER FOR CREATING AN ORGANIZATION
 class ContactPersonSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContactPerson
