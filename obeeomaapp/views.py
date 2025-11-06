@@ -172,19 +172,10 @@ class LoginView(APIView):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        username = serializer.validated_data['username']
-        password = serializer.validated_data['password']
-
-        user = authenticate(request=request, username=username, password=password)
-
-        if not user:
-            return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-        if not user.is_active:
-            return Response({"detail": "Account is disabled"}, status=status.HTTP_403_FORBIDDEN)
-
-        # This helps to Generate JWT tokens
+        user = serializer.validated_data['user']
         refresh = RefreshToken.for_user(user)
 
+        # This  helps us to Build user data response
         user_data = {
             "id": user.id,
             "username": user.username,
@@ -195,12 +186,22 @@ class LoginView(APIView):
             "avatar": user.avatar.url if hasattr(user, 'avatar') and user.avatar else None,
         }
 
+        # Here, just creating a variable called redirect_url that tells the frontend or mobile app where the user should go after login.
+        if user.role == 'systemadmin':
+            redirect_url = '/admin/dashboard/'
+        elif user.role == 'organization':
+            redirect_url = '/organization/dashboard/'
+        elif user.role == 'employee':
+            redirect_url = '/api/v1/mobile-login-success/'
+        else:
+            redirect_url = '/'
+
         return Response({
             "refresh": str(refresh),
             "access": str(refresh.access_token),
-            "user": user_data
+            "user": user_data,
+            "redirect_url": redirect_url
         })
-
 
     
 # matching view for custom token obtain pair serializer

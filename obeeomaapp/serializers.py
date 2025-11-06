@@ -120,6 +120,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
       
 
 # Login Serializer
+
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
@@ -128,30 +129,24 @@ class LoginSerializer(serializers.Serializer):
         username = attrs.get('username')
         password = attrs.get('password')
 
-        if username and password:
-            # Authenticate the user
-            user = authenticate(
-                request=self.context.get('request'),
-                username=username,
-                password=password
-            )
-            
-            if not user:
-                raise serializers.ValidationError('Invalid credentials. Please try again.')
-                
-            if not user.is_active:
-                raise serializers.ValidationError('Account is disabled.')
-            
-            # Keep original validated data
-            attrs['user'] = user
-            # Add role
-            attrs['role'] = user.role
-            return attrs
-        else:
+        if not username or not password:
             raise serializers.ValidationError('Both username and password are required.')
 
-    def create(self, validated_data):
-        return validated_data
+        user = authenticate(
+            request=self.context.get('request'),
+            username=username,
+            password=password
+        )
+
+        if not user:
+            raise serializers.ValidationError('Invalid username or password.')
+
+        if not user.is_active:
+            raise serializers.ValidationError('Account is not yet active.')
+
+        attrs['user'] = user
+        return attrs
+
 
 # custom serializer for token obtain pair
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
