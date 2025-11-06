@@ -163,7 +163,43 @@ class VerifyOTPView(APIView):
 
 
 # login view
-@extend_schema(tags=['Authentication'])
+@extend_schema(
+    tags=['Authentication'],
+    request=LoginSerializer,
+    responses={
+        200: {
+            "description": "Login successful",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "user": {
+                            "id": 1,
+                            "username": "john@company.com",
+                            "email": "john@company.com",
+                            "role": "employer"
+                        },
+                        "redirect_url": "/organization/dashboard/"
+                    }
+                }
+            }
+        },
+        400: {"description": "Invalid credentials"}
+    },
+    description="""
+    Universal login endpoint for all user types (System Admin, Organization, Employee).
+    
+    **Required fields:**
+    - username: Your username or email
+    - password: Your password
+    
+    **For Organizations:** Use your organization name as the username
+    **For Others:** Use your registered username or email
+    
+    Returns JWT tokens and user information upon successful authentication.
+    """
+)
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = LoginSerializer
