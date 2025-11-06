@@ -235,7 +235,7 @@ paths:
           description: ''
   /api/v1/admin/feature-flags/:
     get:
-      operationId: api_v1_admin_feature_flags_list
+      operationId: features_usage_list
       tags:
       - Employer Dashboard
       security:
@@ -252,7 +252,7 @@ paths:
     post:
       operationId: api_v1_admin_feature_flags_create
       tags:
-      - Employer Dashboard
+      - api
       requestBody:
         content:
           application/json:
@@ -285,7 +285,7 @@ paths:
         description: A unique integer value identifying this ai management.
         required: true
       tags:
-      - Employer Dashboard
+      - api
       security:
       - jwtAuth: []
       responses:
@@ -305,7 +305,7 @@ paths:
         description: A unique integer value identifying this ai management.
         required: true
       tags:
-      - Employer Dashboard
+      - api
       requestBody:
         content:
           application/json:
@@ -337,7 +337,7 @@ paths:
         description: A unique integer value identifying this ai management.
         required: true
       tags:
-      - Employer Dashboard
+      - api
       requestBody:
         content:
           application/json:
@@ -368,7 +368,7 @@ paths:
         description: A unique integer value identifying this ai management.
         required: true
       tags:
-      - Employer Dashboard
+      - api
       security:
       - jwtAuth: []
       responses:
@@ -376,7 +376,8 @@ paths:
           description: No response body
   /api/v1/admin/feature-flags/by-category/:
     get:
-      operationId: api_v1_admin_feature_flags_by_category_retrieve
+      operationId: features_usage_by_category
+      description: Returns feature usage grouped by category.
       tags:
       - Employer Dashboard
       security:
@@ -390,7 +391,8 @@ paths:
           description: ''
   /api/v1/admin/feature-flags/by_category/:
     get:
-      operationId: api_v1_admin_feature_flags_by_category_retrieve_2
+      operationId: features_usage_by_category_2
+      description: Returns feature usage grouped by category.
       tags:
       - Employer Dashboard
       security:
@@ -1130,6 +1132,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/Article'
           description: ''
+  /api/v1/assessment-result/{id}/:
+    get:
+      operationId: api_v1_assessment_result_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Employee - Assessments
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentResult'
+          description: ''
   /api/v1/audios/:
     get:
       operationId: api_v1_audios_list
@@ -1370,65 +1392,6 @@ paths:
   /api/v1/auth/login/:
     post:
       operationId: api_v1_auth_login_create
-      tags:
-      - Authentication
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Login'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Login'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Login'
-        required: true
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Login'
-          description: ''
-  /api/v1/auth/logout/:
-    post:
-      operationId: api_v1_auth_logout_create
-      tags:
-      - Authentication
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Logout'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Logout'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Logout'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '205':
-          content:
-            application/json:
-              schema:
-                description: Logged out successfully
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                description: Invalid or expired token
-          description: ''
-  /api/v1/auth/register-organization/:
-    post:
-      operationId: api_v1_auth_register_organization_create
       description: "\n    Register as an employer - creates user account and organization\
         \ in one step.\n    \n    This is a public endpoint (no authentication required).\n\
         \    After successful registration, you'll receive JWT tokens for immediate\
@@ -1477,6 +1440,38 @@ paths:
             application/json:
               schema:
                 description: Bad Request - validation errors or email already exists
+          description: ''
+  /api/v1/auth/logout/:
+    post:
+      operationId: api_v1_auth_logout_create
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Logout'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Logout'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Logout'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '205':
+          content:
+            application/json:
+              schema:
+                description: Logged out successfully
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Invalid or expired token
           description: ''
   /api/v1/auth/reset-password/:
     post:
@@ -1655,6 +1650,32 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/auth/verify-otp/:
+    post:
+      operationId: api_v1_auth_verify_otp_create
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OTPVerification'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OTPVerification'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OTPVerification'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OTPVerification'
+          description: ''
   /api/v1/dashboard/billing/:
     get:
       operationId: api_v1_dashboard_billing_list
@@ -2075,7 +2096,7 @@ paths:
           description: No response body
   /api/v1/dashboard/features-usage/:
     get:
-      operationId: api_v1_dashboard_features_usage_list
+      operationId: features_usage_list_2
       tags:
       - Employer Dashboard
       security:
@@ -2617,6 +2638,164 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/dynamic-questions/:
+    get:
+      operationId: api_v1_dynamic_questions_list
+      tags:
+      - Dynamic Questions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DynamicQuestion'
+          description: ''
+    post:
+      operationId: api_v1_dynamic_questions_create
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DynamicQuestion'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DynamicQuestion'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DynamicQuestion'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DynamicQuestion'
+          description: ''
+  /api/v1/dynamic-questions/{id}/:
+    get:
+      operationId: api_v1_dynamic_questions_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this dynamic question.
+        required: true
+      tags:
+      - Dynamic Questions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DynamicQuestion'
+          description: ''
+    put:
+      operationId: api_v1_dynamic_questions_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this dynamic question.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DynamicQuestion'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DynamicQuestion'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DynamicQuestion'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DynamicQuestion'
+          description: ''
+    patch:
+      operationId: api_v1_dynamic_questions_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this dynamic question.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedDynamicQuestion'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedDynamicQuestion'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedDynamicQuestion'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DynamicQuestion'
+          description: ''
+    delete:
+      operationId: api_v1_dynamic_questions_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this dynamic question.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/dynamic-questions/random/:
+    get:
+      operationId: api_v1_dynamic_questions_random_list
+      description: Returns a random set of active dynamic questions.
+      tags:
+      - Dynamic Questions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DynamicQuestion'
+          description: ''
   /api/v1/employee/assessments/:
     get:
       operationId: api_v1_employee_assessments_list
@@ -4964,25 +5143,254 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
-    post:
-      operationId: api_v1_onboarding_create
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingState'
+          description: ''
+    put:
+      operationId: api_v1_onboarding_update
       tags:
       - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingState'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OnboardingState'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OnboardingState'
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingState'
+          description: ''
+    patch:
+      operationId: api_v1_onboarding_partial_update
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedOnboardingState'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedOnboardingState'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedOnboardingState'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingState'
+          description: ''
   /api/v1/onboarding/complete/:
-    post:
-      operationId: api_v1_onboarding_complete_create
+    put:
+      operationId: api_v1_onboarding_complete_update
       tags:
       - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingState'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OnboardingState'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OnboardingState'
       security:
       - jwtAuth: []
       responses:
         '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingState'
+          description: ''
+    patch:
+      operationId: api_v1_onboarding_complete_partial_update
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedOnboardingState'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedOnboardingState'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedOnboardingState'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingState'
+          description: ''
+  /api/v1/organization-signup/:
+    get:
+      operationId: api_v1_organization_signup_list
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrganizationCreate'
+          description: ''
+    post:
+      operationId: api_v1_organization_signup_create
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrganizationCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrganizationCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationCreate'
+          description: ''
+  /api/v1/organization-signup/{id}/:
+    get:
+      operationId: api_v1_organization_signup_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this organization.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationCreate'
+          description: ''
+    put:
+      operationId: api_v1_organization_signup_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this organization.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrganizationCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrganizationCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationCreate'
+          description: ''
+    patch:
+      operationId: api_v1_organization_signup_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this organization.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganizationCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganizationCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganizationCreate'
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationCreate'
+          description: ''
+    delete:
+      operationId: api_v1_organization_signup_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this organization.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '204':
           description: No response body
   /api/v1/progress/:
     get:
@@ -6292,6 +6700,23 @@ components:
       - last_active
       - organization
       - organization_name
+    ContactPerson:
+      type: object
+      properties:
+        fullname:
+          type: string
+          maxLength: 255
+        role:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 254
+      required:
+      - email
+      - fullname
+      - role
     CrisisTrigger:
       type: object
       properties:
@@ -6360,6 +6785,28 @@ components:
         * `beginner` - Beginner
         * `intermediate` - Intermediate
         * `advanced` - Advanced
+    DynamicQuestion:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        text:
+          type: string
+        category:
+          type: string
+          maxLength: 100
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - category
+      - created_at
+      - id
+      - text
     EducationalResource:
       type: object
       properties:
@@ -6646,7 +7093,6 @@ components:
         email:
           type: string
           format: email
-          title: Email address
           maxLength: 254
         first_name:
           type: string
@@ -6662,6 +7108,7 @@ components:
           type: string
           writeOnly: true
       required:
+      - email
       - password
       - password_confirm
     Employer:
@@ -6786,6 +7233,28 @@ components:
       - id
       - rating
       - submitted_on
+    GoalEnum:
+      enum:
+      - reduce_stress
+      - improve_focus
+      - support_team
+      - improve_sleep
+      - manage_anxiety
+      - manage_depression
+      - self_awareness
+      - mental_fitness
+      - navigate_change
+      type: string
+      description: |-
+        * `reduce_stress` - Reduce Stress
+        * `improve_focus` - Improve Focus
+        * `support_team` - Support My Team
+        * `improve_sleep` - Improve Sleep Quality
+        * `manage_anxiety` - Manage Anxiety
+        * `manage_depression` - Manage Depression
+        * `self_awareness` - Increase Self-Awareness
+        * `mental_fitness` - Strengthen Mental Fitness
+        * `navigate_change` - Navigate Life or Work Transitions
     HotlineActivity:
       type: object
       properties:
@@ -6825,17 +7294,6 @@ components:
         * `stressed` - Stressed
         * `anxious` - Anxious
         * `neutral` - Neutral
-    Login:
-      type: object
-      properties:
-        username:
-          type: string
-        password:
-          type: string
-          writeOnly: true
-      required:
-      - password
-      - username
     Logout:
       type: object
       properties:
@@ -7051,6 +7509,60 @@ components:
     NullEnum:
       enum:
       - null
+    OTPVerification:
+      type: object
+      properties:
+        code:
+          type: string
+          maxLength: 6
+      required:
+      - code
+    OnboardingState:
+      type: object
+      properties:
+        goal:
+          $ref: '#/components/schemas/GoalEnum'
+        completed:
+          type: boolean
+        first_action_done:
+          type: boolean
+    OrganizationCreate:
+      type: object
+      properties:
+        organizationName:
+          type: string
+          maxLength: 255
+        organisationSize:
+          type: string
+          maxLength: 50
+        phoneNumber:
+          type: string
+          maxLength: 20
+        companyEmail:
+          type: string
+          format: email
+          maxLength: 254
+        Location:
+          type: string
+          maxLength: 255
+        password:
+          type: string
+          writeOnly: true
+          maxLength: 128
+        confirmPassword:
+          type: string
+          writeOnly: true
+        contactPerson:
+          $ref: '#/components/schemas/ContactPerson'
+      required:
+      - Location
+      - companyEmail
+      - confirmPassword
+      - contactPerson
+      - organisationSize
+      - organizationName
+      - password
+      - phoneNumber
     OrganizationSettings:
       type: object
       properties:
@@ -7123,27 +7635,21 @@ components:
     PasswordChange:
       type: object
       properties:
-        old_password:
-          type: string
-          writeOnly: true
         new_password:
           type: string
           writeOnly: true
+        confirm_password:
+          type: string
+          writeOnly: true
       required:
+      - confirm_password
       - new_password
-      - old_password
     PasswordReset:
       type: object
       properties:
         email:
           type: string
           format: email
-        code:
-          type: string
-        new_password:
-          type: string
-        token:
-          type: string
       required:
       - email
     PatchedAIManagement:
@@ -7272,6 +7778,23 @@ components:
           readOnly: true
         employee_count:
           type: string
+          readOnly: true
+    PatchedDynamicQuestion:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        text:
+          type: string
+        category:
+          type: string
+          maxLength: 100
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
           readOnly: true
     PatchedEducationalResource:
       type: object
@@ -7529,6 +8052,43 @@ components:
         employee:
           type: integer
           readOnly: true
+    PatchedOnboardingState:
+      type: object
+      properties:
+        goal:
+          $ref: '#/components/schemas/GoalEnum'
+        completed:
+          type: boolean
+        first_action_done:
+          type: boolean
+    PatchedOrganizationCreate:
+      type: object
+      properties:
+        organizationName:
+          type: string
+          maxLength: 255
+        organisationSize:
+          type: string
+          maxLength: 50
+        phoneNumber:
+          type: string
+          maxLength: 20
+        companyEmail:
+          type: string
+          format: email
+          maxLength: 254
+        Location:
+          type: string
+          maxLength: 255
+        password:
+          type: string
+          writeOnly: true
+          maxLength: 128
+        confirmPassword:
+          type: string
+          writeOnly: true
+        contactPerson:
+          $ref: '#/components/schemas/ContactPerson'
     PatchedOrganizationSettings:
       type: object
       properties:
@@ -7885,12 +8445,12 @@ components:
     RoleEnum:
       enum:
       - systemadmin
-      - employer
+      - organisation
       - employee
       type: string
       description: |-
         * `systemadmin` - System Admin
-        * `employer` - Employer
+        * `organisation` - organisation
         * `employee` - Employee
     SavedResource:
       type: object
@@ -7997,7 +8557,6 @@ components:
         email:
           type: string
           format: email
-          title: Email address
           maxLength: 254
         password:
           type: string
@@ -8011,6 +8570,7 @@ components:
           default: employee
       required:
       - confirm_password
+      - email
       - password
       - username
     StatusEnum:
