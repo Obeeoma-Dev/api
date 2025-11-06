@@ -143,9 +143,18 @@ class LoginView(APIView):
         user = serializer.validated_data['user']
         refresh = RefreshToken.for_user(user)
 
+        # Check if user is associated with an organization
+        display_username = user.username
+        try:
+            organization = user.organizations.first()
+            if organization:
+                display_username = organization.organizationName
+        except:
+            pass
+
         user_data = {
             "id": user.id,
-            "username": user.username,
+            "username": display_username,
             "email": user.email,
             "role": user.role,
             "date_joined": user.date_joined,
