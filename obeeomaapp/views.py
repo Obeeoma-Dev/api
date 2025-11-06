@@ -34,6 +34,7 @@ from django.db.models import Avg
 from rest_framework import viewsets, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from drf_spectacular.types import OpenApiTypes
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
@@ -123,50 +124,17 @@ class VerifyOTPView(APIView):
         )
 
 
-# Employer Registration View
-@extend_schema(
-    tags=["Authentication"],
-    request=EmployerRegistrationSerializer,
-    responses={
-        201: {
-            "description": "Account and organization created successfully",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "message": "Account and organization created successfully",
-                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                        "user": {
-                            "id": 1,
-                            "email": "john@company.com",
-                            "username": "john@company.com",
-                            "role": "employer"
-                        },
-                        "organization": {
-                            "id": 1,
-                            "name": "My Company Inc",
-                            "is_active": True
-                        }
-                    }
-                }
-            }
-        },
-        400: {"description": "Bad Request - validation errors or email already exists"}
-    },
-    description="""
-    Register as an employer - creates user account and organization in one step.
-    
-    This is a public endpoint (no authentication required).
-    After successful registration, you'll receive JWT tokens for immediate login.
-    """
-)
-
-
 # login view
-@extend_schema(tags=['Authentication'])
+@extend_schema(
+    request=LoginSerializer,          
+    responses={200: OpenApiTypes.OBJECT},
+    tags=['Authentication'],
+    description="Login using username and password only."
+)
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = LoginSerializer
+    queryset = None 
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
@@ -175,7 +143,6 @@ class LoginView(APIView):
         user = serializer.validated_data['user']
         refresh = RefreshToken.for_user(user)
 
-        # This  helps us to Build user data response
         user_data = {
             "id": user.id,
             "username": user.username,
@@ -186,7 +153,6 @@ class LoginView(APIView):
             "avatar": user.avatar.url if hasattr(user, 'avatar') and user.avatar else None,
         }
 
-        # Here, just creating a variable called redirect_url that tells the frontend or mobile app where the user should go after login.
         if user.role == 'systemadmin':
             redirect_url = '/admin/dashboard/'
         elif user.role == 'organization':
@@ -202,7 +168,6 @@ class LoginView(APIView):
             "user": user_data,
             "redirect_url": redirect_url
         })
-
     
 # matching view for custom token obtain pair serializer
 class CustomTokenObtainPairView(TokenObtainPairView):

@@ -132,11 +132,33 @@ class LoginSerializer(serializers.Serializer):
         if not username or not password:
             raise serializers.ValidationError('Both username and password are required.')
 
+        # First try regular user authentication
         user = authenticate(
             request=self.context.get('request'),
             username=username,
             password=password
         )
+
+        # If regular authentication fails, try organization authentication
+        if not user:
+            try:
+                # Check if username matches an organization name
+                from .models import Organization
+                organization = Organization.objects.get(organizationName=username)
+                
+                # Verify the organization password
+                from django.contrib.auth.hashers import check_password
+                if check_password(password, organization.password):
+                    # Use the organization's owner as the authenticated user
+                    if organization.owner and organization.owner.is_active:
+                        user = organization.owner
+                    else:
+                        raise serializers.ValidationError('Organization account is not properly configured.')
+                else:
+                    raise serializers.ValidationError('Invalid username or password.')
+                    
+            except Organization.DoesNotExist:
+                raise serializers.ValidationError('Invalid username or password.')
 
         if not user:
             raise serializers.ValidationError('Invalid username or password.')
@@ -240,49 +262,7 @@ class EmployerSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class EmployerRegistrationSerializer(serializers.Serializer):
-    """Serializer for employer organization registration - creates both user and organization"""
-    # Organization fields
-    organization_name = serializers.CharField(
-        max_length=255,
-        required=True,
-        help_text="Name of your organization/company"
-    )
-    
-    # User account fields
-    email = serializers.EmailField(
-        required=True,
-        help_text="Your email address (will be used for login)"
-    )
-    password = serializers.CharField(
-        write_only=True,
-        required=True,
-        style={'input_type': 'password'},
-        help_text="Your password (minimum 8 characters)"
-    )
-    employer_name = serializers.CharField(
-        max_length=255,
-        required=True,
-        help_text="Your full name"
-    )
-    phone_number = serializers.CharField(
-        max_length=20,
-        required=False,
-        allow_blank=True,
-        help_text="Your phone number (optional)"
-    )
-    
-    def validate_email(self, value):
-        """Check if email already exists"""
-        if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("A user with this email already exists.")
-        return value
-    
-    def validate_password(self, value):
-        """Validate password strength"""
-        if len(value) < 8:
-            raise serializers.ValidationError("Password must be at least 8 characters long.")
-        return value
+
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
