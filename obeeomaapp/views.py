@@ -67,6 +67,7 @@ import secrets
 from rest_framework import filters
 import string
 from .models import Organization
+from .serializers import OTPVerificationSerializer
 from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string
 import logging
@@ -101,6 +102,25 @@ class OrganizationSignupView(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationCreateSerializer
     permission_classes = [permissions.AllowAny]
+
+# VIEWS FOR VERIFYING THE OTP
+class VerifyOTPView(APIView):
+    @extend_schema(
+        request=OTPVerificationSerializer,
+        responses=OTPVerificationSerializer  
+    )
+    def post(self, request):
+        serializer = OTPVerificationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.context['user']
+        # This helps the system to Delete OTPs to prevent reuse
+        user.passwordresetotp_set.all().delete()
+
+        return Response(
+            {"message": "OTP verified successfully. You can now reset your password."},
+            status=status.HTTP_200_OK
+        )
 
 
 # Employer Registration View
@@ -152,19 +172,10 @@ class LoginView(APIView):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        username = serializer.validated_data['username']
-        password = serializer.validated_data['password']
-
-        user = authenticate(request=request, username=username, password=password)
-
-        if not user:
-            return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-        if not user.is_active:
-            return Response({"detail": "Account is disabled"}, status=status.HTTP_403_FORBIDDEN)
-
-        # This helps to Generate JWT tokens
+        user = serializer.validated_data['user']
         refresh = RefreshToken.for_user(user)
 
+        # This  helps us to Build user data response
         user_data = {
             "id": user.id,
             "username": user.username,
@@ -175,12 +186,22 @@ class LoginView(APIView):
             "avatar": user.avatar.url if hasattr(user, 'avatar') and user.avatar else None,
         }
 
+        # Here, just creating a variable called redirect_url that tells the frontend or mobile app where the user should go after login.
+        if user.role == 'systemadmin':
+            redirect_url = '/admin/dashboard/'
+        elif user.role == 'organization':
+            redirect_url = '/organization/dashboard/'
+        elif user.role == 'employee':
+            redirect_url = '/api/v1/mobile-login-success/'
+        else:
+            redirect_url = '/'
+
         return Response({
             "refresh": str(refresh),
             "access": str(refresh.access_token),
-            "user": user_data
+            "user": user_data,
+            "redirect_url": redirect_url
         })
-
 
     
 # matching view for custom token obtain pair serializer
@@ -341,7 +362,7 @@ class PasswordResetConfirmView(viewsets.ViewSet):
         except PasswordResetToken.DoesNotExist:
             return Response({"error": "Invalid verification code"}, status=status.HTTP_400_BAD_REQUEST)
 
-
+# View for changing or updating password
 @extend_schema(tags=['Authentication'])
 class PasswordChangeView(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
@@ -352,12 +373,16 @@ class PasswordChangeView(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
 
         user = request.user
-        if not user.check_password(serializer.validated_data['old_password']):
-            return Response({"error": "Old password is incorrect"}, status=status.HTTP_400_BAD_REQUEST)
+        new_password = serializer.validated_data['new_password']
 
-        user.set_password(serializer.validated_data['new_password'])
+        # This logic helps in Setting a new password
+        user.set_password(new_password)
         user.save()
-        return Response({"message": "Password updated successfully"})
+
+        return Response(
+            {"message": "Password updated successfully"},
+            status=status.HTTP_200_OK
+        )
 
 
 # --- Missing Serializers for Invitation Flow ---
