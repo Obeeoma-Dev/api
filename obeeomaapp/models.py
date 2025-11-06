@@ -13,7 +13,7 @@ User = settings.AUTH_USER_MODEL
 class User(AbstractUser):
     ROLE_CHOICES = (
         ('systemadmin', 'System Admin'),
-        ('employer', 'Employer'),
+        ('organisation', 'organisation'),
         ('employee', 'Employee'),
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
