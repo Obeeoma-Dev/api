@@ -9,7 +9,7 @@ from django.utils import timezone
 from datetime import timedelta
 User = settings.AUTH_USER_MODEL
 
-# --- User & Authentication ---
+#User and Authentication Models
 class User(AbstractUser):
     ROLE_CHOICES = (
         ('systemadmin', 'System Admin'),
