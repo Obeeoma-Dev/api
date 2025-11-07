@@ -460,10 +460,7 @@ class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
         inviter = self.context['user']
         token = token_urlsafe(32)
         
-        # Set default expiration to 7 days if not provided
-        if 'expires_at' not in validated_data:
-            validated_data['expires_at'] = timezone.now() + timedelta(days=7)
-        
+        # expires_at will be automatically set by the model if not provided
         return EmployeeInvitation.objects.create(
             employer=employer,
             invited_by=inviter,
