@@ -99,6 +99,11 @@ class SignupView(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 # VIEWS FOR CREATING AN ORGANIZATION
+@extend_schema(
+    tags=['Authentication'],
+    request=OrganizationCreateSerializer,
+    responses={201: OrganizationCreateSerializer}
+)
 class OrganizationSignupView(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationCreateSerializer
@@ -164,7 +169,7 @@ class LoginView(APIView):
 
         if user.role == 'systemadmin':
             redirect_url = '/admin/dashboard/'
-        elif user.role == 'organization':
+        elif user.role in ['organization', 'employer']:
             redirect_url = '/organization/dashboard/'
         elif user.role == 'employee':
             redirect_url = '/api/v1/mobile-login-success/'
@@ -179,6 +184,11 @@ class LoginView(APIView):
         })
     
 # matching view for custom token obtain pair serializer
+@extend_schema(
+    tags=['Authentication'],
+    request=CustomTokenObtainPairSerializer,
+    responses={200: CustomTokenObtainPairSerializer}
+)
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
@@ -472,13 +482,26 @@ class InviteView(viewsets.ModelViewSet):
         # Get invitations for the employer's organization
         employer = None
         
-        # Try to get employer from employee profile
+        # First, check if user has an Organization (for organization owners)
         try:
-            employee_profile = Employee.objects.filter(user=self.request.user).first()
-            if employee_profile:
-                employer = employee_profile.employer
+            organization = Organization.objects.filter(owner=self.request.user).first()
+            if organization:
+                # Get or create Employer from Organization
+                employer, created = Employer.objects.get_or_create(
+                    name=organization.organizationName,
+                    defaults={'is_active': True}
+                )
         except Exception:
             pass
+        
+        # If no organization, try to get employer from employee profile
+        if not employer:
+            try:
+                employee_profile = Employee.objects.filter(user=self.request.user).first()
+                if employee_profile:
+                    employer = employee_profile.employer
+            except Exception:
+                pass
         
         # If still no employer, check if user is staff and get first employer
         if not employer and self.request.user.is_staff:
@@ -536,13 +559,26 @@ class InviteView(viewsets.ModelViewSet):
         # Get the employer for the current user
         employer = None
         
-        # Try to get employer from employee profile
+        # First, check if user has an Organization (for organization owners)
         try:
-            employee_profile = Employee.objects.filter(user=request.user).first()
-            if employee_profile:
-                employer = employee_profile.employer
-        except Exception:
-            pass
+            organization = Organization.objects.filter(owner=request.user).first()
+            if organization:
+                # Get or create Employer from Organization
+                employer, created = Employer.objects.get_or_create(
+                    name=organization.organizationName,
+                    defaults={'is_active': True}
+                )
+        except Exception as e:
+            logger.warning(f"Error getting organization: {str(e)}")
+        
+        # If no organization, try to get employer from employee profile
+        if not employer:
+            try:
+                employee_profile = Employee.objects.filter(user=request.user).first()
+                if employee_profile:
+                    employer = employee_profile.employer
+            except Exception:
+                pass
         
         # If still no employer, check if user is staff and get first employer
         if not employer and request.user.is_staff:
@@ -594,18 +630,29 @@ The Obeeoma Team
 """
             
             # Try to send via Gmail API first, fallback to SMTP
+            email_sent = False
             try:
-                email_sent = send_gmail_api_email(invitation.email, subject, message)
+                # Only try Gmail API if credentials are configured
+                if settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET:
+                    email_sent = send_gmail_api_email(invitation.email, subject, message)
+                    logger.info(f"Email sent via Gmail API to {invitation.email}")
             except Exception as gmail_error:
-                logger.warning(f"Gmail API failed, using SMTP: {str(gmail_error)}")
-                send_mail(
-                    subject,
-                    message,
-                    settings.DEFAULT_FROM_EMAIL,
-                    [invitation.email],
-                    fail_silently=False,
-                )
-                email_sent = True
+                logger.warning(f"Gmail API failed: {str(gmail_error)}")
+            
+            # Fallback to SMTP if Gmail API didn't work
+            if not email_sent:
+                try:
+                    send_mail(
+                        subject,
+                        message,
+                        settings.DEFAULT_FROM_EMAIL,
+                        [invitation.email],
+                        fail_silently=False,
+                    )
+                    email_sent = True
+                    logger.info(f"Email sent via SMTP to {invitation.email}")
+                except Exception as smtp_error:
+                    logger.error(f"SMTP failed: {str(smtp_error)}")
             
             if not email_sent:
                 logger.error(f"Failed to send invitation email to {invitation.email}")
@@ -754,6 +801,11 @@ class InvitationAcceptanceView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 
+@extend_schema(
+    tags=['Employee Invitations'],
+    request={'token': 'string'},
+    responses={200: {'valid': 'boolean', 'invitation': 'object'}}
+)
 class InvitationVerifyView(APIView):
     """Verify an invitation token before signup"""
     permission_classes = [permissions.AllowAny]
@@ -977,6 +1029,7 @@ def home(request):
     return JsonResponse({"status": "ok", "app": "obeeomaapp"})
 
 
+@extend_schema(tags=['Authentication'])
 class EmailConfigCheckView(APIView):
     """Debug endpoint to check email configuration"""
     permission_classes = [permissions.AllowAny]
