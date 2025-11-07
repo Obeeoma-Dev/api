@@ -1035,16 +1035,30 @@ class EmailConfigCheckView(APIView):
     permission_classes = [permissions.AllowAny]
     
     def get(self, request):
+        import os
+        db_config = settings.DATABASES['default']
+        
         config = {
-            "email_backend": settings.EMAIL_BACKEND,
-            "email_host": settings.EMAIL_HOST,
-            "email_port": settings.EMAIL_PORT,
-            "email_use_tls": settings.EMAIL_USE_TLS,
-            "email_use_ssl": settings.EMAIL_USE_SSL,
-            "email_host_user": settings.EMAIL_HOST_USER,
-            "default_from_email": settings.DEFAULT_FROM_EMAIL,
+            "database": {
+                "engine": db_config.get('ENGINE'),
+                "name": str(db_config.get('NAME')),
+                "host": db_config.get('HOST', 'Not set'),
+                "user": db_config.get('USER', 'Not set'),
+            },
+            "environment_vars": {
+                "DATABASE_URL": "Set" if os.getenv('DATABASE_URL') else "NOT SET",
+                "PGHOST": "Set" if os.getenv('PGHOST') else "NOT SET",
+            },
+            "email": {
+                "email_backend": settings.EMAIL_BACKEND,
+                "email_host": settings.EMAIL_HOST,
+                "email_port": settings.EMAIL_PORT,
+                "email_use_tls": settings.EMAIL_USE_TLS,
+                "email_host_user": settings.EMAIL_HOST_USER,
+                "default_from_email": settings.DEFAULT_FROM_EMAIL,
+                "has_email_password": bool(settings.EMAIL_HOST_PASSWORD),
+            },
             "debug_mode": settings.DEBUG,
-            "has_email_password": bool(settings.EMAIL_HOST_PASSWORD),
         }
         return Response(config)
 
