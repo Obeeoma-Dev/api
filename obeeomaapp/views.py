@@ -99,6 +99,11 @@ class SignupView(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 # VIEWS FOR CREATING AN ORGANIZATION
+@extend_schema(
+    tags=['Authentication'],
+    request=OrganizationCreateSerializer,
+    responses={201: OrganizationCreateSerializer}
+)
 class OrganizationSignupView(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationCreateSerializer
@@ -179,6 +184,11 @@ class LoginView(APIView):
         })
     
 # matching view for custom token obtain pair serializer
+@extend_schema(
+    tags=['Authentication'],
+    request=CustomTokenObtainPairSerializer,
+    responses={200: CustomTokenObtainPairSerializer}
+)
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
@@ -791,6 +801,11 @@ class InvitationAcceptanceView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 
+@extend_schema(
+    tags=['Employee Invitations'],
+    request={'token': 'string'},
+    responses={200: {'valid': 'boolean', 'invitation': 'object'}}
+)
 class InvitationVerifyView(APIView):
     """Verify an invitation token before signup"""
     permission_classes = [permissions.AllowAny]
@@ -1014,6 +1029,7 @@ def home(request):
     return JsonResponse({"status": "ok", "app": "obeeomaapp"})
 
 
+@extend_schema(tags=['Authentication'])
 class EmailConfigCheckView(APIView):
     """Debug endpoint to check email configuration"""
     permission_classes = [permissions.AllowAny]
