@@ -139,17 +139,16 @@ class LoginSerializer(serializers.Serializer):
             password=password
         )
 
-        # If regular authentication fails, try organization authentication
+        # This says,If regular authentication fails, try organization authentication
         if not user:
             try:
-                # Check if username matches an organization name
+                # These lines help to Check if username matches an organization name
                 from .models import Organization
                 organization = Organization.objects.get(organizationName=username)
                 
                 # Verify the organization password
                 from django.contrib.auth.hashers import check_password
                 if check_password(password, organization.password):
-                    # Use the organization's owner as the authenticated user
                     if organization.owner and organization.owner.is_active:
                         user = organization.owner
                     else:
