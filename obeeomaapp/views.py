@@ -57,8 +57,7 @@ from rest_framework.generics import RetrieveUpdateAPIView, UpdateAPIView
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import *  # Import serializers from the same app
-from .models import *  # Import models from the same app
+from .serializers import *  
 from django.core.mail import send_mail, EmailMultiAlternatives
 from .utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings

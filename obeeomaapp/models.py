@@ -9,7 +9,7 @@ from django.utils import timezone
 from datetime import timedelta
 User = settings.AUTH_USER_MODEL
 
-# --- User & Authentication ---
+#User and Authentication Models
 class User(AbstractUser):
     ROLE_CHOICES = (
         ('systemadmin', 'System Admin'),
@@ -31,7 +31,7 @@ class User(AbstractUser):
         return f"{self.username} ({self.role})"
     
 
-    #MODELS FOR CREATING AN ORGANIZATION
+#MODELS FOR CREATING AN ORGANIZATION
 class ContactPerson(models.Model):
     fullname = models.CharField(max_length=255)
     role = models.CharField(max_length=100)
@@ -39,8 +39,6 @@ class ContactPerson(models.Model):
 
     def __str__(self):
         return f"{self.fullname} - {self.role}"
-
-
 class Organization(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='organizations', null=True, blank=True)
     organizationName = models.CharField(max_length=255)
