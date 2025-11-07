@@ -933,13 +933,11 @@ class OverviewView(viewsets.ViewSet):
     permission_classes = [IsCompanyAdmin]
 
     def list(self, request):
-        employer_count = Employer.objects.count()
         employee_count = Employee.objects.count()
         active_subscriptions = Subscription.objects.filter(is_active=True).count()
         recent = RecentActivity.objects.select_related("employer").order_by("-timestamp")[:10]
         recent_serialized = RecentActivitySerializer(recent, many=True).data
         return Response({
-            "employer_count": employer_count,
             "employee_count": employee_count,
             "active_subscriptions": active_subscriptions,
             "recent_activities": recent_serialized,
@@ -1012,7 +1010,7 @@ class ReportsView(viewsets.ReadOnlyModelViewSet):
     serializer_class = RecentActivitySerializer
     permission_classes = [IsCompanyAdmin]
 
-
+# For crisis insights about hotline activities and for which reasons employees are reaching out.
 @extend_schema(tags=['Employer Dashboard'])
 class CrisisInsightsView(viewsets.ReadOnlyModelViewSet):
     queryset = HotlineActivity.objects.select_related("employer").order_by("-recorded_at")
