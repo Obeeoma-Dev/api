@@ -243,7 +243,7 @@ class PasswordResetView(viewsets.ViewSet):
         try:
             code = ''.join(secrets.choice(string.digits) for _ in range(6))
             token = secrets.token_urlsafe(32)
-            expires_at = timezone.now() + timedelta(seconds=60)
+            expires_at = timezone.now() + timedelta(minutes=5)
 
             PasswordResetToken.objects.filter(user=user).delete()
 
@@ -269,7 +269,7 @@ You requested a password reset for your Obeeoma account.
 
 Your verification code is: {code}
 
-This code will expire in 60 seconds.
+This code will expire in 5 minutes.
 
 If you did not request this password reset, please ignore this email.
 
