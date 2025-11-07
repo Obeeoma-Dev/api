@@ -1041,7 +1041,7 @@ class EducationalResource(models.Model):
     thumbnail = models.ImageField(upload_to='thumbnails/', blank=True, null=True)
     file_size = models.CharField(max_length=20, blank=True, null=True)
     uploaded_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='uploaded_resources')
-    uploaded_at = models.DateTimeField(auto_now_add=True)  # ✅ Remove default
+    uploaded_at = models.DateTimeField(auto_now_add=True)  # Remove default
     is_public = models.BooleanField(default=True)
     download_count = models.IntegerField(default=0)
     
@@ -1077,7 +1077,7 @@ class Video(models.Model):
     views = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)  # ✅ Remove default
+    updated_at = models.DateTimeField(auto_now=True)  # Remove default
     target_mood = models.CharField(max_length=50, choices=MOOD_CHOICES, default='general')
     is_professionally_reviewed = models.BooleanField(default=False)
     reviewed_by = models.CharField(max_length=100, blank=True)
@@ -1167,7 +1167,7 @@ class MeditationTechnique(models.Model):
     times_practiced = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)  # ✅ Remove default
+    updated_at = models.DateTimeField(auto_now=True)  #  Remove default
   
     class Meta:
         ordering = ['difficulty', 'title']
@@ -1184,7 +1184,7 @@ class SavedResource(models.Model):
     audio = models.ForeignKey(Audio, on_delete=models.CASCADE, null=True, blank=True)
     article = models.ForeignKey(Article, on_delete=models.CASCADE, null=True, blank=True)
     meditation = models.ForeignKey(MeditationTechnique, on_delete=models.CASCADE, null=True, blank=True)
-    saved_at = models.DateTimeField(auto_now_add=True)  # ✅ Already correct
+    saved_at = models.DateTimeField(auto_now_add=True)  # Already correct
 
 
     class Meta:
@@ -1237,8 +1237,8 @@ class UserLearningProgress(models.Model):
     completion_percentage = models.IntegerField(default=0, help_text="0-100%")
     personal_notes = models.TextField(blank=True, help_text="User's private notes about this resource")
     started_at = models.DateTimeField(auto_now_add=True)
-    last_accessed = models.DateTimeField(auto_now=True)  # ✅ Remove default
-    completed_at = models.DateTimeField(null=True, blank=True)  # ✅ Already correct
+    last_accessed = models.DateTimeField(auto_now=True)  #  Remove default
+    completed_at = models.DateTimeField(null=True, blank=True)  #  Already correct
 
     class Meta:
         verbose_name = "User Learning Progress"
