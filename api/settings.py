@@ -17,6 +17,8 @@ ALLOWED_HOSTS = ['127.0.0.1', 'api-0904.onrender.com', '64.225.122.101','localho
 # CSRF Trusted Origins
 CSRF_TRUSTED_ORIGINS = [
     "https://api-0904.onrender.com",
+    "http://localhost:5173",
+    "http://64.225.122.101",
 ]
 
 # Database configuration

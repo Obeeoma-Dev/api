@@ -369,7 +369,7 @@ class PasswordChangeView(viewsets.ViewSet):
         )
 
 
-# --- Missing Serializers for Invitation Flow ---
+# --- Employee Invitation Serializers ---
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
     token = serializers.CharField(
         required=True,
@@ -381,14 +381,11 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         min_length=8,
         help_text="Password for the new account"
     )
-    first_name = serializers.CharField(
+    username = serializers.CharField(
         required=True,
-        help_text="User's first name"
+        help_text="User_name"
     )
-    last_name = serializers.CharField(
-        required=True,
-        help_text="User's last name"
-    )
+    
     
     def validate_token(self, value):
         try:
@@ -437,7 +434,7 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         
         return user
 
-
+#--- Serializer for creating employee user account ---
 class EmployeeUserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
     password_confirm = serializers.CharField(write_only=True)
@@ -765,8 +762,7 @@ class InvitationAcceptanceView(APIView):
         # Create user account
         user_data = {
             'email': invitation.email,
-            'first_name': request.data.get('first_name'),
-            'last_name': request.data.get('last_name'),
+            'user_name': request.data.get('user_name'),
             'password': request.data.get('password'),
             'password_confirm': request.data.get('password_confirm'),
         }
@@ -791,8 +787,7 @@ class InvitationAcceptanceView(APIView):
             'user': {
                 'id': user.id,
                 'email': user.email,
-                'first_name': user.first_name,
-                'last_name': user.last_name
+                'user_name': user.user_name,
             },
             'employee_profile': {
                 'id': employee_profile.id,
