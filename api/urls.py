@@ -11,7 +11,8 @@ def api_root(request):
 
 urlpatterns = [
     path("", api_root, name="api-root"),
-    path("admin/", admin.site.urls),
+    path('admin/', admin.site.urls),
+
     
     # API v1 routes (from obeeomaapp)
     path("api/v1/", include(("obeeomaapp.urls", "obeeomaapp"), namespace="v1")),
