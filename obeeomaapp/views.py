@@ -88,7 +88,7 @@ logging.getLogger(__name__)
 # Get User model
 User = get_user_model()
 
-# --- Permission: company admin (is_staff) ---
+#Permission: company admin (is_staff) 
 class IsCompanyAdmin(BasePermission):
     """Allows access only to users with is_staff=True."""
     def has_permission(self, request, view):
