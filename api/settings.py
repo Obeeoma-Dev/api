@@ -3,6 +3,9 @@ from pathlib import Path
 from urllib.parse import urlparse, parse_qsl
 from dotenv import load_dotenv
 from datetime import timedelta
+from cryptography.fernet import Fernet
+
+
 
 load_dotenv()
 
@@ -13,6 +16,9 @@ SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret-key")
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 PORT = os.getenv("PORT", "8000")
 ALLOWED_HOSTS = ['127.0.0.1', 'api-0904.onrender.com', '64.225.122.101','localhost']
+
+# This is  for generating the fernet key regarding MFA
+FERNET_KEY = os.getenv("FERNET_KEY")
 
 # CSRF Trusted Origins
 CSRF_TRUSTED_ORIGINS = [

@@ -66,10 +66,15 @@ from datetime import timedelta
 import secrets
 from rest_framework import filters
 import string
+import pyotp, qrcode, io, base64
+from django.utils.crypto import get_random_string
+from django.core.cache import cache
 from .models import Organization
 from .serializers import OTPVerificationSerializer
 from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string
+from django.contrib.auth import authenticate, login as django_login
+
 import logging
 from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import (
@@ -135,19 +140,38 @@ class VerifyOTPView(APIView):
     tags=['Authentication'],
     description="Login using username and password only."
 )
+@extend_schema(
+    request=LoginSerializer,
+    responses={200: OpenApiTypes.OBJECT},
+    tags=['Authentication'],
+    description="Login using username and password. MFA integrated if enabled."
+)
+
+# LOGIN VIEW
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = LoginSerializer
-    queryset = None 
+    queryset = None
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = serializer.validated_data['user']
+
+    # This is for MFA Check 
+        if user.mfa_enabled:
+            # this logic Generates temporary token for MFA verification
+            temp_token = get_random_string(32)
+            cache.set(temp_token, user.id, timeout=300)  # valid 5 minutes
+            return Response({
+                "mfa_required": True,
+                "temp_token": temp_token
+            })
+
+# This is our Normal login 
         refresh = RefreshToken.for_user(user)
 
-        # Check if user is associated with an organization
         display_username = user.username
         try:
             organization = user.organizations.first()
@@ -175,6 +199,9 @@ class LoginView(APIView):
         else:
             redirect_url = '/'
 
+        # Log the user in (this creates session cookie if needed)
+        django_login(request, user)
+
         return Response({
             "refresh": str(refresh),
             "access": str(refresh.access_token),
@@ -194,7 +221,6 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     
 
 # LOGOUT VIEW
-
 @extend_schema(
     tags=["Authentication"],
     request=LogoutSerializer,
@@ -368,7 +394,109 @@ class PasswordChangeView(viewsets.ViewSet):
         )
 
 
-# --- Employee Invitation Serializers ---
+
+# This is the Setup for MFA (when the superuser is already logged in)
+@extend_schema(request=MFASetupSerializer, responses={200: MFASetupSerializer})
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mfa_setup(request):
+    user = request.user
+    if not user.is_superuser:
+        return Response({'error': 'Only superadmin can enable MFA'}, status=403)
+
+    secret = pyotp.random_base32()
+    totp = pyotp.TOTP(secret)
+    otpauth_uri = totp.provisioning_uri(
+        name=user.username,
+        issuer_name="ObeeomaApp"
+    )
+
+    # This helps the system to Generate the QR image in base64
+    qr = qrcode.make(otpauth_uri)
+    buffer = io.BytesIO()
+    qr.save(buffer, format="PNG")
+    qr_b64 = base64.b64encode(buffer.getvalue()).decode()
+
+    user.set_mfa_secret(secret)
+    user.save()
+
+    return Response({
+        "otpauth_uri": otpauth_uri,
+        "qr_code_base64": qr_b64
+    })
+
+
+# This setup comfirms the MFA
+
+@extend_schema(request=MFAConfirmSerializer, responses={200: MFAConfirmSerializer}) 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mfa_confirm(request):
+    user = request.user
+    code = request.data.get("code")
+
+    secret = user.get_mfa_secret()
+    if not secret:
+        return Response({"error": "MFA not initialized"}, status=400)
+
+    totp = pyotp.TOTP(secret)
+    if totp.verify(code):
+        user.mfa_enabled = True
+        user.save()
+        return Response({"detail": "MFA successfully enabled"})
+    else:
+        return Response({"error": "Invalid verification code"}, status=400)
+    
+
+# This logic is for MFA Verification during login
+@extend_schema(request=MFAVerifySerializer, responses={200: MFAVerifySerializer})
+@api_view(['POST'])
+def login(request):
+    username = request.data.get("username")
+    password = request.data.get("password")
+
+    user = authenticate(username=username, password=password)
+    if not user:
+        return Response({"error": "Invalid credentials"}, status=401)
+
+    if user.mfa_enabled:
+        temp_token = get_random_string(32)
+        cache.set(temp_token, user.id, timeout=300)  # valid 5 minutes
+        return Response({
+            "mfa_required": True,
+            "temp_token": temp_token
+        })
+
+    login(request, user)
+    return Response({"detail": "Login successful, session created"})
+
+#So this logic will help in MFA verification by checking the code
+@extend_schema(request=MFAVerifySerializer, responses={200: MFAVerifySerializer})
+@api_view(['POST'])
+def mfa_verify(request):
+    temp_token = request.data.get("temp_token")
+    code = request.data.get("code")
+
+    user_id = cache.get(temp_token)
+    if not user_id:
+        return Response({"error": "Expired or invalid session"}, status=400)
+
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    user = User.objects.get(id=user_id)
+
+    totp = pyotp.TOTP(user.get_mfa_secret())
+    if not totp.verify(code):
+        return Response({"error": "Invalid or expired code"}, status=401)
+
+    # This logic says if Valid code ,finalize login
+    cache.delete(temp_token)
+    login(request, user)  #This sets the Django session cookie
+    return Response({"detail": "MFA success, session created"})
+
+
+
+# Employee Invitation Serializers
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
     token = serializers.CharField(
         required=True,
