@@ -21,7 +21,7 @@ from rest_framework.permissions import (
     AllowAny,
 )
 
-
+import django_filters
 from drf_spectacular.utils import extend_schema_view, extend_schema
 from django.db.models import Avg
 
@@ -1075,14 +1075,12 @@ class NotificationView(viewsets.ModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['is_read', 'notification_type']
-    ordering_fields = ['created_at']
-    ordering = ['-created_at']
+    filterset_fields = ['read']  # Use the actual field name 'read' instead of 'is_read'
+    ordering_fields = ['sent_on']
+    ordering = ['-sent_on']
 
     def get_queryset(self):
         return Notification.objects.filter(employee__user=self.request.user)
-
-
 @extend_schema(tags=['Employee - Engagement'])
 class EngagementTrackerView(viewsets.ModelViewSet):
     serializer_class = EngagementTrackerSerializer
@@ -1718,7 +1716,7 @@ class TestsByTypeView(viewsets.ViewSet):
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
-        tests_by_type = WellnessTest.objects.values('test_type').annotate(
+        tests_by_type = MoodTest.objects.values('test_type').annotate(
             count=Count('id')
         ).order_by('-count')
         
@@ -1732,7 +1730,7 @@ class TestsByDepartmentView(viewsets.ViewSet):
     
     def list(self, request):
         
-        tests_by_department = WellnessTest.objects.values(
+        tests_by_department = MoodTest.objects.values(
             'department__name'
         ).annotate(
             count=Count('id')

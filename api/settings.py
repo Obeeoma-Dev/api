@@ -9,7 +9,7 @@ from cryptography.fernet import Fernet
 
 load_dotenv()
 
-BASE_DIR = Path(_file_).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security
 SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret-key")
@@ -83,6 +83,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     'corsheaders',
     'django_filters',
+    
 ]
 
 MIDDLEWARE = [

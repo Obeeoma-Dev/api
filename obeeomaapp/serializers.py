@@ -514,14 +514,13 @@ class CrisisTriggerSerializer(serializers.ModelSerializer):
         model = CrisisTrigger
         fields = '__all__'
         read_only_fields = ['employee', 'triggered_on']
-
 class NotificationSerializer(serializers.ModelSerializer):
+    is_read = serializers.BooleanField(source='read', read_only=True)  # Add this field
+    
     class Meta:
         model = Notification
-        fields = '__all__'
+        fields = ['id', 'employee', 'message', 'sent_on', 'read', 'is_read']  # Include both
         read_only_fields = ['employee', 'sent_on']
-
-
 class EngagementTrackerSerializer(serializers.ModelSerializer):
     class Meta:
         model = EngagementTracker
