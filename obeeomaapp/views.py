@@ -66,10 +66,15 @@ from datetime import timedelta
 import secrets
 from rest_framework import filters
 import string
+import pyotp, qrcode, io, base64
+from django.utils.crypto import get_random_string
+from django.core.cache import cache
 from .models import Organization
 from .serializers import OTPVerificationSerializer
 from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string
+from django.contrib.auth import authenticate, login as django_login
+
 import logging
 from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import (
@@ -83,7 +88,7 @@ logging.getLogger(__name__)
 # Get User model
 User = get_user_model()
 
-# --- Permission: company admin (is_staff) ---
+#Permission: company admin (is_staff) 
 class IsCompanyAdmin(BasePermission):
     """Allows access only to users with is_staff=True."""
     def has_permission(self, request, view):
@@ -135,52 +140,77 @@ class VerifyOTPView(APIView):
     tags=['Authentication'],
     description="Login using username and password only."
 )
+@extend_schema(
+    request=LoginSerializer,
+    responses={200: OpenApiTypes.OBJECT},
+    tags=['Authentication'],
+    description="Login using username and password. MFA integrated if enabled."
+)
+
+# LOGIN VIEW
+def _build_login_success_payload(user):
+    refresh = RefreshToken.for_user(user)
+
+    display_username = user.username
+    try:
+        organization = user.organizations.first()
+        if organization:
+            display_username = organization.organizationName
+    except Exception:
+        pass
+
+    user_data = {
+        "id": user.id,
+        "username": display_username,
+        "email": user.email,
+        "role": user.role,
+        "date_joined": user.date_joined,
+        "is_active": user.is_active,
+        "avatar": user.avatar.url if hasattr(user, "avatar") and user.avatar else None,
+    }
+
+    if user.role == "systemadmin":
+        redirect_url = "/admin/dashboard/"
+    elif user.role in ["organization", "employer"]:
+        redirect_url = "/organization/dashboard/"
+    elif user.role == "employee":
+        redirect_url = "/api/v1/mobile-login-success/"
+    else:
+        redirect_url = "/"
+
+    return {
+        "refresh": str(refresh),
+        "access": str(refresh.access_token),
+        "user": user_data,
+        "redirect_url": redirect_url,
+    }
+
+
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = LoginSerializer
-    queryset = None 
+    queryset = None
 
     def post(self, request):
-        serializer = self.serializer_class(data=request.data)
+        serializer = self.serializer_class(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
 
         user = serializer.validated_data['user']
-        refresh = RefreshToken.for_user(user)
 
-        # Check if user is associated with an organization
-        display_username = user.username
-        try:
-            organization = user.organizations.first()
-            if organization:
-                display_username = organization.organizationName
-        except:
-            pass
+    # This is for MFA Check 
+        if user.mfa_enabled:
+            # this logic Generates temporary token for MFA verification
+            temp_token = get_random_string(32)
+            cache.set(temp_token, user.id, timeout=300)  # valid 5 minutes
+            return Response({
+                "mfa_required": True,
+                "temp_token": temp_token
+            })
 
-        user_data = {
-            "id": user.id,
-            "username": display_username,
-            "email": user.email,
-            "role": user.role,
-            "date_joined": user.date_joined,
-            "is_active": user.is_active,
-            "avatar": user.avatar.url if hasattr(user, 'avatar') and user.avatar else None,
-        }
+        # Log the user in (this creates session cookie if needed)
+        django_login(request, user)
 
-        if user.role == 'systemadmin':
-            redirect_url = '/admin/dashboard/'
-        elif user.role in ['organization', 'employer']:
-            redirect_url = '/organization/dashboard/'
-        elif user.role == 'employee':
-            redirect_url = '/api/v1/mobile-login-success/'
-        else:
-            redirect_url = '/'
-
-        return Response({
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-            "user": user_data,
-            "redirect_url": redirect_url
-        })
+        return Response(_build_login_success_payload(user))
     
 # matching view for custom token obtain pair serializer
 @extend_schema(
@@ -194,7 +224,6 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     
 
 # LOGOUT VIEW
-
 @extend_schema(
     tags=["Authentication"],
     request=LogoutSerializer,
@@ -368,7 +397,99 @@ class PasswordChangeView(viewsets.ViewSet):
         )
 
 
-# --- Employee Invitation Serializers ---
+
+# This is the Setup for MFA (when the superuser is already logged in)
+@extend_schema(request=MFASetupSerializer, responses={200: MFASetupSerializer})
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mfa_setup(request):
+    user = request.user
+    if not (user.role == 'systemadmin' or user.is_superuser):
+        return Response({'error': 'Only system administrators can enable MFA'}, status=403)
+
+    raw_secret = user.generate_mfa_secret()
+    totp = pyotp.TOTP(raw_secret)
+    otpauth_uri = totp.provisioning_uri(
+        name=user.username,
+        issuer_name="ObeeomaApp"
+    )
+
+    # This helps the system to Generate the QR image in base64
+    qr = qrcode.make(otpauth_uri)
+    buffer = io.BytesIO()
+    qr.save(buffer, format="PNG")
+    qr_b64 = base64.b64encode(buffer.getvalue()).decode()
+
+    return Response({
+        "otpauth_uri": otpauth_uri,
+        "qr_code_base64": qr_b64,
+        "secret": raw_secret,
+    })
+
+
+# This setup comfirms the MFA
+
+@extend_schema(request=MFAConfirmSerializer, responses={200: MFAConfirmSerializer}) 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mfa_confirm(request):
+    user = request.user
+    code = request.data.get("code")
+
+    secret = user.get_mfa_secret()
+    if not secret:
+        return Response({"error": "MFA not initialized"}, status=400)
+
+    totp = pyotp.TOTP(secret)
+    if not totp.verify(code, valid_window=1):
+        return Response({"error": "Invalid verification code"}, status=400)
+
+    user.mfa_enabled = True
+    user.save(update_fields=["mfa_enabled"])
+    return Response({"detail": "MFA successfully enabled"})
+    
+
+# This logic is for MFA Verification during login
+#So this logic will help in MFA verification by checking the code
+@extend_schema(request=MFAVerifySerializer, responses={200: MFAVerifySerializer})
+@api_view(['POST'])
+def mfa_verify(request):
+    serializer = MFAVerifySerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    temp_token = serializer.validated_data["temp_token"]
+    code = serializer.validated_data["code"]
+
+    user_id = cache.get(temp_token)
+    if not user_id:
+        return Response({"error": "Expired or invalid session"}, status=400)
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        cache.delete(temp_token)
+        return Response({"error": "Account associated with this session was not found"}, status=400)
+
+    if not user.mfa_enabled:
+        cache.delete(temp_token)
+        return Response({"error": "MFA is not enabled for this account"}, status=400)
+
+    secret = user.get_mfa_secret()
+    if not secret:
+        return Response({"error": "MFA is not configured for this account"}, status=400)
+
+    totp = pyotp.TOTP(secret)
+    if not totp.verify(code, valid_window=1):
+        return Response({"error": "Invalid or expired code"}, status=401)
+
+    # This logic says if Valid code ,finalize login
+    cache.delete(temp_token)
+    django_login(request, user)  #This sets the Django session cookie
+
+    return Response(_build_login_success_payload(user))
+
+
+
+# Employee Invitation Serializers
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
     token = serializers.CharField(
         required=True,
