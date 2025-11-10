@@ -136,12 +136,19 @@ AUTH_USER_MODEL = "obeeomaapp.User"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # CORS settings
-CORS_ALLOW_ALL_ORIGINS = True
-
+# Whitelist specific origins (recommended for production)
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://64.225.122.101",
+    "http://localhost:3000",      # React development server (common port)
+    "http://127.0.0.1:3000",      # Alternative localhost
+    "http://localhost:5173",      # Vite development server
+    "http://127.0.0.1:5173",      # Alternative localhost for Vite
+    "http://64.225.122.101",      # Production frontend
+    # Add your production frontend URL here when deployed
+    # "https://your-production-frontend.com",
 ]
+
+# For early development only - uncomment to allow all origins (not recommended for production)
+# CORS_ALLOW_ALL_ORIGINS = True
 
 # Frontend URL for email links
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
