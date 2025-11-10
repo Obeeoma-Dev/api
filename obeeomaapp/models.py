@@ -8,27 +8,75 @@ from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 User = settings.AUTH_USER_MODEL
+import pyotp
+from cryptography.fernet import Fernet
 
 #User and Authentication Models
 class User(AbstractUser):
     ROLE_CHOICES = (
-        ('systemadmin', 'System Admin'),
-        ('organisation', 'organisation'),
+        ('systemadmin', 'Systemadmin'),
+        ('organisation', 'Organisation'),
         ('employee', 'Employee'),
     )
+
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
     onboarding_completed = models.BooleanField(default=False)
     is_suspended = models.BooleanField(default=False)
+
+    # These are the MFA-related fields
     mfa_enabled = models.BooleanField(default=False)
     mfa_secret = models.CharField(max_length=255, blank=True, null=True)
+
     avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
-    email = models.EmailField(unique=True) 
+    email = models.EmailField(unique=True)
 
     def __str__(self):
         return f"{self.username} ({self.role})"
 
-    def __str__(self):
-        return f"{self.username} ({self.role})"
+    # These are the MFA Utility Methods
+    def generate_mfa_secret(self):
+        """
+        Create a new TOTP secret and encrypt it before saving.
+        Called when the admin enables MFA.
+        """
+        raw_secret = pyotp.random_base32()
+        fernet = Fernet(settings.FERNET_KEY)
+        encrypted_secret = fernet.encrypt(raw_secret.encode()).decode()
+        self.mfa_secret = encrypted_secret
+        self.save(update_fields=["mfa_secret"])
+        return raw_secret  # This helps in Returning the raw one for generating the QR
+
+    def get_mfa_secret(self):
+        """
+        Decrypt the stored secret (for verification or QR generation).
+        """
+        if not self.mfa_secret:
+            return None
+        fernet = Fernet(settings.FERNET_KEY)
+        return fernet.decrypt(self.mfa_secret.encode()).decode()
+
+    def get_otpauth_url(self):
+        """
+        Generate the otpauth URL for use in Google Authenticator.
+        """
+        secret = self.get_mfa_secret()
+        if not secret:
+            return None
+        return pyotp.totp.TOTP(secret).provisioning_uri(
+            name=self.username,
+            issuer_name="ObeeomaApp"
+        )
+
+    def verify_mfa_code(self, code):
+        """
+        Verify a 6-digit MFA code entered by the user.
+        """
+        secret = self.get_mfa_secret()
+        if not secret:
+            return False
+        totp = pyotp.TOTP(secret)
+        return totp.verify(code)
+
     
 
 #MODELS FOR CREATING AN ORGANIZATION

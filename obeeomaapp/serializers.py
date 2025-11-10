@@ -246,6 +246,35 @@ class OTPVerificationSerializer(serializers.Serializer):
             raise serializers.ValidationError("This code has expired. Please request a new one.")
         self.context['user'] = otp_record.user
         return value
+    
+# SERIALIZERS FOR MFA SETUP AND VERIFICATION
+
+# MFA Setup Serializer
+# mfa_setup view doesn't require any input fields, because the superuser is already logged in. 
+# We'll keep it empty but define it for consistency.
+class MFASetupSerializer(serializers.Serializer):
+    pass  # no fields required
+
+
+# This is Used to confirm MFA after setup
+class MFAConfirmSerializer(serializers.Serializer):
+    code = serializers.CharField(
+        max_length=6,
+        required=True,
+        help_text="6-digit MFA code from your authenticator app"
+    )
+
+# Used during login to verify MFA code
+class MFAVerifySerializer(serializers.Serializer):
+    temp_token = serializers.CharField(
+        required=True,
+        help_text="Temporary token received after login step 1"
+    )
+    code = serializers.CharField(
+        max_length=6,
+        required=True,
+        help_text="6-digit MFA code from your authenticator app"
+    )
 
 
 class UserSerializer(serializers.ModelSerializer):
