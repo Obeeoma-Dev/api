@@ -453,6 +453,7 @@ def mfa_confirm(request):
 #So this logic will help in MFA verification by checking the code
 @extend_schema(request=MFAVerifySerializer, responses={200: MFAVerifySerializer})
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def mfa_verify(request):
     serializer = MFAVerifySerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
