@@ -14,7 +14,7 @@ from cryptography.fernet import Fernet
 #User and Authentication Models
 class User(AbstractUser):
     ROLE_CHOICES = (
-        ('systemadmin', 'System Admin'),
+        ('systemadmin', 'Systemadmin'),
         ('organisation', 'Organisation'),
         ('employee', 'Employee'),
     )
