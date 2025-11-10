@@ -401,7 +401,7 @@ class PasswordChangeView(viewsets.ViewSet):
 # This is the Setup for MFA (when the superuser is already logged in)
 @extend_schema(request=MFASetupSerializer, responses={200: MFASetupSerializer})
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def mfa_setup(request):
     user = request.user
     if not (user.role == 'systemadmin' or user.is_superuser):
@@ -431,7 +431,7 @@ def mfa_setup(request):
 
 @extend_schema(request=MFAConfirmSerializer, responses={200: MFAConfirmSerializer}) 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def mfa_confirm(request):
     user = request.user
     code = request.data.get("code")
