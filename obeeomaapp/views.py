@@ -115,6 +115,7 @@ class OrganizationSignupView(viewsets.ModelViewSet):
 
 # VIEWS FOR VERIFYING THE OTP
 class VerifyOTPView(APIView):
+    permission_classes = [AllowAny]
     @extend_schema(
         request=OTPVerificationSerializer,
         responses=OTPVerificationSerializer  
