@@ -105,45 +105,44 @@ class OrganizationSignupView(viewsets.ModelViewSet):
 
 # Employer Registration View
 @extend_schema(
-    tags=["Authentication"],
-    request=EmployerRegistrationSerializer,
+    tags=['Authentication'],
+    request=LoginSerializer,  # ✅ This tells the API docs what to expect
     responses={
-        201: {
-            "description": "Account and organization created successfully",
+        200: {
+            "description": "Login successful",
             "content": {
                 "application/json": {
                     "example": {
-                        "message": "Account and organization created successfully",
-                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                         "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                         "user": {
                             "id": 1,
-                            "email": "john@company.com",
-                            "username": "john@company.com",
-                            "role": "employer"
-                        },
-                        "organization": {
-                            "id": 1,
-                            "name": "My Company Inc",
-                            "is_active": True
+                            "username": "johndoe",
+                            "email": "john@example.com",
+                            "role": "employee",
+                            "date_joined": "2025-01-01T00:00:00Z",
+                            "is_active": True,
+                            "avatar": None
                         }
                     }
                 }
             }
         },
-        400: {"description": "Bad Request - validation errors or email already exists"}
+        401: {"description": "Invalid credentials"},
+        403: {"description": "Account is disabled"}
     },
     description="""
-    Register as an employer - creates user account and organization in one step.
+    Login endpoint for all users (employees, employers, admins).
     
-    This is a public endpoint (no authentication required).
-    After successful registration, you'll receive JWT tokens for immediate login.
+    **Required fields:**
+    - username: Your username or email
+    - password: Your password
+    
+    **Returns:**
+    - JWT access and refresh tokens
+    - User information including role
     """
 )
-
-
-# login view
-@extend_schema(tags=['Authentication'])
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = LoginSerializer
@@ -162,7 +161,7 @@ class LoginView(APIView):
         if not user.is_active:
             return Response({"detail": "Account is disabled"}, status=status.HTTP_403_FORBIDDEN)
 
-        # This helps to Generate JWT tokens
+        # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
 
         user_data = {
@@ -180,8 +179,6 @@ class LoginView(APIView):
             "access": str(refresh.access_token),
             "user": user_data
         })
-
-
     
 # matching view for custom token obtain pair serializer
 class CustomTokenObtainPairView(TokenObtainPairView):
@@ -1020,13 +1017,6 @@ class AvatarProfileView(viewsets.ModelViewSet):
         return AvatarProfile.objects.filter(employee__user=self.request.user)
 
 
-@extend_schema(tags=['Employee - Wellness'])
-class WellnessHubView(viewsets.ModelViewSet):
-    serializer_class = WellnessHubSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return WellnessHub.objects.filter(employee__user=self.request.user)
 
 @extend_schema(tags=['Employee - Mood Tracking'])
 class MoodTrackingView(viewsets.ModelViewSet):
@@ -1066,17 +1056,9 @@ class SelfHelpResourceView(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return WellnessHub.objects.filter(employee__user=self.request.user)
+        return MoodTracking.objects.filter(employee__user=self.request.user)
 
 
-@extend_schema(tags=['Resources'])
-class EducationalResourceView(viewsets.ModelViewSet):
-    queryset = EducationalResource.objects.all()
-    serializer_class = EducationalResourceSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return AssessmentResult.objects.filter(employee__user=self.request.user)
 
 @extend_schema(tags=['Employee - Crisis Support'])
 class CrisisTriggerView(viewsets.ModelViewSet):
@@ -1571,10 +1553,10 @@ class OrganizationOverviewView(viewsets.ViewSet):
         total_employees = Employee.objects.count()
         
         # Get total tests
-        total_tests = WellnessTest.objects.count()
+        total_tests = MoodTracking.objects.count()
         
         # Get average score
-        avg_score = WellnessTest.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
+        avg_score = MoodTracking.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
         
         # Get at-risk departments
         at_risk_departments = Department.objects.filter(at_risk=True).count()
@@ -1685,7 +1667,7 @@ class WellnessReportsView(viewsets.ViewSet):
         resource_engagement = ResourceEngagement.objects.filter(completed=True).count()
         
         # Get average wellbeing trend
-        avg_wellbeing = WellnessTest.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
+        avg_wellbeing = MoodTracking.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
         
         # Get at-risk count
         at_risk = Department.objects.filter(at_risk=True).count()

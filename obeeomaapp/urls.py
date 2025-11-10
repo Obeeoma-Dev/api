@@ -20,9 +20,9 @@ from obeeomaapp.views import (
     PasswordResetView, PasswordResetConfirmView, PasswordChangeView,
     OverviewView, TrendsView, EmployeeEngagementView, BillingView,
     UsersView, ReportsView, CrisisInsightsView,
-    EmployeeProfileView, AvatarProfileView, WellnessHubView,
+    EmployeeProfileView, AvatarProfileView, 
     MoodTrackingView, AssessmentResultView, SelfHelpResourceView,
-    EducationalResourceView, CrisisTriggerView, NotificationView, 
+     CrisisTriggerView, NotificationView, 
     EngagementTrackerView, FeedbackView, ChatSessionView, 
     ChatMessageView, RecommendationLogView, InvitationAcceptView, 
     InvitationVerifyView, home, OrganizationSignupView,
@@ -64,11 +64,10 @@ router.register(r'progress', ProgressViewSet)
 
 router.register(r'employee/profile', EmployeeProfileView, basename='employee-profile')
 router.register(r'employee/avatar', AvatarProfileView, basename='avatar-profile')
-router.register(r'employee/wellness', WellnessHubView, basename='wellness-hub')
 router.register(r'employee/mood-tracking', MoodTrackingView, basename='mood-tracking')
 router.register(r'employee/assessments', AssessmentResultView, basename='assessment-results')
 router.register(r'resources/self-help', SelfHelpResourceView, basename='self-help-resources')
-router.register(r'resources/educational', EducationalResourceView, basename='educational-resources')
+router.register(r'resources/educational', EducationalResourceViewSet, basename='educational-resources')
 router.register(r'employee/crisis', CrisisTriggerView, basename='crisis-trigger')
 router.register(r'employee/notifications', NotificationView, basename='notifications')
 router.register(r'employee/engagement', EngagementTrackerView, basename='engagement-tracker')
@@ -148,12 +147,12 @@ urlpatterns = [
     # Employee endpoints
     path('employee/profile/', EmployeeProfileView.as_view({'get': 'list', 'post': 'create'}), name='employee-profile'),
     path('employee/avatar/', AvatarProfileView.as_view({'get': 'list', 'post': 'create'}), name='avatar-profile'),
-    path('employee/wellness/', WellnessHubView.as_view({'get': 'list', 'post': 'create'}), name='wellness-hub'),
+    
     path('employee/assessments/', AssessmentResultView.as_view({'get': 'list', 'post': 'create'}), name='assessment-results'),
     path('resources/self-help/', SelfHelpResourceView.as_view({'get': 'list', 'post': 'create'}), name='self-help-resources'),
     path('assessment-result/<int:id>/', AssessmentResultView.as_view({'get': 'retrieve'}), name='assessment-result'),
 
-    path('resources/educational/', EducationalResourceView.as_view({'get': 'list', 'post': 'create'}), name='educational-resources'),
+    # path('resources/educational/', EducationalResourceView.as_view({'get': 'list', 'post': 'create'}), name='educational-resources'),
     path('employee/crisis/', CrisisTriggerView.as_view({'get': 'list', 'post': 'create'}), name='crisis-trigger'),
     path('employee/notifications/', NotificationView.as_view({'get': 'list', 'post': 'create'}), name='notifications'),
     path('employee/engagement/', EngagementTrackerView.as_view({'get': 'list', 'post': 'create'}), name='engagement-tracker'),

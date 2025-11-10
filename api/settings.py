@@ -3,20 +3,32 @@ from pathlib import Path
 from urllib.parse import urlparse, parse_qsl
 from dotenv import load_dotenv
 from datetime import timedelta
+from cryptography.fernet import Fernet
+
+
 
 load_dotenv()
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(_file_).resolve().parent.parent
 
 # Security
 SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret-key")
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 PORT = os.getenv("PORT", "8000")
-ALLOWED_HOSTS = ['127.0.0.1', 'api-0904.onrender.com', 'http://64.225.122.101','localhost']
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost,64.225.122.101,api-0904.onrender.com").split(",")
+
+# This is  for generating the fernet key regarding MFA
+FERNET_KEY = os.getenv("FERNET_KEY")
 
 # CSRF Trusted Origins
 CSRF_TRUSTED_ORIGINS = [
     "https://api-0904.onrender.com",
+    "https://obeeoma.onrender.com",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://64.225.122.101",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
 
 # Database configuration
@@ -128,12 +140,34 @@ AUTH_USER_MODEL = "obeeomaapp.User"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # CORS settings
-CORS_ALLOW_ALL_ORIGINS = True
-
+# Whitelist specific origins (recommended for production)
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://64.225.122.101",
+    "http://localhost:3000",      # React development server (common port)
+    "http://127.0.0.1:3000",      # Alternative localhost
+    "http://localhost:5173",      # Vite development server
+    "http://127.0.0.1:5173",      # Alternative localhost for Vite
+    "http://64.225.122.101",      # Production frontend (DigitalOcean)
+    "https://obeeoma.onrender.com",  # Production frontend (Render)
+    # Add your production frontend URL here when deployed
+    # "https://your-production-frontend.com",
 ]
+
+# Additional CORS settings
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# For early development only - uncomment to allow all origins (not recommended for production)
+# CORS_ALLOW_ALL_ORIGINS = True
 
 # Frontend URL for email links
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
@@ -221,13 +255,21 @@ LOGGING = {
 }
 
 # EMAIL CONFIGURATION SETTINGS
-EMAIL_BACKEND = ("django.core.mail.backends.console.EmailBackend")
-DEFAULT_EMAIL_FROM = os.getenv("DEFAULT_EMAIL_FROM", default="Obeeoma256@gmail.com")
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", default="obeeoma256@gmail.com")
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in ("true", "1", "t")
+EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "False").lower() in ("true", "1", "t")
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "obeeoma256@gmail.com")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "Obeeoma256@gmail.com")
+EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "10"))
+
+# Gmail API settings (optional, for Gmail API instead of SMTP)
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI" , default="https://developers.google.com/oauthplayground")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://developers.google.com/oauthplayground")
 
 # OAuth Scopes for Gmail API (for the authorization flow)
 GMAIL_SCOPES = [

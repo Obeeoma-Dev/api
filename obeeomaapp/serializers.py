@@ -494,12 +494,6 @@ class AvatarProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ['employee']
 
 
-class WellnessHubSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = WellnessHub
-        fields = '__all__'
-        read_only_fields = ['employee', 'updated_at']
-
 
 
 class AssessmentResultSerializer(serializers.ModelSerializer):
@@ -706,16 +700,6 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
         model = PaymentMethod
         fields = '__all__'
         read_only_fields = ['employer', 'created_at']
-
-
-class WellnessTestSerializer(serializers.ModelSerializer):
-    employee_name = serializers.CharField(source='employee.name', read_only=True)
-    department_name = serializers.CharField(source='department.name', read_only=True)
-    
-    class Meta:
-        model = WellnessTest
-        fields = ['id', 'employee', 'employee_name', 'department', 'department_name', 'test_type', 'score', 'completed_at']
-
 
 class ResourceEngagementSerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source='employee.name', read_only=True)

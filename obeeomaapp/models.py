@@ -366,22 +366,7 @@ class AvatarProfile(models.Model):
         return f"Avatar for {self.employee.user.username}"
 
 
-class WellnessHub(models.Model):
-    employee = models.OneToOneField('EmployeeProfile', on_delete=models.CASCADE, related_name="wellness_hub")
-    last_checkin_date = models.DateField(blank=True, null=True)
-    last_checkin_mood = models.CharField(
-        max_length=20,
-        choices=[("happy", "Happy"), ("sad", "Sad"), ("stressed", "Stressed"),
-                 ("anxious", "Anxious"), ("neutral", "Neutral")],
-        blank=True,
-        null=True
-    )
-    mood_logs = models.JSONField(default=list, blank=True)
-    mood_insights = models.JSONField(default=dict, blank=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self):
-        return f"Wellness Hub - {self.employee.user.username}"
 
 
 class AssessmentResult(models.Model):
@@ -690,25 +675,7 @@ class PaymentMethod(models.Model):
         ordering = ['-is_default', '-created_at']
 
 
-class WellnessTest(models.Model):
-    """Wellness tests completed by employees"""
-    TEST_TYPES = [
-        ('wellbeing_check', 'Well-being Check'),
-        ('burnout_risk', 'Burnout Risk'),
-        ('stress_assessment', 'Stress Assessment'),
-    ]
-    
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="wellness_tests")
-    department = models.ForeignKey('Department', on_delete=models.SET_NULL, null=True, blank=True)
-    test_type = models.CharField(max_length=50, choices=TEST_TYPES)
-    score = models.PositiveIntegerField()
-    completed_at = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
-        return f"{self.employee.name} - {self.test_type}"
-
-    class Meta:
-        ordering = ['-completed_at']
 
 
 class ResourceEngagement(models.Model):
