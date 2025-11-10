@@ -12,13 +12,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret-key")
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 PORT = os.getenv("PORT", "8000")
-ALLOWED_HOSTS = ['127.0.0.1', 'api-0904.onrender.com', '64.225.122.101','localhost']
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost,64.225.122.101,api-0904.onrender.com").split(",")
 
 # CSRF Trusted Origins
 CSRF_TRUSTED_ORIGINS = [
     "https://api-0904.onrender.com",
+    "https://obeeoma.onrender.com",
     "http://localhost:5173",
+    "http://127.0.0.1:5173",
     "http://64.225.122.101",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
 
 # Database configuration
@@ -136,9 +140,24 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",      # Alternative localhost
     "http://localhost:5173",      # Vite development server
     "http://127.0.0.1:5173",      # Alternative localhost for Vite
-    "http://64.225.122.101",      # Production frontend
+    "http://64.225.122.101",      # Production frontend (DigitalOcean)
+    "https://obeeoma.onrender.com",  # Production frontend (Render)
     # Add your production frontend URL here when deployed
     # "https://your-production-frontend.com",
+]
+
+# Additional CORS settings
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
 ]
 
 # For early development only - uncomment to allow all origins (not recommended for production)
