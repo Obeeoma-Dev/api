@@ -235,17 +235,20 @@ class PasswordChangeSerializer(serializers.Serializer):
 class OTPVerificationSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=6)
 
-    def validate_code(self, value):
+    def validate(self, attrs):
+        code = attrs.get("code")
         try:
-            otp_record = PasswordResetOTP.objects.get(code=value)
+            otp = PasswordResetOTP.objects.get(code=code)
         except PasswordResetOTP.DoesNotExist:
             raise serializers.ValidationError("Invalid verification code.")
 
-        # This part helps the system to Check expiry of the OTP
-        if otp_record.is_expired():
-            raise serializers.ValidationError("This code has expired. Please request a new one.")
-        self.context['user'] = otp_record.user
-        return value
+        # This is Optional but it helps: Expiration check (5 minutes)
+        if otp.created_at < timezone.now() - timedelta(minutes=5):
+            raise serializers.ValidationError("This OTP has expired.")
+        self.context["user"] = otp.user
+        self.context["otp"] = otp
+        return attrs
+
     
 # SERIALIZERS FOR MFA SETUP AND VERIFICATION
 
