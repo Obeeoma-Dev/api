@@ -34,7 +34,8 @@ from obeeomaapp.views import (
     OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet,
     MeditationCategoryViewSet, FeaturedContentViewSet, DailyMoodCheckinViewSet,
     DailyStreakViewSet, UserFavoriteViewSet, MeditationSessionViewSet,
-    home_screen, explore_screen
+    home_screen, explore_screen, MoodEntryViewSet, MoodPatternViewSet,
+    MoodInsightViewSet, mood_screen
     
 )
 
@@ -118,6 +119,11 @@ router.register(r'meditation/streak', DailyStreakViewSet, basename='daily-streak
 router.register(r'meditation/favorites', UserFavoriteViewSet, basename='user-favorite')
 router.register(r'meditation/sessions', MeditationSessionViewSet, basename='meditation-session')
 
+# Mood Tracking Routes
+router.register(r'mood/entries', MoodEntryViewSet, basename='mood-entry')
+router.register(r'mood/patterns', MoodPatternViewSet, basename='mood-pattern')
+router.register(r'mood/insights', MoodInsightViewSet, basename='mood-insight')
+
 # Employee Invitations
 router.register(r'invitations', InviteView, basename='invitations')
 
@@ -192,6 +198,9 @@ urlpatterns = [
     # Meditation & Mindfulness App Endpoints
     path('meditation/home/', home_screen, name='meditation-home'),
     path('meditation/explore/', explore_screen, name='meditation-explore'),
+
+    # Mood Tracking Endpoints
+    path('mood/screen/', mood_screen, name='mood-screen'),
 
     # Include router URLs
     path("", include(router.urls)),

@@ -207,16 +207,13 @@ marimo/_lsp/
 __marimo__/
 
 
-EMAIL_CONHIG_GUIDE.md  
-EMAIL_SETUP.md  
-EMAIL_TROUBLESHOOTING.md
-GITHUB_ACTIONS_SETUP.md
-OAUTH2_SCOPE_FIX.md
-OAUTH2_SETUP_GUIDE.md
-OAUTH2_SETUP_COMPLETE.md
-PYTEST_SETUP.md
-QUICK_FIX_GUIDE.md
-SWAGGER_ASSESSMENT_GUIDE.md
-ASSESSMENT_API_GUIDE.md
-EMPLOYEE_INVITATION_GUIDE.md
-API_AUTHENTICATION_GUIDE.md
+# Documentation files (moved to docs/ folder)
+docs/
+*.md
+!README.md
+
+# Setup and helper scripts
+setup_complete.bat
+fix_imports.bat
+run_migrations.py
+test_setup.py

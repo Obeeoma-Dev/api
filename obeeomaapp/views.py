@@ -3121,3 +3121,397 @@ def explore_screen(request):
     categories = MeditationCategory.objects.filter(is_active=True).order_by('order')
     serializer = MeditationCategorySerializer(categories, many=True, context={'request': request})
     return Response(serializer.data)
+
+
+# ===== MOOD TRACKING VIEWS =====
+
+@extend_schema_view(
+    list=extend_schema(tags=['Mood Tracking']),
+    create=extend_schema(tags=['Mood Tracking']),
+    retrieve=extend_schema(tags=['Mood Tracking']),
+    update=extend_schema(tags=['Mood Tracking']),
+    partial_update=extend_schema(tags=['Mood Tracking']),
+    destroy=extend_schema(tags=['Mood Tracking']),
+)
+class MoodEntryViewSet(viewsets.ModelViewSet):
+    """ViewSet for mood entries with list and chart views"""
+    serializer_class = MoodEntrySerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['mood', 'date']
+    ordering_fields = ['date', 'created_at']
+    ordering = ['-date']
+    
+    def get_queryset(self):
+        return MoodEntry.objects.filter(user=self.request.user)
+    
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return MoodEntryListSerializer
+        return MoodEntrySerializer
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+    
+    @extend_schema(
+        description="Get today's mood entry",
+        responses=MoodEntrySerializer,
+        tags=['Mood Tracking']
+    )
+    @action(detail=False, methods=['get'])
+    def today(self, request):
+        """Get today's mood entry"""
+        today = timezone.now().date()
+        try:
+            entry = MoodEntry.objects.get(user=request.user, date=today)
+            serializer = MoodEntrySerializer(entry)
+            return Response(serializer.data)
+        except MoodEntry.DoesNotExist:
+            return Response(
+                {'message': 'No mood entry for today', 'has_entry': False},
+                status=status.HTTP_404_NOT_FOUND
+            )
+    
+    @extend_schema(
+        description="Get mood entries for chart view (last 7 days)",
+        parameters=[
+            OpenApiParameter(name='days', type=int, default=7, description='Number of days to retrieve')
+        ],
+        responses=MoodChartDataSerializer(many=True),
+        tags=['Mood Tracking']
+    )
+    @action(detail=False, methods=['get'])
+    def chart(self, request):
+        """Get mood data formatted for chart display"""
+        from datetime import timedelta
+        import calendar
+        
+        days = int(request.query_params.get('days', 7))
+        end_date = timezone.now().date()
+        start_date = end_date - timedelta(days=days - 1)
+        
+        entries = MoodEntry.objects.filter(
+            user=request.user,
+            date__gte=start_date,
+            date__lte=end_date
+        ).order_by('date')
+        
+        # Create a dict of entries by date
+        entries_by_date = {entry.date: entry for entry in entries}
+        
+        # Generate chart data for all days in range
+        chart_data = []
+        current_date = start_date
+        
+        while current_date <= end_date:
+            entry = entries_by_date.get(current_date)
+            day_name = calendar.day_abbr[current_date.weekday()]
+            
+            if entry:
+                chart_data.append({
+                    'date': current_date,
+                    'mood': entry.mood,
+                    'emoji': entry.emoji,
+                    'day_name': day_name
+                })
+            else:
+                chart_data.append({
+                    'date': current_date,
+                    'mood': None,
+                    'emoji': '⚪',  # Empty circle for no entry
+                    'day_name': day_name
+                })
+            
+            current_date += timedelta(days=1)
+        
+        serializer = MoodChartDataSerializer(chart_data, many=True)
+        return Response(serializer.data)
+    
+    @extend_schema(
+        description="Get mood analytics and statistics",
+        responses=MoodAnalyticsSerializer,
+        tags=['Mood Tracking']
+    )
+    @action(detail=False, methods=['get'])
+    def analytics(self, request):
+        """Get comprehensive mood analytics"""
+        from django.db.models import Count
+        from datetime import timedelta
+        
+        # Get or create mood pattern
+        pattern, _ = MoodPattern.objects.get_or_create(user=request.user)
+        pattern.update_statistics()
+        
+        # Get mood distribution
+        mood_distribution = list(
+            MoodEntry.objects.filter(user=request.user)
+            .values('mood')
+            .annotate(count=Count('mood'))
+            .order_by('-count')
+        )
+        
+        # Add emoji and display name to distribution
+        for item in mood_distribution:
+            item['emoji'] = MoodEntry.MOOD_EMOJI_MAP.get(item['mood'], '😐')
+            item['mood_display'] = dict(MoodEntry.MOOD_CHOICES).get(item['mood'], item['mood'])
+        
+        # Get weekly mood chart (last 7 days)
+        end_date = timezone.now().date()
+        start_date = end_date - timedelta(days=6)
+        
+        weekly_entries = MoodEntry.objects.filter(
+            user=request.user,
+            date__gte=start_date,
+            date__lte=end_date
+        ).order_by('date')
+        
+        weekly_chart = []
+        entries_by_date = {entry.date: entry for entry in weekly_entries}
+        
+        for i in range(7):
+            date = start_date + timedelta(days=i)
+            entry = entries_by_date.get(date)
+            
+            if entry:
+                weekly_chart.append({
+                    'date': date.strftime('%a'),
+                    'mood': entry.mood,
+                    'emoji': entry.emoji
+                })
+            else:
+                weekly_chart.append({
+                    'date': date.strftime('%a'),
+                    'mood': None,
+                    'emoji': '⚪'
+                })
+        
+        # Get recent entries
+        recent_entries = MoodEntry.objects.filter(user=request.user).order_by('-date')[:10]
+        
+        analytics_data = {
+            'positive_moods_percentage': pattern.positive_mood_percentage,
+            'most_common_mood': pattern.most_common_mood,
+            'most_common_mood_emoji': MoodEntry.MOOD_EMOJI_MAP.get(pattern.most_common_mood, '😐') if pattern.most_common_mood else '😐',
+            'total_entries': pattern.total_entries,
+            'current_streak': pattern.current_streak,
+            'mood_distribution': mood_distribution,
+            'weekly_mood_chart': weekly_chart,
+            'recent_entries': MoodEntryListSerializer(recent_entries, many=True).data
+        }
+        
+        serializer = MoodAnalyticsSerializer(analytics_data)
+        return Response(serializer.data)
+    
+    @extend_schema(
+        description="Get mood history with filters",
+        parameters=[
+            OpenApiParameter(name='start_date', type=str, description='Start date (YYYY-MM-DD)'),
+            OpenApiParameter(name='end_date', type=str, description='End date (YYYY-MM-DD)'),
+            OpenApiParameter(name='mood', type=str, description='Filter by mood'),
+        ],
+        responses=MoodEntryListSerializer(many=True),
+        tags=['Mood Tracking']
+    )
+    @action(detail=False, methods=['get'])
+    def history(self, request):
+        """Get mood history with optional filters"""
+        from datetime import datetime
+        
+        queryset = self.get_queryset()
+        
+        # Date range filter
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        if start_date:
+            try:
+                start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(date__gte=start_date)
+            except ValueError:
+                pass
+        
+        if end_date:
+            try:
+                end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(date__lte=end_date)
+            except ValueError:
+                pass
+        
+        # Mood filter
+        mood = request.query_params.get('mood')
+        if mood:
+            queryset = queryset.filter(mood=mood)
+        
+        serializer = MoodEntryListSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+@extend_schema_view(
+    retrieve=extend_schema(tags=['Mood Tracking - Patterns']),
+)
+class MoodPatternViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for mood patterns and statistics"""
+    serializer_class = MoodPatternSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        return MoodPattern.objects.filter(user=self.request.user)
+    
+    @extend_schema(
+        description="Get current user's mood pattern",
+        responses=MoodPatternSerializer,
+        tags=['Mood Tracking - Patterns']
+    )
+    @action(detail=False, methods=['get'])
+    def current(self, request):
+        """Get current user's mood pattern"""
+        pattern, created = MoodPattern.objects.get_or_create(user=request.user)
+        if not created:
+            pattern.update_statistics()
+        serializer = self.get_serializer(pattern)
+        return Response(serializer.data)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['Mood Tracking - Insights']),
+    retrieve=extend_schema(tags=['Mood Tracking - Insights']),
+    partial_update=extend_schema(tags=['Mood Tracking - Insights']),
+)
+class MoodInsightViewSet(viewsets.ModelViewSet):
+    """ViewSet for mood insights"""
+    serializer_class = MoodInsightSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'patch']
+    
+    def get_queryset(self):
+        return MoodInsight.objects.filter(user=self.request.user)
+    
+    @extend_schema(
+        description="Get unread insights",
+        responses=MoodInsightSerializer(many=True),
+        tags=['Mood Tracking - Insights']
+    )
+    @action(detail=False, methods=['get'])
+    def unread(self, request):
+        """Get unread insights"""
+        insights = self.get_queryset().filter(is_read=False)
+        serializer = self.get_serializer(insights, many=True)
+        return Response(serializer.data)
+    
+    @extend_schema(
+        description="Mark insight as read",
+        request=None,
+        responses={200: {"description": "Insight marked as read"}},
+        tags=['Mood Tracking - Insights']
+    )
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        """Mark an insight as read"""
+        insight = self.get_object()
+        insight.is_read = True
+        insight.save()
+        serializer = self.get_serializer(insight)
+        return Response(serializer.data)
+    
+    @extend_schema(
+        description="Mark all insights as read",
+        request=None,
+        responses={200: {"description": "All insights marked as read"}},
+        tags=['Mood Tracking - Insights']
+    )
+    @action(detail=False, methods=['post'])
+    def mark_all_read(self, request):
+        """Mark all insights as read"""
+        self.get_queryset().update(is_read=True)
+        return Response({'message': 'All insights marked as read'})
+
+
+@extend_schema(
+    description="Get mood screen data (combines entries, analytics, and insights)",
+    responses={
+        200: {
+            "description": "Mood screen data",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "today_entry": {"mood": "happy", "emoji": "😊"},
+                        "analytics": {"positive_moods_percentage": 67, "most_common_mood": "Happy"},
+                        "recent_entries": [],
+                        "weekly_chart": [],
+                        "insights": []
+                    }
+                }
+            }
+        }
+    },
+    tags=['Mood Tracking']
+)
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def mood_screen(request):
+    """Get all data needed for the mood tracking screen"""
+    from datetime import timedelta
+    
+    # Get today's entry
+    today = timezone.now().date()
+    try:
+        today_entry = MoodEntry.objects.get(user=request.user, date=today)
+        today_data = MoodEntrySerializer(today_entry).data
+    except MoodEntry.DoesNotExist:
+        today_data = None
+    
+    # Get mood pattern
+    pattern, _ = MoodPattern.objects.get_or_create(user=request.user)
+    pattern.update_statistics()
+    
+    # Get weekly chart
+    end_date = today
+    start_date = end_date - timedelta(days=6)
+    
+    weekly_entries = MoodEntry.objects.filter(
+        user=request.user,
+        date__gte=start_date,
+        date__lte=end_date
+    ).order_by('date')
+    
+    entries_by_date = {entry.date: entry for entry in weekly_entries}
+    weekly_chart = []
+    
+    for i in range(7):
+        date = start_date + timedelta(days=i)
+        entry = entries_by_date.get(date)
+        
+        if entry:
+            weekly_chart.append({
+                'date': date.strftime('%a'),
+                'mood': entry.mood,
+                'emoji': entry.emoji
+            })
+        else:
+            weekly_chart.append({
+                'date': date.strftime('%a'),
+                'mood': None,
+                'emoji': '⚪'
+            })
+    
+    # Get recent entries
+    recent_entries = MoodEntry.objects.filter(user=request.user).order_by('-date')[:6]
+    
+    # Get unread insights
+    insights = MoodInsight.objects.filter(user=request.user, is_read=False)[:3]
+    
+    data = {
+        'today_entry': today_data,
+        'analytics': {
+            'positive_moods_percentage': float(pattern.positive_mood_percentage),
+            'most_common_mood': dict(MoodEntry.MOOD_CHOICES).get(pattern.most_common_mood, '') if pattern.most_common_mood else '',
+            'most_common_mood_emoji': MoodEntry.MOOD_EMOJI_MAP.get(pattern.most_common_mood, '😐') if pattern.most_common_mood else '😐',
+            'total_entries': pattern.total_entries,
+            'current_streak': pattern.current_streak,
+        },
+        'recent_entries': MoodEntryListSerializer(recent_entries, many=True).data,
+        'weekly_chart': weekly_chart,
+        'insights': MoodInsightSerializer(insights, many=True).data
+    }
+    
+    return Response(data)

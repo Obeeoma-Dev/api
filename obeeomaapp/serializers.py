@@ -1334,3 +1334,104 @@ class HomeScreenSerializer(serializers.Serializer):
     daily_streak = DailyStreakSerializer()
     today_mood = DailyMoodCheckinSerializer(allow_null=True)
     recent_sessions = MeditationSessionSerializer(many=True)
+
+
+# ===== MOOD TRACKING SERIALIZERS =====
+
+class MoodEntrySerializer(serializers.ModelSerializer):
+    """Serializer for mood entries"""
+    mood_display = serializers.CharField(source='get_mood_display', read_only=True)
+    emoji = serializers.CharField(read_only=True)
+    is_positive = serializers.BooleanField(read_only=True)
+    
+    class Meta:
+        model = MoodEntry
+        fields = [
+            'id', 'mood', 'mood_display', 'emoji', 'note', 'date',
+            'created_at', 'activities', 'energy_level', 'sleep_quality',
+            'is_positive'
+        ]
+        read_only_fields = ['date', 'created_at']
+    
+    def create(self, validated_data):
+        # Update or create today's entry
+        user = self.context['request'].user
+        today = timezone.now().date()
+        
+        entry, created = MoodEntry.objects.update_or_create(
+            user=user,
+            date=today,
+            defaults=validated_data
+        )
+        
+        # Update mood pattern statistics
+        pattern, _ = MoodPattern.objects.get_or_create(user=user)
+        pattern.update_statistics()
+        
+        return entry
+
+
+class MoodEntryListSerializer(serializers.ModelSerializer):
+    """Simplified serializer for list view"""
+    mood_display = serializers.CharField(source='get_mood_display', read_only=True)
+    emoji = serializers.CharField(read_only=True)
+    
+    class Meta:
+        model = MoodEntry
+        fields = ['id', 'mood', 'mood_display', 'emoji', 'note', 'date', 'created_at']
+
+
+class MoodPatternSerializer(serializers.ModelSerializer):
+    """Serializer for mood patterns and analytics"""
+    most_common_mood_display = serializers.SerializerMethodField()
+    most_common_mood_emoji = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = MoodPattern
+        fields = [
+            'total_entries', 'positive_mood_percentage', 'most_common_mood',
+            'most_common_mood_display', 'most_common_mood_emoji',
+            'current_streak', 'longest_streak', 'last_entry_date', 'updated_at'
+        ]
+    
+    @extend_schema_field(serializers.CharField())
+    def get_most_common_mood_display(self, obj) -> str:
+        if obj.most_common_mood:
+            return dict(MoodEntry.MOOD_CHOICES).get(obj.most_common_mood, obj.most_common_mood)
+        return ""
+    
+    @extend_schema_field(serializers.CharField())
+    def get_most_common_mood_emoji(self, obj) -> str:
+        if obj.most_common_mood:
+            return MoodEntry.MOOD_EMOJI_MAP.get(obj.most_common_mood, '😐')
+        return ""
+
+
+class MoodInsightSerializer(serializers.ModelSerializer):
+    """Serializer for mood insights"""
+    insight_type_display = serializers.CharField(source='get_insight_type_display', read_only=True)
+    
+    class Meta:
+        model = MoodInsight
+        fields = ['id', 'insight_type', 'insight_type_display', 'title', 'description', 'is_read', 'created_at']
+        read_only_fields = ['created_at']
+
+
+class MoodAnalyticsSerializer(serializers.Serializer):
+    """Serializer for mood analytics dashboard"""
+    positive_moods_percentage = serializers.DecimalField(max_digits=5, decimal_places=2)
+    most_common_mood = serializers.CharField()
+    most_common_mood_emoji = serializers.CharField()
+    total_entries = serializers.IntegerField()
+    current_streak = serializers.IntegerField()
+    mood_distribution = serializers.ListField()
+    weekly_mood_chart = serializers.ListField()
+    recent_entries = MoodEntryListSerializer(many=True)
+
+
+class MoodChartDataSerializer(serializers.Serializer):
+    """Serializer for mood chart data"""
+    date = serializers.DateField()
+    mood = serializers.CharField()
+    emoji = serializers.CharField()
+    day_name = serializers.CharField()

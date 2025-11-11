@@ -462,15 +462,7 @@ class AssessmentResult(models.Model):
     def __str__(self):
         return f"Assessment - {self.employee.user.username} - {self.type}"
 
-# Educational Resources model.
-class EducationalResource(models.Model):
-    title = models.CharField(max_length=100)
-    type = models.CharField(max_length=20)  # article, podcast, video
-    url = models.URLField()
-    description = models.TextField()
-
-    def __str__(self):
-        return self.title
+# Educational Resources model - REMOVED (duplicate, see line 1076 for full version)
 
 # Crisis Triggers model.
 class CrisisTrigger(models.Model):
@@ -1480,3 +1472,166 @@ class MeditationSession(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.duration_minutes}min session"
+
+
+# ===== MOOD TRACKING & JOURNAL MODELS =====
+
+class MoodEntry(models.Model):
+    """Enhanced mood tracking with more mood options"""
+    MOOD_CHOICES = [
+        ('sad', 'Sad'),
+        ('neutral', 'Neutral'),
+        ('happy', 'Happy'),
+        ('calm', 'Calm'),
+        ('excited', 'Excited'),
+        ('anxious', 'Anxious'),
+        ('stressed', 'Stressed'),
+        ('angry', 'Angry'),
+        ('grateful', 'Grateful'),
+        ('tired', 'Tired'),
+        ('energetic', 'Energetic'),
+        ('lonely', 'Lonely'),
+        ('loved', 'Loved'),
+        ('hopeful', 'Hopeful'),
+        ('overwhelmed', 'Overwhelmed'),
+    ]
+    
+    MOOD_EMOJI_MAP = {
+        'sad': '😢',
+        'neutral': '😐',
+        'happy': '😊',
+        'calm': '😌',
+        'excited': '🤩',
+        'anxious': '😰',
+        'stressed': '😫',
+        'angry': '😠',
+        'grateful': '🙏',
+        'tired': '😴',
+        'energetic': '⚡',
+        'lonely': '😔',
+        'loved': '🥰',
+        'hopeful': '🌟',
+        'overwhelmed': '😵',
+    }
+    
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='mood_entries')
+    mood = models.CharField(max_length=20, choices=MOOD_CHOICES)
+    note = models.TextField(blank=True, help_text="What's on your mind?")
+    date = models.DateField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Additional context
+    activities = models.JSONField(default=list, blank=True, help_text="Activities done today")
+    energy_level = models.IntegerField(default=5, help_text="Energy level 1-10")
+    sleep_quality = models.IntegerField(null=True, blank=True, help_text="Sleep quality 1-10")
+    
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ['user', 'date']
+        verbose_name = "Mood Entry"
+        verbose_name_plural = "Mood Entries"
+        indexes = [
+            models.Index(fields=['user', '-date']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.get_mood_display()} on {self.date}"
+    
+    @property
+    def emoji(self):
+        return self.MOOD_EMOJI_MAP.get(self.mood, '😐')
+    
+    @property
+    def is_positive(self):
+        """Check if mood is positive"""
+        positive_moods = ['happy', 'calm', 'excited', 'grateful', 'energetic', 'loved', 'hopeful']
+        return self.mood in positive_moods
+
+
+class MoodPattern(models.Model):
+    """Track mood patterns and analytics for users"""
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='mood_pattern')
+    total_entries = models.PositiveIntegerField(default=0)
+    positive_mood_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    most_common_mood = models.CharField(max_length=20, blank=True)
+    current_streak = models.PositiveIntegerField(default=0, help_text="Days with consecutive entries")
+    longest_streak = models.PositiveIntegerField(default=0)
+    last_entry_date = models.DateField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Mood Pattern"
+        verbose_name_plural = "Mood Patterns"
+    
+    def __str__(self):
+        return f"{self.user.username}'s Mood Pattern"
+    
+    def update_statistics(self):
+        """Update mood statistics"""
+        from django.db.models import Count
+        from datetime import date
+        
+        entries = MoodEntry.objects.filter(user=self.user)
+        self.total_entries = entries.count()
+        
+        if self.total_entries > 0:
+            # Calculate positive mood percentage
+            positive_count = entries.filter(
+                mood__in=['happy', 'calm', 'excited', 'grateful', 'energetic', 'loved', 'hopeful']
+            ).count()
+            self.positive_mood_percentage = (positive_count / self.total_entries) * 100
+            
+            # Find most common mood
+            most_common = entries.values('mood').annotate(
+                count=Count('mood')
+            ).order_by('-count').first()
+            
+            if most_common:
+                self.most_common_mood = most_common['mood']
+            
+            # Update streak
+            latest_entry = entries.first()
+            if latest_entry:
+                today = date.today()
+                if latest_entry.date == today or latest_entry.date == today - timedelta(days=1):
+                    # Calculate current streak
+                    streak = 1
+                    current_date = latest_entry.date - timedelta(days=1)
+                    
+                    while entries.filter(date=current_date).exists():
+                        streak += 1
+                        current_date -= timedelta(days=1)
+                    
+                    self.current_streak = streak
+                    if streak > self.longest_streak:
+                        self.longest_streak = streak
+                else:
+                    self.current_streak = 0
+                
+                self.last_entry_date = latest_entry.date
+        
+        self.save()
+
+
+class MoodInsight(models.Model):
+    """AI-generated insights about user's mood patterns"""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='mood_insights')
+    insight_type = models.CharField(max_length=50, choices=[
+        ('pattern', 'Pattern Recognition'),
+        ('trigger', 'Trigger Identification'),
+        ('recommendation', 'Recommendation'),
+        ('achievement', 'Achievement'),
+        ('warning', 'Warning'),
+    ])
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Mood Insight"
+        verbose_name_plural = "Mood Insights"
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.title}"
