@@ -162,7 +162,7 @@ class VerifyOTPView(APIView):
 )
     class LoginView(APIView):
         permission_classes = [permissions.AllowAny]
-        serializer_class = LoginSerializer
+    serializer_class = LoginSerializer
 
     def post(self, request):
         serializer = OTPVerificationSerializer(data=request.data)
@@ -703,50 +703,49 @@ class InviteView(viewsets.ModelViewSet):
             return EmployeeInvitation.objects.filter(employer=employer).order_by('-created_at')
         
         return EmployeeInvitation.objects.none()
-
-    @extend_schema(
-        request=EmployeeInvitationCreateSerializer,
-        responses={
-            201: {
-                "description": "Invitation sent successfully",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "message": "Invitation sent successfully",
-                            "invitation": {
-                                "id": 1,
-                                "email": "newemployee@company.com",
-                                "message": "Welcome to our team!",
-                                "expires_at": "2025-11-06T19:13:03.648Z",
-                                "created_at": "2025-10-30T19:13:03.648Z"
-                            },
-                            "invitation_link": "/auth/accept-invite/?token=abc123xyz"
-                        }
+@extend_schema(
+    request=EmployeeInvitationCreateSerializer,
+    responses={
+        201: {
+            "description": "Invitation sent successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Invitation sent successfully",
+                        "invitation": {
+                            "id": 1,
+                            "email": "newemployee@company.com",
+                            "message": "Welcome to our team!",
+                            "expires_at": "2025-11-06T19:13:03.648Z",
+                            "created_at": "2025-10-30T19:13:03.648Z"
+                        },
+                        "invitation_link": "/auth/accept-invite/?token=abc123xyz"
                     }
                 }
-            },
-            400: {"description": "Bad Request - Invalid data or user has no organization"}
+            }
         },
-        description="""
-        Send an invitation to a new employee.
-        
-        The system will:
-        - Generate a unique invitation token
-        - Send an email to the invited person
-        - Set an expiration date for the invitation (defaults to 7 days)
-        
-        **Example Request:**
-        ```json
-        {
-          "email": "newemployee@company.com",
-          "message": "Welcome to our team!"
-        }
-        ```
-        
-        **Note:** The employer is automatically set from your authenticated user.
-        """
-    )
-    def create(self, request, *args, **kwargs):
+        400: {"description": "Bad Request - Invalid data or user has no organization"}
+    },
+    description="""
+    Send an invitation to a new employee.
+    
+    The system will:
+    - Generate a unique invitation token
+    - Send an email to the invited person
+    - Set an expiration date for the invitation (defaults to 7 days)
+    
+    **Example Request:**
+    ```json
+    {
+        "email": "newemployee@company.com",
+        "message": "Welcome to our team!"
+    }
+    ```
+    
+    **Note:** The employer is automatically set from your authenticated user.
+    """
+)
+def create(self, request, *args, **kwargs):
         """Send an invitation to a new employee"""
         # Get the employer for the current user
         employer = None

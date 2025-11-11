@@ -239,3 +239,14 @@ SWAGGER_ASSESSMENT_GUIDE.md
 ASSESSMENT_API_GUIDE.md
 EMPLOYEE_INVITATION_GUIDE.md
 API_AUTHENTICATION_GUIDE.md
+
+# .gitignore
+
+# Ignore TinyLLaMA model files
+sana_ai/tinyllama_modules/config.json
+sana_ai/tinyllama_modules/model.safetensors
+sana_ai/tinyllama_modules/tokenizer_config.json
+sana_ai/tinyllama_modules/tokenizer.json
+sana_ai/tinyllama_modules/tokenizer.model
+sana_ai/tinyllama_modules/special_tokens_map.json
+sana_ai/tinyllama_modules/generation_config.json
