@@ -241,72 +241,6 @@ urlpatterns = [
     path("auth/signup/", SignupView.as_view({"post": "create"}), name="signup"),
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/logout/", LogoutView.as_view(), name="logout"),
-<<<<<<< HEAD
-    path(
-        "auth/reset-password/",
-        PasswordResetView.as_view({"post": "create"}),
-        name="password-reset",
-    ),
-    path(
-        "auth/reset-password/confirm/",
-        PasswordResetConfirmView.as_view({"post": "create"}),
-        name="password-reset-confirm",
-    ),
-    path(
-        "auth/change-password/",
-        PasswordChangeView.as_view({"post": "create"}),
-        name="password-change",
-    ),
-    # Dashboard
-    path("admin/overview/", OverviewView.as_view({"get": "list"}), name="overview"),
-    path("admin/trends/", TrendsView.as_view({"get": "list"}), name="trends"),
-    path(
-        "admin/employee-engagement/",
-        EmployeeEngagementView.as_view({"get": "list", "post": "create"}),
-        name="employee-engagement",
-    ),
-    path(
-        "admin/billing/",
-        BillingView.as_view(
-            {
-                "get": "list",
-                "post": "create",
-            }
-        ),
-        name="billing",
-    ),
-    path(
-        "admin/invites/",
-        InviteView.as_view({"get": "list", "post": "create"}),
-        name="invites",
-    ),
-    path(
-        "admin/users/",
-        UsersView.as_view({"get": "list", "post": "create"}),
-        name="users",
-    ),
-    path("admin/reports/", ReportsView.as_view({"get": "list"}), name="reports"),
-    path(
-        "admin/crisis-insights/",
-        CrisisInsightsView.as_view({"get": "list"}),
-        name="crisis-insights",
-    ),
-    path(
-        "admin/subscriptions/current/",
-        SubscriptionManagementView.as_view({"get": "current_subscription"}),
-        name="current-subscription",
-    ),
-    path(
-        "admin/subscriptions/plans/",
-        SubscriptionManagementView.as_view({"get": "available_plans"}),
-        name="available-plans",
-    ),
-    path(
-        "admin/subscriptions/billing-history/",
-        SubscriptionManagementView.as_view({"get": "billing_history"}),
-        name="billing-history",
-    ),
-=======
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
     path("auth/reset-password/confirm/", PasswordResetConfirmView.as_view({'post': 'create'}), name="password-reset-confirm"),
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
@@ -327,7 +261,6 @@ urlpatterns = [
     path("dashboard/subscriptions/plans/", SubscriptionManagementView.as_view({'get': 'available_plans'}), name="available-plans"),
     path("dashboard/subscriptions/billing-history/", SubscriptionManagementView.as_view({'get': 'billing_history'}), name="billing-history"),
     
->>>>>>> c37b3f551631612a7150f653c5057225ceaa0866
     # System Admin Endpoints
     path(
         "admin/organizations/growth-chart/",
