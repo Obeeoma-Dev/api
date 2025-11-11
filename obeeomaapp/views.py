@@ -1026,16 +1026,12 @@ class MoodTrackingView(viewsets.ModelViewSet):
     search_fields = ['note']
 
     def get_queryset(self):
-        return EmployeeProfile.objects.filter(user=self.request.user)
-
-        return MoodTracking.objects.filter(user=self.request.user)
+        # FIXED: Return MoodTracking objects, not EmployeeProfile
+        return MoodTracking.objects.filter(employee__user=self.request.user)
 
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(user=self.request.user, employee=employee)
-
-
-
 @extend_schema(tags=['Employee - Assessments'])
 class AssessmentResultView(viewsets.ModelViewSet):
     serializer_class = AssessmentResultSerializer

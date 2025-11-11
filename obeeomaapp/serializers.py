@@ -274,6 +274,13 @@ class EmployeeSerializer(serializers.ModelSerializer):
         fields = ['id', 'employer', 'employer_name', 'department', 'department_name', 'first_name', 'last_name', 'name', 'email', 'status', 'joined_date', 'last_active', 'avatar']
 
 
+class NotificationSerializer(serializers.ModelSerializer):
+    is_read = serializers.BooleanField(source='read', read_only=True)  # Add this field
+    
+    class Meta:
+        model = Notification
+        fields = ['id', 'employee', 'message', 'sent_on', 'read', 'is_read']  # Include both
+        read_only_fields = ['employee', 'sent_on']
 
 class AIManagementSerializer(serializers.ModelSerializer):
     class Meta:
@@ -514,13 +521,7 @@ class CrisisTriggerSerializer(serializers.ModelSerializer):
         model = CrisisTrigger
         fields = '__all__'
         read_only_fields = ['employee', 'triggered_on']
-class NotificationSerializer(serializers.ModelSerializer):
-    is_read = serializers.BooleanField(source='read', read_only=True)  # Add this field
-    
-    class Meta:
-        model = Notification
-        fields = ['id', 'employee', 'message', 'sent_on', 'read', 'is_read']  # Include both
-        read_only_fields = ['employee', 'sent_on']
+
 class EngagementTrackerSerializer(serializers.ModelSerializer):
     class Meta:
         model = EngagementTracker
@@ -949,12 +950,11 @@ class ReportsAnalyticsSerializer(serializers.Serializer):
     date_ranges = serializers.ListField()
     formats = serializers.ListField()
 
-
 from rest_framework import serializers
-from drf_spectacular.utils import extend_schema_field
 from .models import (
-    Video, Audio, Article, MeditationTechnique, SavedResource,
-    EducationalResource, UserActivity, OnboardingState
+    Video, EducationalResource, Audio, Article, 
+    MeditationTechnique, SavedResource, UserActivity,
+    OnboardingState, DynamicQuestion, Notification
 )
 
 # Video Recommendation Serializer
@@ -1145,10 +1145,15 @@ class OnboardingStateSerializer(serializers.ModelSerializer):
         model = OnboardingState
         fields = ['goal', 'completed', 'first_action_done']
 
-from rest_framework import serializers
-from .models import DynamicQuestion
-
+# Dynamic Question Serializer
 class DynamicQuestionSerializer(serializers.ModelSerializer):
     class Meta:
         model = DynamicQuestion
         fields = ['id', 'text', 'category', 'is_active', 'created_at']
+
+# Notification Serializer - CORRECTED: Using 'read' not 'is_read'
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'employee', 'message', 'sent_on', 'read']  # Use 'read' here
+        read_only_fields = ['employee', 'sent_on']

@@ -158,23 +158,9 @@ class SelfAssessment(models.Model):
 
 
 class MoodTracking(models.Model):
-    MOOD_STATES = [
-        ("depressed", "Depressed"),
-        ("stressed", "Stressed"),
-        ("anxious", "Anxious"),
-        ("burned_out", "Burned Out"),
-        ("grieving", "Grieving"),
-        ("overwhelmed", "Overwhelmed"),
-        ("lonely", "Lonely"),
-        ("angry", "Angry"),
-        ("neutral", "Neutral"),
-        ("hopeful", "Hopeful"),
-        ("other", "Other"),
-    ]
-
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mood_checkins")
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE, null=True, blank=True, related_name="mood_checkins_employee")
-    mood = models.CharField(max_length=50, choices=MOOD_STATES)
+    mood = models.CharField(max_length=50, blank=True, null=True)
     note = models.TextField(blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
     checked_in_at = models.DateTimeField(auto_now_add=True)
