@@ -11,6 +11,7 @@ from django.contrib.auth.hashers import make_password
 from .models import Organization, ContactPerson
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
+
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
 from .models import OnboardingState
@@ -238,12 +239,11 @@ class OTPVerificationSerializer(serializers.Serializer):
     def validate(self, attrs):
         code = attrs.get("code")
 
-        # Find the OTP that is not expired
-        otp = PasswordResetOTP.objects.filter(code=code).first()
+        otp = PasswordResetToken.objects.filter(code=code).order_by('-created_at').first()
         if not otp:
             raise serializers.ValidationError("Invalid verification code.")
 
-        if otp.is_expired():
+        if otp.expires_at < timezone.now():
             otp.delete()
             raise serializers.ValidationError("This OTP has expired. Please request a new one.")
 
