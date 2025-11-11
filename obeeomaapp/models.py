@@ -109,8 +109,11 @@ class PasswordResetOTP(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def is_expired(self):
-        # OTP expires after 60 seconds (1 minute)
-        return timezone.now() > self.created_at + timedelta(seconds=60)
+        # OTP expires after 5 minutes
+        return timezone.now() > self.created_at + timedelta(minutes=5)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.code}"
 
 
 # --- Employers Model. ---

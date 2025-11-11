@@ -237,14 +237,18 @@ class OTPVerificationSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         code = attrs.get("code")
+
         try:
             otp = PasswordResetOTP.objects.get(code=code)
         except PasswordResetOTP.DoesNotExist:
             raise serializers.ValidationError("Invalid verification code.")
 
-        # This is Optional but it helps: Expiration check (5 minutes)
-        if otp.created_at < timezone.now() - timedelta(minutes=5):
-            raise serializers.ValidationError("This OTP has expired.")
+        # We use model’s built-in expiry check
+        if otp.is_expired():
+            otp.delete()  #This Cleans up the expired OTP
+            raise serializers.ValidationError("This OTP has expired. Please request a new one.")
+
+
         self.context["user"] = otp.user
         self.context["otp"] = otp
         return attrs
