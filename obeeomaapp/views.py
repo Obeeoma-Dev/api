@@ -116,22 +116,23 @@ class OrganizationSignupView(viewsets.ModelViewSet):
 # VIEWS FOR VERIFYING THE OTP
 class VerifyOTPView(APIView):
     permission_classes = [AllowAny]
+
     @extend_schema(
         request=OTPVerificationSerializer,
-        responses=OTPVerificationSerializer  
+        responses={200: OpenApiTypes.OBJECT},
     )
     def post(self, request):
         serializer = OTPVerificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = serializer.context['user']
-        # This helps the system to Delete OTPs to prevent reuse
-        user.passwordresetotp_set.all().delete()
+        serializer.context['otp'].delete()  # Delete OTP after successful verification
 
         return Response(
             {"message": "OTP verified successfully. You can now reset your password."},
             status=status.HTTP_200_OK
         )
+
 
 
 # login view
