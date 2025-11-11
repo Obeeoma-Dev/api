@@ -34,6 +34,7 @@ from django.db.models import Avg
 from rest_framework import viewsets, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from drf_spectacular.types import OpenApiTypes
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
@@ -56,8 +57,7 @@ from rest_framework.generics import RetrieveUpdateAPIView, UpdateAPIView
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import *  # Import serializers from the same app
-from .models import *  # Import models from the same app
+from .serializers import *  
 from django.core.mail import send_mail, EmailMultiAlternatives
 from .utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings
@@ -66,9 +66,15 @@ from datetime import timedelta
 import secrets
 from rest_framework import filters
 import string
+import pyotp, qrcode, io, base64
+from django.utils.crypto import get_random_string
+from django.core.cache import cache
 from .models import Organization
+from .serializers import OTPVerificationSerializer
 from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string
+from django.contrib.auth import authenticate, login as django_login
+
 import logging
 from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import (
@@ -82,7 +88,7 @@ logging.getLogger(__name__)
 # Get User model
 User = get_user_model()
 
-# --- Permission: company admin (is_staff) ---
+#Permission: company admin (is_staff) 
 class IsCompanyAdmin(BasePermission):
     """Allows access only to users with is_staff=True."""
     def has_permission(self, request, view):
@@ -97,12 +103,24 @@ class SignupView(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 # VIEWS FOR CREATING AN ORGANIZATION
+@extend_schema(
+    tags=['Authentication'],
+    request=OrganizationCreateSerializer,
+    responses={201: OrganizationCreateSerializer}
+)
 class OrganizationSignupView(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationCreateSerializer
     permission_classes = [permissions.AllowAny]
 
+# VIEWS FOR VERIFYING THE OTP
+class VerifyOTPView(APIView):
+    permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=OTPVerificationSerializer,
+        responses={200: OpenApiTypes.OBJECT},
+    )
 # Employer Registration View
 @extend_schema(
     tags=['Authentication'],
@@ -148,9 +166,36 @@ class LoginView(APIView):
     serializer_class = LoginSerializer
 
     def post(self, request):
-        serializer = self.serializer_class(data=request.data)
+        serializer = OTPVerificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        user = serializer.context['user']
+        serializer.context['otp'].delete()  # Delete OTP after successful verification
+
+        return Response(
+            {"message": "OTP verified successfully. You can now reset your password."},
+            status=status.HTTP_200_OK
+        )
+
+
+
+# login view
+@extend_schema(
+    request=LoginSerializer,          
+    responses={200: OpenApiTypes.OBJECT},
+    tags=['Authentication'],
+    description="Login using username and password only."
+)
+@extend_schema(
+    request=LoginSerializer,
+    responses={200: OpenApiTypes.OBJECT},
+    tags=['Authentication'],
+    description="Login using username and password. MFA integrated if enabled."
+)
+
+# LOGIN VIEW
+def _build_login_success_payload(user):
+    refresh = RefreshToken.for_user(user)
         username = serializer.validated_data['username']
         password = serializer.validated_data['password']
 
@@ -164,6 +209,66 @@ class LoginView(APIView):
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
 
+    display_username = user.username
+    try:
+        organization = user.organizations.first()
+        if organization:
+            display_username = organization.organizationName
+    except Exception:
+        pass
+
+    user_data = {
+        "id": user.id,
+        "username": display_username,
+        "email": user.email,
+        "role": user.role,
+        "date_joined": user.date_joined,
+        "is_active": user.is_active,
+        "avatar": user.avatar.url if hasattr(user, "avatar") and user.avatar else None,
+    }
+
+    if user.role == "systemadmin":
+        redirect_url = "/admin/dashboard/"
+    elif user.role in ["organization", "employer"]:
+        redirect_url = "/organization/dashboard/"
+    elif user.role == "employee":
+        redirect_url = "/api/v1/mobile-login-success/"
+    else:
+        redirect_url = "/"
+
+    return {
+        "refresh": str(refresh),
+        "access": str(refresh.access_token),
+        "user": user_data,
+        "redirect_url": redirect_url,
+    }
+
+
+class LoginView(APIView):
+    permission_classes = [permissions.AllowAny]
+    serializer_class = LoginSerializer
+    queryset = None
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.validated_data['user']
+
+    # This is for MFA Check 
+        if user.mfa_enabled:
+            # this logic Generates temporary token for MFA verification
+            temp_token = get_random_string(32)
+            cache.set(temp_token, user.id, timeout=300)  # valid 5 minutes
+            return Response({
+                "mfa_required": True,
+                "temp_token": temp_token
+            })
+
+        # Log the user in (this creates session cookie if needed)
+        django_login(request, user)
+
+        return Response(_build_login_success_payload(user))
         user_data = {
             "id": user.id,
             "username": user.username,
@@ -181,13 +286,17 @@ class LoginView(APIView):
         })
     
 # matching view for custom token obtain pair serializer
+@extend_schema(
+    tags=['Authentication'],
+    request=CustomTokenObtainPairSerializer,
+    responses={200: CustomTokenObtainPairSerializer}
+)
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
     
 
 # LOGOUT VIEW
-
 @extend_schema(
     tags=["Authentication"],
     request=LogoutSerializer,
@@ -236,7 +345,7 @@ class PasswordResetView(viewsets.ViewSet):
         try:
             code = ''.join(secrets.choice(string.digits) for _ in range(6))
             token = secrets.token_urlsafe(32)
-            expires_at = timezone.now() + timedelta(minutes=15)
+            expires_at = timezone.now() + timedelta(minutes=5)
 
             PasswordResetToken.objects.filter(user=user).delete()
 
@@ -262,7 +371,7 @@ You requested a password reset for your Obeeoma account.
 
 Your verification code is: {code}
 
-This code will expire in 15 minutes.
+This code will expire in 5 minutes.
 
 If you did not request this password reset, please ignore this email.
 
@@ -338,7 +447,7 @@ class PasswordResetConfirmView(viewsets.ViewSet):
         except PasswordResetToken.DoesNotExist:
             return Response({"error": "Invalid verification code"}, status=status.HTTP_400_BAD_REQUEST)
 
-
+# View for changing or updating password
 @extend_schema(tags=['Authentication'])
 class PasswordChangeView(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
@@ -349,15 +458,112 @@ class PasswordChangeView(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
 
         user = request.user
-        if not user.check_password(serializer.validated_data['old_password']):
-            return Response({"error": "Old password is incorrect"}, status=status.HTTP_400_BAD_REQUEST)
+        new_password = serializer.validated_data['new_password']
 
-        user.set_password(serializer.validated_data['new_password'])
+        # This logic helps in Setting a new password
+        user.set_password(new_password)
         user.save()
-        return Response({"message": "Password updated successfully"})
+
+        return Response(
+            {"message": "Password updated successfully"},
+            status=status.HTTP_200_OK
+        )
 
 
-# --- Missing Serializers for Invitation Flow ---
+
+# This is the Setup for MFA (when the superuser is already logged in)
+@extend_schema(request=MFASetupSerializer, responses={200: MFASetupSerializer})
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mfa_setup(request):
+    user = request.user
+    if not (user.role == 'systemadmin' or user.is_superuser):
+        return Response({'error': 'Only system administrators can enable MFA'}, status=403)
+
+    raw_secret = user.generate_mfa_secret()
+    totp = pyotp.TOTP(raw_secret)
+    otpauth_uri = totp.provisioning_uri(
+        name=user.username,
+        issuer_name="ObeeomaApp"
+    )
+
+    # This helps the system to Generate the QR image in base64
+    qr = qrcode.make(otpauth_uri)
+    buffer = io.BytesIO()
+    qr.save(buffer, format="PNG")
+    qr_b64 = base64.b64encode(buffer.getvalue()).decode()
+
+    return Response({
+        "otpauth_uri": otpauth_uri,
+        "qr_code_base64": qr_b64,
+        "secret": raw_secret,
+    })
+
+
+# This setup comfirms the MFA
+
+@extend_schema(request=MFAConfirmSerializer, responses={200: MFAConfirmSerializer}) 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mfa_confirm(request):
+    user = request.user
+    code = request.data.get("code")
+
+    secret = user.get_mfa_secret()
+    if not secret:
+        return Response({"error": "MFA not initialized"}, status=400)
+
+    totp = pyotp.TOTP(secret)
+    if not totp.verify(code, valid_window=1):
+        return Response({"error": "Invalid verification code"}, status=400)
+
+    user.mfa_enabled = True
+    user.save(update_fields=["mfa_enabled"])
+    return Response({"detail": "MFA successfully enabled"})
+    
+
+# This logic is for MFA Verification during login
+#So this logic will help in MFA verification by checking the code
+@extend_schema(request=MFAVerifySerializer, responses={200: MFAVerifySerializer})
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def mfa_verify(request):
+    serializer = MFAVerifySerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    temp_token = serializer.validated_data["temp_token"]
+    code = serializer.validated_data["code"]
+
+    user_id = cache.get(temp_token)
+    if not user_id:
+        return Response({"error": "Expired or invalid session"}, status=400)
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        cache.delete(temp_token)
+        return Response({"error": "Account associated with this session was not found"}, status=400)
+
+    if not user.mfa_enabled:
+        cache.delete(temp_token)
+        return Response({"error": "MFA is not enabled for this account"}, status=400)
+
+    secret = user.get_mfa_secret()
+    if not secret:
+        return Response({"error": "MFA is not configured for this account"}, status=400)
+
+    totp = pyotp.TOTP(secret)
+    if not totp.verify(code, valid_window=1):
+        return Response({"error": "Invalid or expired code"}, status=401)
+
+    # This logic says if Valid code ,finalize login
+    cache.delete(temp_token)
+    django_login(request, user)  #This sets the Django session cookie
+
+    return Response(_build_login_success_payload(user))
+
+
+
+# Employee Invitation Serializers
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
     token = serializers.CharField(
         required=True,
@@ -369,14 +575,11 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         min_length=8,
         help_text="Password for the new account"
     )
-    first_name = serializers.CharField(
+    username = serializers.CharField(
         required=True,
-        help_text="User's first name"
+        help_text="User_name"
     )
-    last_name = serializers.CharField(
-        required=True,
-        help_text="User's last name"
-    )
+    
     
     def validate_token(self, value):
         try:
@@ -425,7 +628,7 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         
         return user
 
-
+#--- Serializer for creating employee user account ---
 class EmployeeUserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
     password_confirm = serializers.CharField(write_only=True)
@@ -470,13 +673,26 @@ class InviteView(viewsets.ModelViewSet):
         # Get invitations for the employer's organization
         employer = None
         
-        # Try to get employer from employee profile
+        # First, check if user has an Organization (for organization owners)
         try:
-            employee_profile = Employee.objects.filter(user=self.request.user).first()
-            if employee_profile:
-                employer = employee_profile.employer
+            organization = Organization.objects.filter(owner=self.request.user).first()
+            if organization:
+                # Get or create Employer from Organization
+                employer, created = Employer.objects.get_or_create(
+                    name=organization.organizationName,
+                    defaults={'is_active': True}
+                )
         except Exception:
             pass
+        
+        # If no organization, try to get employer from employee profile
+        if not employer:
+            try:
+                employee_profile = Employee.objects.filter(user=self.request.user).first()
+                if employee_profile:
+                    employer = employee_profile.employer
+            except Exception:
+                pass
         
         # If still no employer, check if user is staff and get first employer
         if not employer and self.request.user.is_staff:
@@ -534,13 +750,26 @@ class InviteView(viewsets.ModelViewSet):
         # Get the employer for the current user
         employer = None
         
-        # Try to get employer from employee profile
+        # First, check if user has an Organization (for organization owners)
         try:
-            employee_profile = Employee.objects.filter(user=request.user).first()
-            if employee_profile:
-                employer = employee_profile.employer
-        except Exception:
-            pass
+            organization = Organization.objects.filter(owner=request.user).first()
+            if organization:
+                # Get or create Employer from Organization
+                employer, created = Employer.objects.get_or_create(
+                    name=organization.organizationName,
+                    defaults={'is_active': True}
+                )
+        except Exception as e:
+            logger.warning(f"Error getting organization: {str(e)}")
+        
+        # If no organization, try to get employer from employee profile
+        if not employer:
+            try:
+                employee_profile = Employee.objects.filter(user=request.user).first()
+                if employee_profile:
+                    employer = employee_profile.employer
+            except Exception:
+                pass
         
         # If still no employer, check if user is staff and get first employer
         if not employer and request.user.is_staff:
@@ -592,18 +821,29 @@ The Obeeoma Team
 """
             
             # Try to send via Gmail API first, fallback to SMTP
+            email_sent = False
             try:
-                email_sent = send_gmail_api_email(invitation.email, subject, message)
+                # Only try Gmail API if credentials are configured
+                if settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET:
+                    email_sent = send_gmail_api_email(invitation.email, subject, message)
+                    logger.info(f"Email sent via Gmail API to {invitation.email}")
             except Exception as gmail_error:
-                logger.warning(f"Gmail API failed, using SMTP: {str(gmail_error)}")
-                send_mail(
-                    subject,
-                    message,
-                    settings.DEFAULT_FROM_EMAIL,
-                    [invitation.email],
-                    fail_silently=False,
-                )
-                email_sent = True
+                logger.warning(f"Gmail API failed: {str(gmail_error)}")
+            
+            # Fallback to SMTP if Gmail API didn't work
+            if not email_sent:
+                try:
+                    send_mail(
+                        subject,
+                        message,
+                        settings.DEFAULT_FROM_EMAIL,
+                        [invitation.email],
+                        fail_silently=False,
+                    )
+                    email_sent = True
+                    logger.info(f"Email sent via SMTP to {invitation.email}")
+                except Exception as smtp_error:
+                    logger.error(f"SMTP failed: {str(smtp_error)}")
             
             if not email_sent:
                 logger.error(f"Failed to send invitation email to {invitation.email}")
@@ -716,8 +956,7 @@ class InvitationAcceptanceView(APIView):
         # Create user account
         user_data = {
             'email': invitation.email,
-            'first_name': request.data.get('first_name'),
-            'last_name': request.data.get('last_name'),
+            'user_name': request.data.get('user_name'),
             'password': request.data.get('password'),
             'password_confirm': request.data.get('password_confirm'),
         }
@@ -742,8 +981,7 @@ class InvitationAcceptanceView(APIView):
             'user': {
                 'id': user.id,
                 'email': user.email,
-                'first_name': user.first_name,
-                'last_name': user.last_name
+                'user_name': user.user_name,
             },
             'employee_profile': {
                 'id': employee_profile.id,
@@ -752,6 +990,11 @@ class InvitationAcceptanceView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 
+@extend_schema(
+    tags=['Employee Invitations'],
+    request={'token': 'string'},
+    responses={200: {'valid': 'boolean', 'invitation': 'object'}}
+)
 class InvitationVerifyView(APIView):
     """Verify an invitation token before signup"""
     permission_classes = [permissions.AllowAny]
@@ -884,13 +1127,11 @@ class OverviewView(viewsets.ViewSet):
     permission_classes = [IsCompanyAdmin]
 
     def list(self, request):
-        employer_count = Employer.objects.count()
         employee_count = Employee.objects.count()
         active_subscriptions = Subscription.objects.filter(is_active=True).count()
         recent = RecentActivity.objects.select_related("employer").order_by("-timestamp")[:10]
         recent_serialized = RecentActivitySerializer(recent, many=True).data
         return Response({
-            "employer_count": employer_count,
             "employee_count": employee_count,
             "active_subscriptions": active_subscriptions,
             "recent_activities": recent_serialized,
@@ -963,7 +1204,7 @@ class ReportsView(viewsets.ReadOnlyModelViewSet):
     serializer_class = RecentActivitySerializer
     permission_classes = [IsCompanyAdmin]
 
-
+# For crisis insights about hotline activities and for which reasons employees are reaching out.
 @extend_schema(tags=['Employer Dashboard'])
 class CrisisInsightsView(viewsets.ReadOnlyModelViewSet):
     queryset = HotlineActivity.objects.select_related("employer").order_by("-recorded_at")
@@ -975,21 +1216,36 @@ def home(request):
     return JsonResponse({"status": "ok", "app": "obeeomaapp"})
 
 
+@extend_schema(tags=['Authentication'])
 class EmailConfigCheckView(APIView):
     """Debug endpoint to check email configuration"""
     permission_classes = [permissions.AllowAny]
     
     def get(self, request):
+        import os
+        db_config = settings.DATABASES['default']
+        
         config = {
-            "email_backend": settings.EMAIL_BACKEND,
-            "email_host": settings.EMAIL_HOST,
-            "email_port": settings.EMAIL_PORT,
-            "email_use_tls": settings.EMAIL_USE_TLS,
-            "email_use_ssl": settings.EMAIL_USE_SSL,
-            "email_host_user": settings.EMAIL_HOST_USER,
-            "default_from_email": settings.DEFAULT_FROM_EMAIL,
+            "database": {
+                "engine": db_config.get('ENGINE'),
+                "name": str(db_config.get('NAME')),
+                "host": db_config.get('HOST', 'Not set'),
+                "user": db_config.get('USER', 'Not set'),
+            },
+            "environment_vars": {
+                "DATABASE_URL": "Set" if os.getenv('DATABASE_URL') else "NOT SET",
+                "PGHOST": "Set" if os.getenv('PGHOST') else "NOT SET",
+            },
+            "email": {
+                "email_backend": settings.EMAIL_BACKEND,
+                "email_host": settings.EMAIL_HOST,
+                "email_port": settings.EMAIL_PORT,
+                "email_use_tls": settings.EMAIL_USE_TLS,
+                "email_host_user": settings.EMAIL_HOST_USER,
+                "default_from_email": settings.DEFAULT_FROM_EMAIL,
+                "has_email_password": bool(settings.EMAIL_HOST_PASSWORD),
+            },
             "debug_mode": settings.DEBUG,
-            "has_email_password": bool(settings.EMAIL_HOST_PASSWORD),
         }
         return Response(config)
 

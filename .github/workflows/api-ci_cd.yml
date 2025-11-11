@@ -7,15 +7,26 @@ on:
     branches: ["main"]
 
 jobs:
-  # ----------------------------
-  # 1️⃣ Build, Lint, and Test Job
-  # ----------------------------
   build:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
-        python-version: [3.12, 3.13]
+        python-version: [3.11, 3.12]  # More stable versions
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
 
     steps:
       - name: Checkout code
@@ -45,15 +56,12 @@ jobs:
 
       - name: Run Tests with Pytest
         env:
-          SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY_CI }}
-          DEBUG: True
-          DATABASE_URL: "sqlite:///db.sqlite3"
+          SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DEBUG: "False"
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
           pytest tests/ -v --tb=short
 
-  # ----------------------------
-  # 2️⃣ Deployment Job (Render)
-  # ----------------------------
   deploy:
     name: Deploy to Render
     needs: build

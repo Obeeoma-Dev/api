@@ -10,20 +10,17 @@ User = get_user_model()
 
 from obeeomaapp.models import (
     Employer, Employee, EmployeeInvitation, AuthenticationEvent, 
-    AdminAction, SystemSetting, SystemStatus, SelfAssessment, MoodCheckIn,
+    AdminAction, SystemSetting, SystemStatus, SelfAssessment, MoodTracking,
     SelfHelpResource, ChatbotInteraction, UserBadge, EngagementStreak,
     AnalyticsSnapshot, CrisisHotline, AIManagement, HotlineActivity,
     EmployeeEngagement, Subscription, RecentActivity, EmployeeProfile,
     AvatarProfile, WellnessHub, AssessmentResult, EducationalResource,
     CrisisTrigger, Notification, EngagementTracker, Feedback, Progress,
     ChatSession, ChatMessage, RecommendationLog, MentalHealthAssessment,
-    Department, Assessment, PasswordResetToken, ResourceCategory,
+    Department, Assessment, PasswordResetToken,
     OrganizationSettings, SubscriptionPlan, BillingHistory, PaymentMethod,
     WellnessTest, ResourceEngagement, CommonIssue, ChatEngagement,
-    DepartmentContribution, OrganizationActivity, PlatformMetrics,
-    PlatformUsage, SubscriptionRevenue, SystemActivity, HotlineCall,
-    AIResource, ClientEngagement, RewardProgram, SystemSettings, Report,
-    EducationalVideo, UserVideoInteraction
+    DepartmentContribution, OrganizationActivity
 )
 
 

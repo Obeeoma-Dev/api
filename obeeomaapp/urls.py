@@ -1,9 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework import permissions
+from . import views
 
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+from .views import VerifyOTPView   
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 from .views import CustomTokenObtainPairView
@@ -30,6 +32,7 @@ from obeeomaapp.views import (
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
     OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet
+    
 )
 
 
@@ -116,12 +119,13 @@ urlpatterns = [
     path("auth/signup/", SignupView.as_view({'post': 'create'}), name="signup"),
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/logout/", LogoutView.as_view(), name="logout"),
-    
-    # Employer Registration
-
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
     path("auth/reset-password/confirm/", PasswordResetConfirmView.as_view({'post': 'create'}), name="password-reset-confirm"),
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
+    path('auth/verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
+    path('auth/mfa/setup/', views.mfa_setup, name='mfa-setup'),
+    path('auth/mfa/confirm/', views.mfa_confirm, name='mfa-confirm'),
+    path('auth/mfa/verify/', views.mfa_verify, name='mfa-verify'),
 
     # Dashboard
     path("dashboard/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),

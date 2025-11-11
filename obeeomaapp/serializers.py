@@ -11,6 +11,7 @@ from django.contrib.auth.hashers import make_password
 from .models import Organization, ContactPerson
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
+
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
 from .models import OnboardingState
@@ -120,6 +121,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
       
 
 # Login Serializer
+
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
@@ -128,30 +130,45 @@ class LoginSerializer(serializers.Serializer):
         username = attrs.get('username')
         password = attrs.get('password')
 
-        if username and password:
-            # Authenticate the user
-            user = authenticate(
-                request=self.context.get('request'),
-                username=username,
-                password=password
-            )
-            
-            if not user:
-                raise serializers.ValidationError('Invalid credentials. Please try again.')
-                
-            if not user.is_active:
-                raise serializers.ValidationError('Account is disabled.')
-            
-            # Keep original validated data
-            attrs['user'] = user
-            # Add role
-            attrs['role'] = user.role
-            return attrs
-        else:
+        if not username or not password:
             raise serializers.ValidationError('Both username and password are required.')
 
-    def create(self, validated_data):
-        return validated_data
+        # First try regular user authentication
+        user = authenticate(
+            request=self.context.get('request'),
+            username=username,
+            password=password
+        )
+
+        # This says,If regular authentication fails, try organization authentication
+        if not user:
+            try:
+                # These lines help to Check if username matches an organization name
+                from .models import Organization
+                organization = Organization.objects.get(organizationName=username)
+                
+                # Verify the organization password
+                from django.contrib.auth.hashers import check_password
+                if check_password(password, organization.password):
+                    if organization.owner and organization.owner.is_active:
+                        user = organization.owner
+                    else:
+                        raise serializers.ValidationError('Organization account is not properly configured.')
+                else:
+                    raise serializers.ValidationError('Invalid username or password.')
+                    
+            except Organization.DoesNotExist:
+                raise serializers.ValidationError('Invalid username or password.')
+
+        if not user:
+            raise serializers.ValidationError('Invalid username or password.')
+
+        if not user.is_active:
+            raise serializers.ValidationError('Account is not yet active.')
+
+        attrs['user'] = user
+        return attrs
+
 
 # custom serializer for token obtain pair
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -197,13 +214,71 @@ class PasswordResetSerializer(serializers.Serializer):
     def create(self, validated_data):
         return validated_data
 
-
+# Serializer for passwordchange or reset
 class PasswordChangeSerializer(serializers.Serializer):
-    old_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True, validators=[validate_password])
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        new_password = attrs.get('new_password')
+        confirm_password = attrs.get('confirm_password')
+
+        if new_password != confirm_password:
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        
+        return attrs
 
     def create(self, validated_data):
         return validated_data
+
+    
+# SERIAILZER FOR VERIFYING OTP
+class OTPVerificationSerializer(serializers.Serializer):
+    code = serializers.CharField(max_length=6)
+
+    def validate(self, attrs):
+        code = attrs.get("code")
+
+        otp = PasswordResetToken.objects.filter(code=code).order_by('-created_at').first()
+        if not otp:
+            raise serializers.ValidationError("Invalid verification code.")
+
+        if otp.expires_at < timezone.now():
+            otp.delete()
+            raise serializers.ValidationError("This OTP has expired. Please request a new one.")
+
+        self.context["user"] = otp.user
+        self.context["otp"] = otp
+        return attrs
+
+# SERIALIZERS FOR MFA SETUP AND VERIFICATION
+
+# MFA Setup Serializer
+# mfa_setup view doesn't require any input fields, because the superuser is already logged in. 
+# We'll keep it empty but define it for consistency.
+class MFASetupSerializer(serializers.Serializer):
+    pass  # no fields required
+
+
+# This is Used to confirm MFA after setup
+class MFAConfirmSerializer(serializers.Serializer):
+    code = serializers.CharField(
+        max_length=6,
+        required=True,
+        help_text="6-digit MFA code from your authenticator app"
+    )
+
+# Used during login to verify MFA code
+class MFAVerifySerializer(serializers.Serializer):
+    temp_token = serializers.CharField(
+        required=True,
+        help_text="Temporary token received after login step 1"
+    )
+    code = serializers.CharField(
+        max_length=6,
+        required=True,
+        help_text="6-digit MFA code from your authenticator app"
+    )
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -219,49 +294,7 @@ class EmployerSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class EmployerRegistrationSerializer(serializers.Serializer):
-    """Serializer for employer organization registration - creates both user and organization"""
-    # Organization fields
-    organization_name = serializers.CharField(
-        max_length=255,
-        required=True,
-        help_text="Name of your organization/company"
-    )
-    
-    # User account fields
-    email = serializers.EmailField(
-        required=True,
-        help_text="Your email address (will be used for login)"
-    )
-    password = serializers.CharField(
-        write_only=True,
-        required=True,
-        style={'input_type': 'password'},
-        help_text="Your password (minimum 8 characters)"
-    )
-    employer_name = serializers.CharField(
-        max_length=255,
-        required=True,
-        help_text="Your full name"
-    )
-    phone_number = serializers.CharField(
-        max_length=20,
-        required=False,
-        allow_blank=True,
-        help_text="Your phone number (optional)"
-    )
-    
-    def validate_email(self, value):
-        """Check if email already exists"""
-        if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("A user with this email already exists.")
-        return value
-    
-    def validate_password(self, value):
-        """Validate password strength"""
-        if len(value) < 8:
-            raise serializers.ValidationError("Password must be at least 8 characters long.")
-        return value
+
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
@@ -466,10 +499,7 @@ class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
         inviter = self.context['user']
         token = token_urlsafe(32)
         
-        # Set default expiration to 7 days if not provided
-        if 'expires_at' not in validated_data:
-            validated_data['expires_at'] = timezone.now() + timedelta(days=7)
-        
+        # expires_at will be automatically set by the model if not provided
         return EmployeeInvitation.objects.create(
             employer=employer,
             invited_by=inviter,

@@ -6,31 +6,80 @@ from django.contrib.auth.models import User
 from django.utils.text import slugify
 from django.conf import settings
 from django.utils import timezone
+from datetime import timedelta
 User = settings.AUTH_USER_MODEL
+import pyotp
+from cryptography.fernet import Fernet
 
-# --- User & Authentication ---
+#User and Authentication Models
 class User(AbstractUser):
     ROLE_CHOICES = (
-        ('systemadmin', 'System Admin'),
-        ('employer', 'Employer'),
+        ('systemadmin', 'Systemadmin'),
+        ('organisation', 'Organisation'),
         ('employee', 'Employee'),
     )
+
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
     onboarding_completed = models.BooleanField(default=False)
     is_suspended = models.BooleanField(default=False)
+
+    # These are the MFA-related fields
     mfa_enabled = models.BooleanField(default=False)
     mfa_secret = models.CharField(max_length=255, blank=True, null=True)
+
     avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
-    email = models.EmailField(unique=True) 
+    email = models.EmailField(unique=True)
 
     def __str__(self):
         return f"{self.username} ({self.role})"
 
-    def __str__(self):
-        return f"{self.username} ({self.role})"
+    # These are the MFA Utility Methods
+    def generate_mfa_secret(self):
+        """
+        Create a new TOTP secret and encrypt it before saving.
+        Called when the admin enables MFA.
+        """
+        raw_secret = pyotp.random_base32()
+        fernet = Fernet(settings.FERNET_KEY)
+        encrypted_secret = fernet.encrypt(raw_secret.encode()).decode()
+        self.mfa_secret = encrypted_secret
+        self.save(update_fields=["mfa_secret"])
+        return raw_secret  # This helps in Returning the raw one for generating the QR
+
+    def get_mfa_secret(self):
+        """
+        Decrypt the stored secret (for verification or QR generation).
+        """
+        if not self.mfa_secret:
+            return None
+        fernet = Fernet(settings.FERNET_KEY)
+        return fernet.decrypt(self.mfa_secret.encode()).decode()
+
+    def get_otpauth_url(self):
+        """
+        Generate the otpauth URL for use in Google Authenticator.
+        """
+        secret = self.get_mfa_secret()
+        if not secret:
+            return None
+        return pyotp.totp.TOTP(secret).provisioning_uri(
+            name=self.username,
+            issuer_name="ObeeomaApp"
+        )
+
+    def verify_mfa_code(self, code):
+        """
+        Verify a 6-digit MFA code entered by the user.
+        """
+        secret = self.get_mfa_secret()
+        if not secret:
+            return False
+        totp = pyotp.TOTP(secret)
+        return totp.verify(code)
+
     
 
-    #MODELS FOR CREATING AN ORGANIZATION
+#MODELS FOR CREATING AN ORGANIZATION
 class ContactPerson(models.Model):
     fullname = models.CharField(max_length=255)
     role = models.CharField(max_length=100)
@@ -39,7 +88,7 @@ class ContactPerson(models.Model):
     def __str__(self):
         return f"{self.fullname} - {self.role}"
 
-
+# --- Organization Model ---
 class Organization(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='organizations', null=True, blank=True)
     organizationName = models.CharField(max_length=255)
@@ -53,8 +102,21 @@ class Organization(models.Model):
     def __str__(self):
         return self.organizationName
 
+# MODELS FOR VERIFYING THE OTP
+class PasswordResetOTP(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_expired(self):
+        # OTP expires after 5 minutes
+        return timezone.now() > self.created_at + timedelta(minutes=5)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.code}"
 
 
+# --- Employers Model. ---
 class  Employer(models.Model):
     name = models.CharField(max_length=255, unique=True)
     joined_date = models.DateTimeField(auto_now_add=True)
@@ -66,7 +128,7 @@ class  Employer(models.Model):
     class Meta:
         ordering = ['-joined_date']
 
-
+# Employees Models. 
 class Employee(models.Model):
     STATUS_CHOICES = [
         ('active', 'Active'),
@@ -103,10 +165,18 @@ class EmployeeInvitation(models.Model):
     token = models.CharField(max_length=64, unique=True)
     invited_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     message = models.TextField(blank=True)
-    expires_at = models.DateTimeField()
+    expires_at = models.DateTimeField(blank=True, null=True)
     accepted = models.BooleanField(default=False)
     accepted_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        # Automatically set expires_at to 7 days from now if not set
+        if not self.expires_at:
+            from django.utils import timezone
+            from datetime import timedelta
+            self.expires_at = timezone.now() + timedelta(days=7)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Invite {self.email} -> {self.employer.name}"
@@ -114,14 +184,14 @@ class EmployeeInvitation(models.Model):
     class Meta:
         indexes = [models.Index(fields=["token"])]
 
-
+# --- System Admin Models ---
 class AuthenticationEvent(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     event_type = models.CharField(max_length=50)
     ip_address = models.GenericIPAddressField(blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
-
+# --- System Admin Models ---
 class AdminAction(models.Model):
     performed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="admin_actions")
     target_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="targeted_actions")
@@ -129,20 +199,21 @@ class AdminAction(models.Model):
     reason = models.TextField(blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
-
+# --- System Settings & Status ---
 class SystemSetting(models.Model):
     key = models.CharField(max_length=100, unique=True)
     value = models.TextField()
     is_active = models.BooleanField(default=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-
+# --- System Status ---
 class SystemStatus(models.Model):
     is_in_maintenance = models.BooleanField(default=False)
     message = models.TextField(blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-
+# --- Dashboard Functionality Models ---
+# Mental Health Assessments model.
 class SelfAssessment(models.Model):
     ASSESSMENT_TYPES = (
         ("GAD-7", "Anxiety"),
@@ -156,7 +227,8 @@ class SelfAssessment(models.Model):
     class Meta:
         ordering = ['-submitted_at']
 
-
+# --- Employee Wellbeing Models ---
+# Mood Tracking model.
 class MoodTracking(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mood_checkins")
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE, null=True, blank=True, related_name="mood_checkins_employee")
@@ -172,7 +244,7 @@ class MoodTracking(models.Model):
         return f"{self.user.username} - {self.mood} ({self.checked_in_at.date()})"
 
 
-
+# Self-Help Resources model.
 class SelfHelpResource(models.Model):
     RESOURCE_TYPES = (
         ("Meditation", "Meditation"),
@@ -187,7 +259,7 @@ class SelfHelpResource(models.Model):
     is_premium = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
-
+# Chatbot Interactions model.
 class ChatbotInteraction(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="chatbot_logs")
     message = models.TextField()
@@ -195,19 +267,19 @@ class ChatbotInteraction(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     escalated = models.BooleanField(default=False)
 
-
+# Badges & Achievements model.
 class UserBadge(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="badges")
     badge_name = models.CharField(max_length=100)
     awarded_on = models.DateTimeField(auto_now_add=True)
 
-
+# Engagement Streaks model.
 class EngagementStreak(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="streaks")
     streak_count = models.PositiveIntegerField(default=0)
     last_active_date = models.DateTimeField(blank=True, null=True)
 
-
+# Analytics & Reporting model.
 class AnalyticsSnapshot(models.Model):
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="analytics")
     date = models.DateField()
@@ -215,7 +287,7 @@ class AnalyticsSnapshot(models.Model):
     average_stress_score = models.DecimalField(max_digits=5, decimal_places=2)
     most_used_feature = models.CharField(max_length=100)
 
-
+# Crisis Hotline Information model.
 class CrisisHotline(models.Model):
     country = models.CharField(max_length=100)
     region = models.CharField(max_length=100, blank=True, null=True)
@@ -223,7 +295,7 @@ class CrisisHotline(models.Model):
     phone_number = models.CharField(max_length=50)
     is_active = models.BooleanField(default=True)
 
-
+# Dashboard Models for Employers
 class AIManagement(models.Model):
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="managements")
     title = models.CharField(max_length=255)
@@ -242,7 +314,7 @@ class AIManagement(models.Model):
     class Meta:
         ordering = ['-created_at']
 
-
+# Hotline Activity model.
 class HotlineActivity(models.Model):
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="hotline_activities")
     call_count = models.PositiveIntegerField(default=0)
@@ -256,7 +328,7 @@ class HotlineActivity(models.Model):
         ordering = ['-recorded_at']
         verbose_name_plural = "Hotline Activities"
 
-
+# Employee Engagement model.
 class EmployeeEngagement(models.Model):
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="engagements")
     engagement_rate = models.DecimalField(max_digits=5, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)])
@@ -270,7 +342,7 @@ class EmployeeEngagement(models.Model):
         ordering = ['-month']
         unique_together = ['employer', 'month']
 
-
+# Subscriptions model.
 class Subscription(models.Model):
     PLAN_CHOICES = [
         ("starter", "Starter Plan"),
@@ -301,7 +373,7 @@ class Subscription(models.Model):
     class Meta:
         ordering = ['-start_date']
 
-
+# Recent activities model.
 class RecentActivity(models.Model):
     ACTIVITY_TYPES = (
         ("New Employer", "New Employer"),
@@ -341,7 +413,7 @@ class EmployeeProfile(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.organization}"
 
-
+# Avatar Customization model.
 class AvatarProfile(models.Model):
     employee = models.OneToOneField('EmployeeProfile', on_delete=models.CASCADE)
     style = models.CharField(max_length=50)
@@ -351,10 +423,27 @@ class AvatarProfile(models.Model):
     def __str__(self):
         return f"Avatar for {self.employee.user.username}"
 
+# Wellness Hub model.
+class WellnessHub(models.Model):
+    employee = models.OneToOneField('EmployeeProfile', on_delete=models.CASCADE, related_name="wellness_hub")
+    last_checkin_date = models.DateField(blank=True, null=True)
+    last_checkin_mood = models.CharField(
+        max_length=20,
+        choices=[("happy", "Happy"), ("sad", "Sad"), ("stressed", "Stressed"),
+                 ("anxious", "Anxious"), ("neutral", "Neutral")],
+        blank=True,
+        null=True
+    )
+    mood_logs = models.JSONField(default=list, blank=True)
+    mood_insights = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Wellness Hub - {self.employee.user.username}"
 
 
 
-
+# Assessment Results model.
 class AssessmentResult(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE)
     type = models.CharField(max_length=20)  
@@ -364,7 +453,7 @@ class AssessmentResult(models.Model):
     def __str__(self):
         return f"Assessment - {self.employee.user.username} - {self.type}"
 
-
+# Educational Resources model.
 class EducationalResource(models.Model):
     title = models.CharField(max_length=100)
     type = models.CharField(max_length=20)  # article, podcast, video
@@ -374,7 +463,7 @@ class EducationalResource(models.Model):
     def __str__(self):
         return self.title
 
-
+# Crisis Triggers model.
 class CrisisTrigger(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE)
     detected_phrase = models.CharField(max_length=255)
@@ -384,7 +473,7 @@ class CrisisTrigger(models.Model):
     def __str__(self):
         return f"Crisis Trigger - {self.employee.user.username}"
 
-
+# Notifications model.
 class Notification(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE)
     message = models.CharField(max_length=255)
@@ -394,7 +483,7 @@ class Notification(models.Model):
     def __str__(self):
         return f"Notification - {self.employee.user.username}"
 
-
+# Engagement Tracker model.
 class EngagementTracker(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE)
     streak_days = models.IntegerField(default=0)
@@ -403,7 +492,7 @@ class EngagementTracker(models.Model):
     def __str__(self):
         return f"Engagement - {self.employee.user.username}"
 
-
+# Feedback model.
 class Feedback(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE)
     rating = models.IntegerField()
@@ -413,7 +502,7 @@ class Feedback(models.Model):
     def __str__(self):
         return f"Feedback - {self.employee.user.username}"
 
-
+# Progress Tracking model.
 class Progress(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     date = models.DateField()
@@ -422,7 +511,7 @@ class Progress(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.date}"
-    
+ # Chat Sessions model.   
 class ChatSession(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE, related_name="chat_sessions")
     started_at = models.DateTimeField(auto_now_add=True)
@@ -431,7 +520,7 @@ class ChatSession(models.Model):
     def __str__(self):
         return f"Chat Session - {self.employee.user.username}"
 
-
+# Chat Messages model.
 class ChatMessage(models.Model):
     ROLE_CHOICES = [
         ("user", "User"),
@@ -446,7 +535,7 @@ class ChatMessage(models.Model):
     def __str__(self):
         return f"Message - {self.session.employee.user.username}"
 
-
+# Recommendation Logs model.
 class RecommendationLog(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE)
     resource = models.ForeignKey(SelfHelpResource, on_delete=models.SET_NULL, null=True, blank=True)
@@ -457,7 +546,7 @@ class RecommendationLog(models.Model):
         return f"Recommendation - {self.employee.user.username}"
 
 
-
+# Mental Health Assessments model.
 class MentalHealthAssessment(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='mental_health_assessments')
     assessment_type = models.CharField(max_length=10, choices=[
@@ -517,6 +606,7 @@ class MentalHealthAssessment(models.Model):
 
 
 # Employers Models.
+#-- Departments Model. --
 class Department(models.Model):
     """Departments within an employer (e.g., HR, Marketing, Engineering)."""
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="departments")
@@ -531,7 +621,7 @@ class Department(models.Model):
         ordering = ['name']
 
 
-
+#-- Assessments Model. --
 class Assessment(models.Model):
     """Each assessment (e.g., GAD-7 or PHQ-9) completed by an employee."""
     ASSESSMENT_TYPES = [
@@ -551,7 +641,7 @@ class Assessment(models.Model):
     class Meta:
         ordering = ["-created_at"]
 
-
+#-- Password Reset Tokens Model. --
 class PasswordResetToken(models.Model):
     """Model to store password reset tokens"""
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="password_reset_tokens")
@@ -580,7 +670,7 @@ class PasswordResetToken(models.Model):
         self.save()
 
 # Enhanced Models for Dashboard Functionality
-
+#-- Organization Settings Model. --
 class OrganizationSettings(models.Model):
     """Organization-level settings and preferences"""
     employer = models.OneToOneField(Employer, on_delete=models.CASCADE, related_name="settings")
@@ -597,13 +687,12 @@ class OrganizationSettings(models.Model):
     def __str__(self):
         return f"Settings for {self.employer.name}"
 
-
+#-- Subscription Plans Model. --
 class SubscriptionPlan(models.Model):
     """Available subscription plans"""
     PLAN_CHOICES = [
         ('starter', 'Starter Plan'),
         ('enterprise', 'Enterprise Plan'),
-        ('enterprise_plus', 'Enterprise Plus Plan'),
     ]
     
     name = models.CharField(max_length=50, choices=PLAN_CHOICES)
@@ -621,7 +710,7 @@ class SubscriptionPlan(models.Model):
     class Meta:
         ordering = ['price']
 
-
+#-- Billing History Model. --
 class BillingHistory(models.Model):
     """Billing history for organizations"""
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="billing_history")
@@ -643,7 +732,7 @@ class BillingHistory(models.Model):
     class Meta:
         ordering = ['-billing_date']
 
-
+#-- Payment Methods Model. --
 class PaymentMethod(models.Model):
     """Payment methods for organizations"""
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="payment_methods")
@@ -660,10 +749,30 @@ class PaymentMethod(models.Model):
     class Meta:
         ordering = ['-is_default', '-created_at']
 
+#-- Wellness Tests Model. --
+class WellnessTest(models.Model):
+    """Wellness tests completed by employees"""
+    TEST_TYPES = [
+        ('wellbeing_check', 'Well-being Check'),
+        ('burnout_risk', 'Burnout Risk'),
+        ('stress_assessment', 'Stress Assessment'),
+    ]
+    
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="wellness_tests")
+    department = models.ForeignKey('Department', on_delete=models.SET_NULL, null=True, blank=True)
+    test_type = models.CharField(max_length=50, choices=TEST_TYPES)
+    score = models.PositiveIntegerField()
+    completed_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.employee.name} - {self.test_type}"
+
+    class Meta:
+        ordering = ['-completed_at']
 
 
 
-
+#-- Resource Engagement Model. --
 class ResourceEngagement(models.Model):
     """Track employee engagement with wellness resources"""
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="resource_engagements")
@@ -678,7 +787,7 @@ class ResourceEngagement(models.Model):
     class Meta:
         ordering = ['-engagement_date']
 
-
+#-- Common Issues Model. --
 class CommonIssue(models.Model):
     """Common issues identified in the organization"""
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="common_issues")
@@ -700,7 +809,7 @@ class CommonIssue(models.Model):
     class Meta:
         ordering = ['-identified_at']
 
-
+#-- Chat Engagement Model. --
 class ChatEngagement(models.Model):
     """Track chat engagement metrics"""
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="chat_engagements")
@@ -714,7 +823,7 @@ class ChatEngagement(models.Model):
     class Meta:
         ordering = ['-recorded_date']
 
-
+#-- Department Contribution Model. --
 class DepartmentContribution(models.Model):
     """Track contributions by department"""
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="department_contributions")
@@ -728,7 +837,7 @@ class DepartmentContribution(models.Model):
     class Meta:
         ordering = ['-contribution_percentage']
 
-
+#-- Organization Activity Model. --
 class OrganizationActivity(models.Model):
     ACTIVITY_TYPES = [
         ('wellness_test_completed', 'Wellness Test Completed'),
@@ -750,7 +859,7 @@ class OrganizationActivity(models.Model):
 
 
 # System Admin Models
-
+#-- Platform Metrics Model. --
 class PlatformMetrics(models.Model):
     total_organizations = models.PositiveIntegerField(default=0)
     total_clients = models.PositiveIntegerField(default=0)
@@ -768,7 +877,7 @@ class PlatformMetrics(models.Model):
     class Meta:
         ordering = ['-recorded_date']
 
-
+#-- Platform Usage Model. --
 class PlatformUsage(models.Model):
     week_number = models.PositiveIntegerField()
     usage_count = models.PositiveIntegerField()
@@ -779,6 +888,7 @@ class PlatformUsage(models.Model):
 
     class Meta:
         ordering = ['week_number']
+#-- Subscription Revenue Model. --
 class SubscriptionRevenue(models.Model):
     month = models.CharField(max_length=10)  # Jan, Feb, etc.
     revenue = models.DecimalField(max_digits=12, decimal_places=2)
@@ -790,6 +900,8 @@ class SubscriptionRevenue(models.Model):
 
     class Meta:
         ordering = ['year', 'month']
+
+#-- System Activity Model. --
 class SystemActivity(models.Model):
     ACTIVITY_TYPES = [
         ('new_organization', 'New Organization'),
@@ -808,7 +920,7 @@ class SystemActivity(models.Model):
     class Meta:
         ordering = ['-created_at']
 
-
+#-- Hotline Call Model. --
 class HotlineCall(models.Model):
     URGENCY_LEVELS = [
         ('low', 'Low'),
@@ -845,7 +957,7 @@ class HotlineCall(models.Model):
     class Meta:
         ordering = ['-call_date']
 
-
+#-- AI Resource Model. --
 class AIResource(models.Model):
     RESOURCE_TYPES = [
         ('article', 'Article'),
@@ -869,7 +981,7 @@ class AIResource(models.Model):
     class Meta:
         ordering = ['-effectiveness_score']
 
-
+#-- Client Engagement Model. --
 class ClientEngagement(models.Model):
     client_name = models.CharField(max_length=255)
     organization = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="client_engagements")
@@ -890,7 +1002,7 @@ class ClientEngagement(models.Model):
     class Meta:
         ordering = ['-total_points']
 
-
+#-- Reward Programs Model. --
 class RewardProgram(models.Model):
     name = models.CharField(max_length=255)
     points_required = models.PositiveIntegerField()
@@ -904,7 +1016,7 @@ class RewardProgram(models.Model):
     class Meta:
         ordering = ['points_required']
 
-
+#-- System Settings Model. --
 class SystemSettings(models.Model):
     setting_name = models.CharField(max_length=100, unique=True)
     setting_value = models.TextField()
@@ -923,7 +1035,7 @@ class SystemSettings(models.Model):
     class Meta:
         ordering = ['setting_name']
 
-
+#-- Reports Model. --
 class Report(models.Model):
     REPORT_TYPES = [
         ('platform_usage', 'Platform Usage'),
@@ -970,7 +1082,7 @@ class EducationalResource(models.Model):
     thumbnail = models.ImageField(upload_to='thumbnails/', blank=True, null=True)
     file_size = models.CharField(max_length=20, blank=True, null=True)
     uploaded_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='uploaded_resources')
-    uploaded_at = models.DateTimeField(auto_now_add=True)  # ✅ Remove default
+    uploaded_at = models.DateTimeField(auto_now_add=True)  # Remove default
     is_public = models.BooleanField(default=True)
     download_count = models.IntegerField(default=0)
     
@@ -983,7 +1095,7 @@ class EducationalResource(models.Model):
     def __str__(self):
         return self.title
 
-
+#-- Video Model. --
 class Video(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField(help_text="What will users learn?")
@@ -1006,7 +1118,7 @@ class Video(models.Model):
     views = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)  # ✅ Remove default
+    updated_at = models.DateTimeField(auto_now=True)  # Remove default
     target_mood = models.CharField(max_length=50, choices=MOOD_CHOICES, default='general')
     is_professionally_reviewed = models.BooleanField(default=False)
     reviewed_by = models.CharField(max_length=100, blank=True)
@@ -1024,7 +1136,7 @@ class Video(models.Model):
     def __str__(self):
         return self.title
 
-
+#-- Audio Model. --
 class Audio(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField(help_text="What does this audio help with?")
@@ -1046,7 +1158,7 @@ class Audio(models.Model):
     def __str__(self):
         return self.title
 
-
+#-- Article Model. --
 class Article(models.Model):
     title = models.CharField(max_length=200)
     slug = models.SlugField(unique=True, max_length=250, blank=True)
@@ -1077,7 +1189,7 @@ class Article(models.Model):
     def __str__(self):
         return self.title
 
-
+#-- Meditation Technique Model. --
 class MeditationTechnique(models.Model):
     DIFFICULTY_CHOICES = [
         ('beginner', 'Beginner'),
@@ -1096,7 +1208,7 @@ class MeditationTechnique(models.Model):
     times_practiced = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)  # ✅ Remove default
+    updated_at = models.DateTimeField(auto_now=True)  #  Remove default
   
     class Meta:
         ordering = ['difficulty', 'title']
@@ -1106,14 +1218,14 @@ class MeditationTechnique(models.Model):
     def __str__(self):
         return f"{self.title} ({self.get_difficulty_display()})"
 
-
+#-- Saved Resource Model. --
 class SavedResource(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='saved_resources')
     video = models.ForeignKey(Video, on_delete=models.CASCADE, null=True, blank=True)
     audio = models.ForeignKey(Audio, on_delete=models.CASCADE, null=True, blank=True)
     article = models.ForeignKey(Article, on_delete=models.CASCADE, null=True, blank=True)
     meditation = models.ForeignKey(MeditationTechnique, on_delete=models.CASCADE, null=True, blank=True)
-    saved_at = models.DateTimeField(auto_now_add=True)  # ✅ Already correct
+    saved_at = models.DateTimeField(auto_now_add=True)  # Already correct
 
 
     class Meta:
@@ -1129,7 +1241,7 @@ class SavedResource(models.Model):
     def __str__(self):
         return f"{self.user.username}'s saved resource"
 
-
+#-- User Activity Model. --
 class UserActivity(models.Model):
     """Track user engagement with resources"""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activities')
@@ -1151,7 +1263,7 @@ class UserActivity(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.accessed_at.date()}"
     
-
+#-- User Learning Progress Model. --
 class UserLearningProgress(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='learning_progress')
     
@@ -1166,8 +1278,8 @@ class UserLearningProgress(models.Model):
     completion_percentage = models.IntegerField(default=0, help_text="0-100%")
     personal_notes = models.TextField(blank=True, help_text="User's private notes about this resource")
     started_at = models.DateTimeField(auto_now_add=True)
-    last_accessed = models.DateTimeField(auto_now=True)  # ✅ Remove default
-    completed_at = models.DateTimeField(null=True, blank=True)  # ✅ Already correct
+    last_accessed = models.DateTimeField(auto_now=True)  #  Remove default
+    completed_at = models.DateTimeField(null=True, blank=True)  #  Already correct
 
     class Meta:
         verbose_name = "User Learning Progress"
@@ -1177,6 +1289,7 @@ class UserLearningProgress(models.Model):
     def __str__(self):
         return f"{self.user.username}'s progress - {self.completion_percentage}% complete"
 
+#-- Onboarding State Model. --
 class OnboardingState(models.Model):
     GOAL_CHOICES = [
         ('reduce_stress', 'Reduce Stress'),
@@ -1200,7 +1313,7 @@ class OnboardingState(models.Model):
     def __str__(self):
         return f"{self.user.username} - Onboarding"    
     
-
+#-- Dynamic Question Model. --
 class DynamicQuestion(models.Model):
     text = models.TextField()
     category = models.CharField(max_length=100)
