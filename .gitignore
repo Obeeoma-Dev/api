@@ -222,6 +222,5 @@ EMPLOYEE_INVITATION_GUIDE.md
 API_AUTHENTICATION_GUIDE.md
 
 
-
-# Alerting git not to track the sana_ai/tinyllama_model/files.
+# Dont track sana ai model files.
 sana_ai/tinyllama_model/
