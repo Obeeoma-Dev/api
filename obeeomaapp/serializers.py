@@ -233,16 +233,14 @@ class PasswordChangeSerializer(serializers.Serializer):
     
 # SERIAILZER FOR VERIFYING OTP
 class OTPVerificationSerializer(serializers.Serializer):
-    email = serializers.EmailField()  
     code = serializers.CharField(max_length=6)
 
     def validate(self, attrs):
         code = attrs.get("code")
-        email = attrs.get("email")
 
-        try:
-            otp = PasswordResetOTP.objects.get(code=code, user__email=email)
-        except PasswordResetOTP.DoesNotExist:
+        # Find the OTP that is not expired
+        otp = PasswordResetOTP.objects.filter(code=code).first()
+        if not otp:
             raise serializers.ValidationError("Invalid verification code.")
 
         if otp.is_expired():
@@ -253,7 +251,6 @@ class OTPVerificationSerializer(serializers.Serializer):
         self.context["otp"] = otp
         return attrs
 
-    
 # SERIALIZERS FOR MFA SETUP AND VERIFICATION
 
 # MFA Setup Serializer
