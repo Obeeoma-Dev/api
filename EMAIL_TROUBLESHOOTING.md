@@ -4,7 +4,7 @@
 
 Based on your screenshot, the API is responding successfully but emails aren't reaching your inbox. Here's how to fix this:
 
-## 🔍 Step 1: Check Your Email Configuration
+##  Step 1: Check Your Email Configuration
 
 Visit this URL to see your current email configuration:
 ```

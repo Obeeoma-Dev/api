@@ -1,68 +1,67 @@
-# Here's what it does step by step:
-# Runs automatically when code is pushed or a pull request is made to the "main" branch.
-# Builds your Django project by installing dependencies and linting the code.
-# Runs your Django tests to make sure everything works correctly.
-# If all tests pass and the branch is "main", it automatically deploys
-# your app to Render using a secret deploy hook URL.
-# ================================================================
-
-# The name that will appear in GitHub Actions dashboard
 name: CI/CD Pipeline
 
-# Triggers that tell GitHub when to run this workflow
 on:
-  push:                     # Run when someone pushes new commits
-    branches: [ "main" ]    # ...but only if the branch is "main"
-  pull_request:             # Also run when a pull request is made
-    branches: [ "main" ]    # ...that targets the "main" branch
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
-# Define the jobs (tasks) that will run in this pipeline
 jobs:
- 
-  build:                    # The first job - "build"
-    runs-on: ubuntu-latest  # Run this job on the latest Ubuntu environment
+  build:
+    runs-on: ubuntu-latest
 
-    steps:                  # The ordered list of steps GitHub will perform
-    - name: Checkout code
-      uses: actions/checkout@v4   # Step 1: Pull the code from your GitHub repository
-
-    - name: Set up Python 
-      uses: actions/setup-python@v5  # Step 2: Install and configure Python on the runner
-      with:
-        python-version: '3.12'       # Use Python version 3.12
-        cache: 'pip'                 # Cache pip packages to make future runs faster
-
-    - name: Install dependencies
-      run: |                         # Step 3: Run shell commands to install dependencies
-        python -m pip install --upgrade pip   # Upgrade pip to the latest version
-        pip install -r requirements.txt       # Install project dependencies listed in requirements.txt
-       
-    - name: Lint with flake8
-      run: |                         # Step 4: Check the code for syntax and style errors using flake8
-        # First command checks for major syntax or runtime errors
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # Second command checks for style and complexity, but doesn't fail the build
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
-    - name: Run Django Tests
-      env:                           # Step 5: Set up environment variables for Django test environment
-        DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY_CI }}  # Secret key stored securely in GitHub Secrets
-        DEBUG: True                  # Enable Django’s debug mode for testing
-        DATABASE_URL: ${{ secrets.DATABASE_URL_CI }}  # Database connection string for CI tests
-      run: |
-        python manage.py test        # Run Django’s automated test suite
-
-  # Second job: handles deployment (only runs if "build" succeeds)
-  deploy:
-    needs: build                     # Wait for the "build" job to complete successfully
-    runs-on: ubuntu-latest           # Run deployment on the latest Ubuntu environment
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    # This condition ensures deployment only happens when:
-    # - The event is a direct push (not a pull request)
-    # - The branch is "main"
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
 
     steps:
-      - name: Trigger Render Deploy
-        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-        # This sends a POST request to Render using your secret Deploy Hook URL
-        # It tells Render to start deploying your latest code automatically
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'  # More stable than 3.12
+        cache: 'pip' 
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install flake8
+
+    - name: Lint with flake8
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Run Tests with Pytest
+      env:
+        SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+        DEBUG: "False"
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+      run: |
+        pytest tests/ -v --tb=short
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Trigger Render Deploy
+      run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK_URL }}

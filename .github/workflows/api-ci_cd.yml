@@ -10,15 +10,26 @@ on:
 
 # Define the jobs (tasks) that this workflow will perform
 jobs:
-  # ----------------------------
-  # 1️⃣ Build, Lint, and Test Job
-  # ----------------------------
-  build:                     # Name of the first job
-    runs-on: ubuntu-latest    # The job will run inside a fresh Ubuntu Linux environment
-
+  build:
+    runs-on: ubuntu-latest
     strategy:
-      matrix:                 # Matrix lets you test multiple Python versions automatically
-        python-version: [3.12, 3.13]
+      matrix:
+        python-version: [3.11, 3.12]  # More stable versions
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
 
     steps:                    # A list of all steps in this job
       - name: Checkout code
@@ -31,10 +42,9 @@ jobs:
           cache: "pip"                                  # Cache pip packages for faster installs next time
 
       - name: Install dependencies
-        run: |                                           # "run" executes shell commands inside the runner
-          python -m pip install --upgrade pip            # Update pip to the latest version
-          pip install -r requirements.txt                # Install all your project dependencies
-          pip install flake8 pytest pytest-django        # Install developer tools for linting and testing
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Lint with flake8
         run: |
@@ -51,17 +61,14 @@ jobs:
         run: python manage.py collectstatic --noinput
         # Gathers all static files into one directory for deployment (no user input)
 
-      - name: Run Django Tests
-        env:                                            # Define environment variables for Django to run tests
-          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY_CI }}  # Secret key stored securely in GitHub Secrets
-          DEBUG: True                                   # Enable Django debug mode during testing
-          DATABASE_URL: "sqlite:///db.sqlite3"          # Use a temporary SQLite database for tests
+      - name: Run Tests with Pytest
+        env:
+          SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DEBUG: "False"
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
-          python manage.py test                         # Run Django’s built-in test suite
+          pytest tests/ -v --tb=short
 
-  # ----------------------------
-  # 2️⃣ Deployment Job (Render)
-  # ----------------------------
   deploy:
     name: Deploy to Render
     needs: build                     # This makes sure the "build" job finishes successfully first
@@ -85,4 +92,3 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"serviceId":"${{ secrets.RENDER_SERVICE_ID }}","branch":"main"}' \
             https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys
-          ## It tells Render: “Deploy the latest code from main branch for this service”
