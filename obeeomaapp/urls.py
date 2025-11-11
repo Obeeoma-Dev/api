@@ -111,12 +111,12 @@ router.register(r'invitations', InviteView, basename='invitations')
 urlpatterns = [
     # Home
     path("", home, name="home"),
-    
     # Debug endpoints
-    path("debug/email-config/", EmailConfigCheckView.as_view(), name="email-config-check"),
-
+    path(
+        "debug/email-config/", EmailConfigCheckView.as_view(), name="email-config-check"
+    ),
     # Authentication
-    path("auth/signup/", SignupView.as_view({'post': 'create'}), name="signup"),
+    path("auth/signup/", SignupView.as_view({"post": "create"}), name="signup"),
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/logout/", LogoutView.as_view(), name="logout"),
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
@@ -178,17 +178,24 @@ urlpatterns = [
 
     # Include router URLs
     path("", include(router.urls)),
-
     # JWT Authentication
     path("auth/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("auth/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
-
     # API Schema
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
-
+    path(
+        "api/docs/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
+    ),
     # Swagger / Redoc
-    path("swagger/", schema_view.with_ui("swagger", cache_timeout=0), name="schema-swagger-ui"),
+    path(
+        "swagger/",
+        schema_view.with_ui("swagger", cache_timeout=0),
+        name="schema-swagger-ui",
+    ),
     path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
+    # Sana_ai.
+    path("api/", include("sana_ai.urls")),
 ]

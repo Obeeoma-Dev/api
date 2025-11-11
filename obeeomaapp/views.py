@@ -121,10 +121,9 @@ class VerifyOTPView(APIView):
         request=OTPVerificationSerializer,
         responses={200: OpenApiTypes.OBJECT},
     )
-# Employer Registration View
-@extend_schema(
+    @extend_schema(
     tags=['Authentication'],
-    request=LoginSerializer,  # ✅ This tells the API docs what to expect
+    request=LoginSerializer,
     responses={
         200: {
             "description": "Login successful",
@@ -151,19 +150,19 @@ class VerifyOTPView(APIView):
     },
     description="""
     Login endpoint for all users (employees, employers, admins).
-    
+
     **Required fields:**
     - username: Your username or email
     - password: Your password
-    
+
     **Returns:**
     - JWT access and refresh tokens
     - User information including role
     """
 )
-class LoginView(APIView):
-    permission_classes = [permissions.AllowAny]
-    serializer_class = LoginSerializer
+    class LoginView(APIView):
+        permission_classes = [permissions.AllowAny]
+        serializer_class = LoginSerializer
 
     def post(self, request):
         serializer = OTPVerificationSerializer(data=request.data)
@@ -194,20 +193,22 @@ class LoginView(APIView):
 )
 
 # LOGIN VIEW
-def _build_login_success_payload(user):
+def _build_login_success_payload(serializer, request):
     refresh = RefreshToken.for_user(user)
-        username = serializer.validated_data['username']
-        password = serializer.validated_data['password']
+    username = serializer.validated_data['username']
+    password = serializer.validated_data['password']
 
-        user = authenticate(request=request, username=username, password=password)
+    user = authenticate(request=request, username=username, password=password)
 
-        if not user:
-            return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-        if not user.is_active:
-            return Response({"detail": "Account is disabled"}, status=status.HTTP_403_FORBIDDEN)
+    if not user:
+        return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+    if not user.is_active:
+        return Response({"detail": "Account is disabled"}, status=status.HTTP_403_FORBIDDEN)
 
-        # Generate JWT tokens
-        refresh = RefreshToken.for_user(user)
+    refresh = RefreshToken.for_user(user)
+
+    # ... rest of the logic ...
+
 
     display_username = user.username
     try:
@@ -1968,7 +1969,7 @@ class TestsByTypeView(viewsets.ViewSet):
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
-        tests_by_type = MoodTest.objects.values('test_type').annotate(
+        tests_by_type = MoodTracking.objects.values('test_type').annotate(
             count=Count('id')
         ).order_by('-count')
         
@@ -1981,15 +1982,13 @@ class TestsByDepartmentView(viewsets.ViewSet):
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
-        
-        tests_by_department = MoodTest.objects.values(
+        tests_by_department = MoodTracking.objects.values(
             'department__name'
         ).annotate(
             count=Count('id')
         ).order_by('-count')
         
         return Response(list(tests_by_department))
-
 
 # System Admin Views
 @extend_schema(tags=['System Admin'])
