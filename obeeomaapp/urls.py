@@ -31,7 +31,10 @@ from obeeomaapp.views import (
     InvitationAcceptanceView, InviteView, 
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
-    OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet
+    OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet,
+    MeditationCategoryViewSet, FeaturedContentViewSet, DailyMoodCheckinViewSet,
+    DailyStreakViewSet, UserFavoriteViewSet, MeditationSessionViewSet,
+    home_screen, explore_screen
     
 )
 
@@ -106,6 +109,15 @@ router.register(r'admin/reports-analytics', ReportsAnalyticsView, basename='repo
 router.register(r'admin/system-settings', SystemSettingsView, basename='system-settings')
 router.register(r'admin/feature-flags', FeaturesUsageView, basename='feature-flags')
 router.register(r'dynamic-questions', DynamicQuestionViewSet, basename='dynamic-question')
+
+# Meditation & Mindfulness App Routes
+router.register(r'meditation/categories', MeditationCategoryViewSet, basename='meditation-category')
+router.register(r'meditation/featured', FeaturedContentViewSet, basename='featured-content')
+router.register(r'meditation/mood-checkin', DailyMoodCheckinViewSet, basename='mood-checkin')
+router.register(r'meditation/streak', DailyStreakViewSet, basename='daily-streak')
+router.register(r'meditation/favorites', UserFavoriteViewSet, basename='user-favorite')
+router.register(r'meditation/sessions', MeditationSessionViewSet, basename='meditation-session')
+
 # Employee Invitations
 router.register(r'invitations', InviteView, basename='invitations')
 
@@ -176,6 +188,10 @@ urlpatterns = [
     # Invitation acceptance (public) - Updated to use InvitationAcceptanceView
     path('auth/verify-invite/', InvitationVerifyView.as_view(), name='verify-invite'),
     path('auth/accept-invite/', InvitationAcceptanceView.as_view(), name='accept-invite'),
+
+    # Meditation & Mindfulness App Endpoints
+    path('meditation/home/', home_screen, name='meditation-home'),
+    path('meditation/explore/', explore_screen, name='meditation-explore'),
 
     # Include router URLs
     path("", include(router.urls)),

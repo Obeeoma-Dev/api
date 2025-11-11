@@ -1,4 +1,3 @@
-# Keep only these imports (external modules)
 from django.http import JsonResponse
 from django.db.models import Avg, Count, Sum
 from rest_framework.decorators import action
@@ -2816,3 +2815,309 @@ class DynamicQuestionViewSet(viewsets.ModelViewSet):
         questions = list(self.queryset.order_by('?')[:count])
         serializer = self.get_serializer(questions, many=True)
         return Response(serializer.data)
+
+
+# ===== MEDITATION & MINDFULNESS APP VIEWS =====
+
+@extend_schema_view(
+    list=extend_schema(tags=['Meditation - Categories']),
+    retrieve=extend_schema(tags=['Meditation - Categories']),
+)
+class MeditationCategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for meditation categories (Sleep, Gratitude, Happiness, etc.)"""
+    queryset = MeditationCategory.objects.filter(is_active=True)
+    serializer_class = MeditationCategorySerializer
+    permission_classes = [permissions.AllowAny]
+    
+    @extend_schema(
+        description="Get all featured content for a specific category",
+        responses=FeaturedContentSerializer(many=True),
+        tags=['Meditation - Categories']
+    )
+    @action(detail=True, methods=['get'])
+    def featured_content(self, request, pk=None):
+        """Get all featured content for this category"""
+        category = self.get_object()
+        content = category.featured_content.filter(is_featured=True).order_by('-play_count')
+        serializer = FeaturedContentSerializer(content, many=True, context={'request': request})
+        return Response(serializer.data)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['Meditation - Featured Content']),
+    retrieve=extend_schema(tags=['Meditation - Featured Content']),
+)
+class FeaturedContentViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for featured meditation content"""
+    queryset = FeaturedContent.objects.filter(is_featured=True)
+    serializer_class = FeaturedContentSerializer
+    permission_classes = [permissions.AllowAny]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['category', 'is_premium']
+    search_fields = ['title', 'description']
+    ordering_fields = ['play_count', 'duration_minutes', 'created_at']
+    ordering = ['-play_count']
+    
+    @extend_schema(
+        description="Increment play count for this content",
+        request=None,
+        responses={200: {"description": "Play count incremented"}},
+        tags=['Meditation - Featured Content']
+    )
+    @action(detail=True, methods=['post'])
+    def play(self, request, pk=None):
+        """Increment play count when user plays this content"""
+        content = self.get_object()
+        content.play_count += 1
+        content.save(update_fields=['play_count'])
+        
+        # Create meditation session
+        if request.user.is_authenticated:
+            MeditationSession.objects.create(
+                user=request.user,
+                featured_content=content,
+                duration_minutes=content.duration_minutes
+            )
+        
+        return Response({'message': 'Play count incremented', 'play_count': content.play_count})
+    
+    @extend_schema(
+        description="Toggle favorite status for this content",
+        request=None,
+        responses={200: {"description": "Favorite toggled"}},
+        tags=['Meditation - Featured Content']
+    )
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def toggle_favorite(self, request, pk=None):
+        """Add or remove from favorites"""
+        content = self.get_object()
+        favorite, created = UserFavorite.objects.get_or_create(
+            user=request.user,
+            featured_content=content
+        )
+        
+        if not created:
+            favorite.delete()
+            return Response({'message': 'Removed from favorites', 'is_favorited': False})
+        
+        return Response({'message': 'Added to favorites', 'is_favorited': True})
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['Meditation - Mood Tracking']),
+    create=extend_schema(tags=['Meditation - Mood Tracking']),
+    retrieve=extend_schema(tags=['Meditation - Mood Tracking']),
+)
+class DailyMoodCheckinViewSet(viewsets.ModelViewSet):
+    """ViewSet for daily mood check-ins"""
+    serializer_class = DailyMoodCheckinSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        return DailyMoodCheckin.objects.filter(user=self.request.user).order_by('-checked_in_at')
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+    
+    @extend_schema(
+        description="Get today's mood check-in",
+        responses=DailyMoodCheckinSerializer,
+        tags=['Meditation - Mood Tracking']
+    )
+    @action(detail=False, methods=['get'])
+    def today(self, request):
+        """Get today's mood check-in"""
+        today = timezone.now().date()
+        try:
+            checkin = DailyMoodCheckin.objects.get(user=request.user, date=today)
+            serializer = self.get_serializer(checkin)
+            return Response(serializer.data)
+        except DailyMoodCheckin.DoesNotExist:
+            return Response({'message': 'No check-in for today'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @extend_schema(
+        description="Get mood history for the last N days",
+        parameters=[
+            OpenApiParameter(name='days', type=int, default=7, description='Number of days to retrieve')
+        ],
+        responses=DailyMoodCheckinSerializer(many=True),
+        tags=['Meditation - Mood Tracking']
+    )
+    @action(detail=False, methods=['get'])
+    def history(self, request):
+        """Get mood history for the last N days"""
+        days = int(request.query_params.get('days', 7))
+        from datetime import timedelta
+        start_date = timezone.now().date() - timedelta(days=days)
+        
+        checkins = DailyMoodCheckin.objects.filter(
+            user=request.user,
+            date__gte=start_date
+        ).order_by('-date')
+        
+        serializer = self.get_serializer(checkins, many=True)
+        return Response(serializer.data)
+
+
+@extend_schema_view(
+    retrieve=extend_schema(tags=['Meditation - Streak']),
+)
+class DailyStreakViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for daily streak tracking"""
+    serializer_class = DailyStreakSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        return DailyStreak.objects.filter(user=self.request.user)
+    
+    @extend_schema(
+        description="Get current user's streak",
+        responses=DailyStreakSerializer,
+        tags=['Meditation - Streak']
+    )
+    @action(detail=False, methods=['get'])
+    def current(self, request):
+        """Get current user's streak"""
+        streak, created = DailyStreak.objects.get_or_create(
+            user=request.user,
+            defaults={'current_streak': 0, 'longest_streak': 0, 'total_days_active': 0}
+        )
+        serializer = self.get_serializer(streak)
+        return Response(serializer.data)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['Meditation - Favorites']),
+    create=extend_schema(tags=['Meditation - Favorites']),
+    destroy=extend_schema(tags=['Meditation - Favorites']),
+)
+class UserFavoriteViewSet(viewsets.ModelViewSet):
+    """ViewSet for user favorites"""
+    serializer_class = UserFavoriteSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post', 'delete']
+    
+    def get_queryset(self):
+        return UserFavorite.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['Meditation - Sessions']),
+    create=extend_schema(tags=['Meditation - Sessions']),
+    retrieve=extend_schema(tags=['Meditation - Sessions']),
+    partial_update=extend_schema(tags=['Meditation - Sessions']),
+)
+class MeditationSessionViewSet(viewsets.ModelViewSet):
+    """ViewSet for meditation sessions"""
+    serializer_class = MeditationSessionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post', 'patch']
+    
+    def get_queryset(self):
+        return MeditationSession.objects.filter(user=self.request.user).order_by('-started_at')
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+    
+    @extend_schema(
+        description="Mark session as completed",
+        request=None,
+        responses={200: {"description": "Session marked as completed"}},
+        tags=['Meditation - Sessions']
+    )
+    @action(detail=True, methods=['post'])
+    def complete(self, request, pk=None):
+        """Mark a session as completed"""
+        session = self.get_object()
+        session.completed = True
+        session.completed_at = timezone.now()
+        session.save()
+        
+        # Update user's streak
+        if hasattr(request.user, 'daily_streak'):
+            request.user.daily_streak.update_streak()
+        
+        serializer = self.get_serializer(session)
+        return Response(serializer.data)
+    
+    @extend_schema(
+        description="Get session statistics",
+        responses={200: {"description": "Session statistics"}},
+        tags=['Meditation - Sessions']
+    )
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get user's meditation statistics"""
+        sessions = self.get_queryset()
+        total_sessions = sessions.count()
+        completed_sessions = sessions.filter(completed=True).count()
+        total_minutes = sessions.filter(completed=True).aggregate(
+            total=Sum('duration_minutes')
+        )['total'] or 0
+        
+        return Response({
+            'total_sessions': total_sessions,
+            'completed_sessions': completed_sessions,
+            'total_minutes': total_minutes,
+            'completion_rate': (completed_sessions / total_sessions * 100) if total_sessions > 0 else 0
+        })
+
+
+@extend_schema(
+    description="Get home screen data including categories, featured content, streak, and mood",
+    responses=HomeScreenSerializer,
+    tags=['Meditation - Home']
+)
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def home_screen(request):
+    """Get all data needed for the home screen"""
+    # Get categories
+    categories = MeditationCategory.objects.filter(is_active=True).order_by('order')
+    
+    # Get featured content
+    featured_content = FeaturedContent.objects.filter(is_featured=True).order_by('-play_count')[:10]
+    
+    # Get or create user's streak
+    daily_streak, _ = DailyStreak.objects.get_or_create(
+        user=request.user,
+        defaults={'current_streak': 0, 'longest_streak': 0, 'total_days_active': 0}
+    )
+    
+    # Get today's mood
+    today = timezone.now().date()
+    try:
+        today_mood = DailyMoodCheckin.objects.get(user=request.user, date=today)
+    except DailyMoodCheckin.DoesNotExist:
+        today_mood = None
+    
+    # Get recent sessions
+    recent_sessions = MeditationSession.objects.filter(user=request.user).order_by('-started_at')[:5]
+    
+    # Serialize data
+    data = {
+        'categories': MeditationCategorySerializer(categories, many=True).data,
+        'featured_content': FeaturedContentSerializer(featured_content, many=True, context={'request': request}).data,
+        'daily_streak': DailyStreakSerializer(daily_streak).data,
+        'today_mood': DailyMoodCheckinSerializer(today_mood).data if today_mood else None,
+        'recent_sessions': MeditationSessionSerializer(recent_sessions, many=True).data
+    }
+    
+    return Response(data)
+
+
+@extend_schema(
+    description="Get explore screen data with all categories and their content",
+    responses=MeditationCategorySerializer(many=True),
+    tags=['Meditation - Explore']
+)
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def explore_screen(request):
+    """Get all categories with their featured content for explore screen"""
+    categories = MeditationCategory.objects.filter(is_active=True).order_by('order')
+    serializer = MeditationCategorySerializer(categories, many=True, context={'request': request})
+    return Response(serializer.data)

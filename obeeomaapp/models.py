@@ -1326,3 +1326,157 @@ class DynamicQuestion(models.Model):
     category = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+# ===== MEDITATION & MINDFULNESS APP MODELS =====
+
+#-- Category Model for Meditation App --
+class MeditationCategory(models.Model):
+    """Categories like Sleep, Gratitude, Happiness, Meditation, Mindfulness, Breathing"""
+    CATEGORY_CHOICES = [
+        ('sleep', 'Sleep'),
+        ('gratitude', 'Gratitude'),
+        ('happiness', 'Happiness'),
+        ('meditation', 'Meditation'),
+        ('mindfulness', 'Mindfulness'),
+        ('breathing', 'Breathing'),
+    ]
+    
+    name = models.CharField(max_length=50, choices=CATEGORY_CHOICES, unique=True)
+    icon = models.CharField(max_length=100, help_text="Icon name or emoji")
+    color = models.CharField(max_length=20, default="#4CAF50")
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+    
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name = "Meditation Category"
+        verbose_name_plural = "Meditation Categories"
+    
+    def __str__(self):
+        return self.get_name_display()
+
+#-- Featured Content Model --
+class FeaturedContent(models.Model):
+    """Featured meditation sessions like Morning Meditation, Stress Relief, Deep Sleep"""
+    title = models.CharField(max_length=200)
+    category = models.ForeignKey(MeditationCategory, on_delete=models.CASCADE, related_name='featured_content')
+    description = models.TextField(blank=True)
+    image = models.ImageField(upload_to='featured_content/', help_text="Thumbnail image")
+    audio_file = models.FileField(upload_to='meditation_audio/', blank=True, null=True)
+    duration_minutes = models.PositiveIntegerField(help_text="Duration in minutes")
+    is_premium = models.BooleanField(default=False)
+    is_featured = models.BooleanField(default=True)
+    play_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-is_featured', '-play_count', '-created_at']
+        verbose_name = "Featured Content"
+        verbose_name_plural = "Featured Content"
+    
+    def __str__(self):
+        return f"{self.title} - {self.duration_minutes}min"
+
+#-- Daily Mood Check-in Model --
+class DailyMoodCheckin(models.Model):
+    """Track daily mood: Great, Good, Okay, Bad"""
+    MOOD_CHOICES = [
+        ('great', 'Great'),
+        ('good', 'Good'),
+        ('okay', 'Okay'),
+        ('bad', 'Bad'),
+    ]
+    
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='daily_moods')
+    mood = models.CharField(max_length=10, choices=MOOD_CHOICES)
+    note = models.TextField(blank=True, help_text="Optional note about the mood")
+    checked_in_at = models.DateTimeField(auto_now_add=True)
+    date = models.DateField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-checked_in_at']
+        unique_together = ['user', 'date']  # One check-in per day
+        verbose_name = "Daily Mood Check-in"
+        verbose_name_plural = "Daily Mood Check-ins"
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.get_mood_display()} on {self.date}"
+
+#-- Daily Streak Model --
+class DailyStreak(models.Model):
+    """Track user's daily engagement streak"""
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='daily_streak')
+    current_streak = models.PositiveIntegerField(default=0)
+    longest_streak = models.PositiveIntegerField(default=0)
+    last_activity_date = models.DateField(auto_now=True)
+    total_days_active = models.PositiveIntegerField(default=0)
+    
+    class Meta:
+        verbose_name = "Daily Streak"
+        verbose_name_plural = "Daily Streaks"
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.current_streak} days"
+    
+    def update_streak(self):
+        """Update streak based on last activity"""
+        from datetime import date, timedelta
+        today = date.today()
+        
+        if self.last_activity_date == today:
+            # Already checked in today
+            return
+        elif self.last_activity_date == today - timedelta(days=1):
+            # Consecutive day
+            self.current_streak += 1
+            if self.current_streak > self.longest_streak:
+                self.longest_streak = self.current_streak
+        else:
+            # Streak broken
+            self.current_streak = 1
+        
+        self.total_days_active += 1
+        self.last_activity_date = today
+        self.save()
+
+#-- User Favorites Model --
+class UserFavorite(models.Model):
+    """Track user's favorite meditation content"""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='favorites')
+    featured_content = models.ForeignKey(FeaturedContent, on_delete=models.CASCADE, null=True, blank=True)
+    meditation_technique = models.ForeignKey(MeditationTechnique, on_delete=models.CASCADE, null=True, blank=True)
+    added_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-added_at']
+        unique_together = [
+            ['user', 'featured_content'],
+            ['user', 'meditation_technique']
+        ]
+        verbose_name = "User Favorite"
+        verbose_name_plural = "User Favorites"
+    
+    def __str__(self):
+        return f"{self.user.username}'s favorite"
+
+#-- Meditation Session Model --
+class MeditationSession(models.Model):
+    """Track completed meditation sessions"""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='meditation_sessions')
+    featured_content = models.ForeignKey(FeaturedContent, on_delete=models.CASCADE, null=True, blank=True)
+    meditation_technique = models.ForeignKey(MeditationTechnique, on_delete=models.CASCADE, null=True, blank=True)
+    duration_minutes = models.PositiveIntegerField()
+    completed = models.BooleanField(default=False)
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-started_at']
+        verbose_name = "Meditation Session"
+        verbose_name_plural = "Meditation Sessions"
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.duration_minutes}min session"

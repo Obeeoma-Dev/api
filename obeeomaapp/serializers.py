@@ -1195,3 +1195,142 @@ class DynamicQuestionSerializer(serializers.ModelSerializer):
     class Meta:
         model = DynamicQuestion
         fields = ['id', 'text', 'category', 'is_active', 'created_at']
+
+
+# ===== MEDITATION & MINDFULNESS APP SERIALIZERS =====
+
+class MeditationCategorySerializer(serializers.ModelSerializer):
+    """Serializer for meditation categories (Sleep, Gratitude, etc.)"""
+    content_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = MeditationCategory
+        fields = ['id', 'name', 'icon', 'color', 'description', 'is_active', 'order', 'content_count']
+    
+    @extend_schema_field(serializers.IntegerField())
+    def get_content_count(self, obj) -> int:
+        return obj.featured_content.filter(is_featured=True).count()
+
+
+class FeaturedContentSerializer(serializers.ModelSerializer):
+    """Serializer for featured meditation content"""
+    category_name = serializers.CharField(source='category.get_name_display', read_only=True)
+    category_icon = serializers.CharField(source='category.icon', read_only=True)
+    duration_display = serializers.SerializerMethodField()
+    is_favorited = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = FeaturedContent
+        fields = [
+            'id', 'title', 'category', 'category_name', 'category_icon',
+            'description', 'image', 'audio_file', 'duration_minutes',
+            'duration_display', 'is_premium', 'is_featured', 'play_count',
+            'is_favorited', 'created_at'
+        ]
+        read_only_fields = ['play_count']
+    
+    @extend_schema_field(serializers.CharField())
+    def get_duration_display(self, obj) -> str:
+        return f"{obj.duration_minutes} min"
+    
+    @extend_schema_field(serializers.BooleanField())
+    def get_is_favorited(self, obj) -> bool:
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return UserFavorite.objects.filter(user=request.user, featured_content=obj).exists()
+        return False
+
+
+class DailyMoodCheckinSerializer(serializers.ModelSerializer):
+    """Serializer for daily mood check-ins"""
+    mood_display = serializers.CharField(source='get_mood_display', read_only=True)
+    
+    class Meta:
+        model = DailyMoodCheckin
+        fields = ['id', 'mood', 'mood_display', 'note', 'checked_in_at', 'date']
+        read_only_fields = ['checked_in_at', 'date']
+    
+    def create(self, validated_data):
+        # Ensure only one check-in per day
+        user = self.context['request'].user
+        today = timezone.now().date()
+        
+        # Update or create today's check-in
+        checkin, created = DailyMoodCheckin.objects.update_or_create(
+            user=user,
+            date=today,
+            defaults=validated_data
+        )
+        
+        # Update user's streak
+        if hasattr(user, 'daily_streak'):
+            user.daily_streak.update_streak()
+        else:
+            DailyStreak.objects.create(user=user, current_streak=1, longest_streak=1, total_days_active=1)
+        
+        return checkin
+
+
+class DailyStreakSerializer(serializers.ModelSerializer):
+    """Serializer for daily streak tracking"""
+    class Meta:
+        model = DailyStreak
+        fields = ['id', 'current_streak', 'longest_streak', 'last_activity_date', 'total_days_active']
+        read_only_fields = ['current_streak', 'longest_streak', 'last_activity_date', 'total_days_active']
+
+
+class UserFavoriteSerializer(serializers.ModelSerializer):
+    """Serializer for user favorites"""
+    content_title = serializers.SerializerMethodField()
+    content_type = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = UserFavorite
+        fields = ['id', 'featured_content', 'meditation_technique', 'content_title', 'content_type', 'added_at']
+        read_only_fields = ['added_at']
+    
+    @extend_schema_field(serializers.CharField())
+    def get_content_title(self, obj) -> str:
+        if obj.featured_content:
+            return obj.featured_content.title
+        elif obj.meditation_technique:
+            return obj.meditation_technique.title
+        return "Unknown"
+    
+    @extend_schema_field(serializers.CharField())
+    def get_content_type(self, obj) -> str:
+        if obj.featured_content:
+            return "featured_content"
+        elif obj.meditation_technique:
+            return "meditation_technique"
+        return "unknown"
+
+
+class MeditationSessionSerializer(serializers.ModelSerializer):
+    """Serializer for meditation sessions"""
+    content_title = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = MeditationSession
+        fields = [
+            'id', 'featured_content', 'meditation_technique', 'content_title',
+            'duration_minutes', 'completed', 'started_at', 'completed_at'
+        ]
+        read_only_fields = ['started_at']
+    
+    @extend_schema_field(serializers.CharField())
+    def get_content_title(self, obj) -> str:
+        if obj.featured_content:
+            return obj.featured_content.title
+        elif obj.meditation_technique:
+            return obj.meditation_technique.title
+        return "Unknown"
+
+
+class HomeScreenSerializer(serializers.Serializer):
+    """Serializer for home screen data"""
+    categories = MeditationCategorySerializer(many=True)
+    featured_content = FeaturedContentSerializer(many=True)
+    daily_streak = DailyStreakSerializer()
+    today_mood = DailyMoodCheckinSerializer(allow_null=True)
+    recent_sessions = MeditationSessionSerializer(many=True)
