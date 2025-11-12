@@ -222,8 +222,6 @@ EMPLOYEE_INVITATION_GUIDE.md
 API_AUTHENTICATION_GUIDE.md
 
 
-# Dont track sana ai model files.
-sana_ai/tinyllama_model/
 
 
 EMAIL_CONHIG_GUIDE.md  
@@ -242,11 +240,13 @@ API_AUTHENTICATION_GUIDE.md
 
 # .gitignore
 
-# Ignore TinyLLaMA model files
-sana_ai/tinyllama_modules/config.json
-sana_ai/tinyllama_modules/model.safetensors
-sana_ai/tinyllama_modules/tokenizer_config.json
-sana_ai/tinyllama_modules/tokenizer.json
-sana_ai/tinyllama_modules/tokenizer.model
-sana_ai/tinyllama_modules/special_tokens_map.json
-sana_ai/tinyllama_modules/generation_config.json
+# Dont track sana ai model files.
+# TinyLLaMA / timyllama module directory (fix common typos and ensure trailing slash)
+sana_ai/timyllama_modules/
+
+# Also ignore any large model binary files (safetensors) anywhere in the repo
+*.safetensors
+
+# If you intentionally want tokenizer json files tracked, remove the next line;
+# otherwise the following will ignore tokenizer binaries inside the module as well
+#sana_ai/timyllama_modules/tokenizer.*
