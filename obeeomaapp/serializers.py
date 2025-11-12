@@ -315,6 +315,14 @@ class NotificationSerializer(serializers.ModelSerializer):
         fields = ['id', 'employee', 'message', 'sent_on', 'read', 'is_read']  # Include both
         read_only_fields = ['employee', 'sent_on']
 
+class NotificationSerializer(serializers.ModelSerializer):
+    is_read = serializers.BooleanField(source='read', read_only=True)  # Add this field
+    
+    class Meta:
+        model = Notification
+        fields = ['id', 'employee', 'message', 'sent_on', 'read', 'is_read']  # Include both
+        read_only_fields = ['employee', 'sent_on']
+
 class AIManagementSerializer(serializers.ModelSerializer):
     class Meta:
         model = AIManagement

@@ -1228,6 +1228,8 @@ class SelfHelpResourceView(viewsets.ModelViewSet):
         return MoodTracking.objects.filter(employee__user=self.request.user)
 
 
+    def get_queryset(self):
+        return AssessmentResult.objects.filter(employee__user=self.request.user)
 
 @extend_schema(tags=['Employee - Crisis Support'])
 class CrisisTriggerView(viewsets.ModelViewSet):
