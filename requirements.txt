@@ -96,6 +96,9 @@ urllib3==2.5.0
 websocket-client==1.8.0
 whitenoise==6.11.0
 wsproto==1.2.0
-transformers
-sentencepiece
-accelerate
+transformers>=4.30.0
+sentencepiece>=0.1.99
+accelerate>=0.20.0
+# CPU-only PyTorch for Render (avoid large CUDA wheels)
+torch>=2.0.0 ; sys_platform == "linux" or sys_platform == "darwin"
+torch>=2.0.0 --index-url https://download.pytorch.org/whl/cpu ; sys_platform == "win32"
