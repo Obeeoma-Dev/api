@@ -212,7 +212,6 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
- 
 # LOGOUT VIEW
 @extend_schema(
     tags=["Authentication"],
