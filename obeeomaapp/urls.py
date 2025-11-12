@@ -31,7 +31,8 @@ from obeeomaapp.views import (
     InvitationAcceptanceView, InviteView, 
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
-    OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet
+    OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet,
+    AssessmentQuestionViewSet, AssessmentResponseViewSet
     
 )
 
@@ -105,6 +106,11 @@ router.register(r'admin/reports-analytics', ReportsAnalyticsView, basename='repo
 router.register(r'admin/system-settings', SystemSettingsView, basename='system-settings')
 router.register(r'admin/feature-flags', FeaturesUsageView, basename='feature-flags')
 router.register(r'dynamic-questions', DynamicQuestionViewSet, basename='dynamic-question')
+
+# Assessment Questionnaires (PHQ-9 & GAD-7)
+router.register(r'assessments/questions', AssessmentQuestionViewSet, basename='assessment-question')
+router.register(r'assessments/responses', AssessmentResponseViewSet, basename='assessment-response')
+
 # Employee Invitations
 router.register(r'invitations', InviteView, basename='invitations')
 
