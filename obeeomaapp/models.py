@@ -453,16 +453,6 @@ class AssessmentResult(models.Model):
     def __str__(self):
         return f"Assessment - {self.employee.user.username} - {self.type}"
 
-# Educational Resources model.
-class EducationalResource(models.Model):
-    title = models.CharField(max_length=100)
-    type = models.CharField(max_length=20)  # article, podcast, video
-    url = models.URLField()
-    description = models.TextField()
-
-    def __str__(self):
-        return self.title
-
 # Crisis Triggers model.
 class CrisisTrigger(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE)
