@@ -2124,7 +2124,7 @@ class OrganizationsManagementView(viewsets.ModelViewSet):
         
         return Response(list(distribution))
 
-
+# HOTLINE VIEWS
 @extend_schema(tags=['System Admin'])
 class HotlineActivityView(viewsets.ViewSet):
     """Hotline activity management for system admin"""

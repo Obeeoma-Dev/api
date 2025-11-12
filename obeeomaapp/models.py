@@ -920,7 +920,7 @@ class SystemActivity(models.Model):
     class Meta:
         ordering = ['-created_at']
 
-#-- Hotline Call Model. --
+#Hotline Call Model. --
 class HotlineCall(models.Model):
     URGENCY_LEVELS = [
         ('low', 'Low'),
