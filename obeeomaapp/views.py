@@ -1,3 +1,4 @@
+# Keep only these imports (external modules)
 from django.http import JsonResponse
 from django.db.models import Avg, Count, Sum
 from rest_framework.decorators import action
@@ -20,7 +21,7 @@ from rest_framework.permissions import (
     AllowAny,
 )
 
-
+import django_filters
 from drf_spectacular.utils import extend_schema_view, extend_schema
 from django.db.models import Avg
 
@@ -114,22 +115,67 @@ class OrganizationSignupView(viewsets.ModelViewSet):
 
 # VIEWS FOR VERIFYING THE OTP
 class VerifyOTPView(APIView):
+    permission_classes = [AllowAny]
+
     @extend_schema(
         request=OTPVerificationSerializer,
-        responses=OTPVerificationSerializer  
+        responses={200: OpenApiTypes.OBJECT},
     )
+    @extend_schema(
+    tags=['Authentication'],
+    request=LoginSerializer,
+    responses={
+        200: {
+            "description": "Login successful",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "user": {
+                            "id": 1,
+                            "username": "johndoe",
+                            "email": "john@example.com",
+                            "role": "employee",
+                            "date_joined": "2025-01-01T00:00:00Z",
+                            "is_active": True,
+                            "avatar": None
+                        }
+                    }
+                }
+            }
+        },
+        401: {"description": "Invalid credentials"},
+        403: {"description": "Account is disabled"}
+    },
+    description="""
+    Login endpoint for all users (employees, employers, admins).
+
+    **Required fields:**
+    - username: Your username or email
+    - password: Your password
+
+    **Returns:**
+    - JWT access and refresh tokens
+    - User information including role
+    """
+)
+    class LoginView(APIView):
+        permission_classes = [permissions.AllowAny]
+    serializer_class = LoginSerializer
+
     def post(self, request):
         serializer = OTPVerificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = serializer.context['user']
-        # This helps the system to Delete OTPs to prevent reuse
-        user.passwordresetotp_set.all().delete()
+        serializer.context['otp'].delete()  # Delete OTP after successful verification
 
         return Response(
             {"message": "OTP verified successfully. You can now reset your password."},
             status=status.HTTP_200_OK
         )
+
 
 
 # login view
@@ -147,8 +193,22 @@ class VerifyOTPView(APIView):
 )
 
 # LOGIN VIEW
-def _build_login_success_payload(user):
+def _build_login_success_payload(serializer, request):
     refresh = RefreshToken.for_user(user)
+    username = serializer.validated_data['username']
+    password = serializer.validated_data['password']
+
+    user = authenticate(request=request, username=username, password=password)
+
+    if not user:
+        return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+    if not user.is_active:
+        return Response({"detail": "Account is disabled"}, status=status.HTTP_403_FORBIDDEN)
+
+    refresh = RefreshToken.for_user(user)
+
+    # ... rest of the logic ...
+
 
     display_username = user.username
     try:
@@ -210,6 +270,21 @@ class LoginView(APIView):
         django_login(request, user)
 
         return Response(_build_login_success_payload(user))
+        user_data = {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+            "date_joined": user.date_joined,
+            "is_active": user.is_active,
+            "avatar": user.avatar.url if hasattr(user, 'avatar') and user.avatar else None,
+        }
+
+        return Response({
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+            "user": user_data
+        })
     
 # matching view for custom token obtain pair serializer
 @extend_schema(
@@ -452,6 +527,7 @@ def mfa_confirm(request):
 #So this logic will help in MFA verification by checking the code
 @extend_schema(request=MFAVerifySerializer, responses={200: MFAVerifySerializer})
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def mfa_verify(request):
     serializer = MFAVerifySerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -627,50 +703,49 @@ class InviteView(viewsets.ModelViewSet):
             return EmployeeInvitation.objects.filter(employer=employer).order_by('-created_at')
         
         return EmployeeInvitation.objects.none()
-
-    @extend_schema(
-        request=EmployeeInvitationCreateSerializer,
-        responses={
-            201: {
-                "description": "Invitation sent successfully",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "message": "Invitation sent successfully",
-                            "invitation": {
-                                "id": 1,
-                                "email": "newemployee@company.com",
-                                "message": "Welcome to our team!",
-                                "expires_at": "2025-11-06T19:13:03.648Z",
-                                "created_at": "2025-10-30T19:13:03.648Z"
-                            },
-                            "invitation_link": "/auth/accept-invite/?token=abc123xyz"
-                        }
+@extend_schema(
+    request=EmployeeInvitationCreateSerializer,
+    responses={
+        201: {
+            "description": "Invitation sent successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Invitation sent successfully",
+                        "invitation": {
+                            "id": 1,
+                            "email": "newemployee@company.com",
+                            "message": "Welcome to our team!",
+                            "expires_at": "2025-11-06T19:13:03.648Z",
+                            "created_at": "2025-10-30T19:13:03.648Z"
+                        },
+                        "invitation_link": "/auth/accept-invite/?token=abc123xyz"
                     }
                 }
-            },
-            400: {"description": "Bad Request - Invalid data or user has no organization"}
+            }
         },
-        description="""
-        Send an invitation to a new employee.
-        
-        The system will:
-        - Generate a unique invitation token
-        - Send an email to the invited person
-        - Set an expiration date for the invitation (defaults to 7 days)
-        
-        **Example Request:**
-        ```json
-        {
-          "email": "newemployee@company.com",
-          "message": "Welcome to our team!"
-        }
-        ```
-        
-        **Note:** The employer is automatically set from your authenticated user.
-        """
-    )
-    def create(self, request, *args, **kwargs):
+        400: {"description": "Bad Request - Invalid data or user has no organization"}
+    },
+    description="""
+    Send an invitation to a new employee.
+    
+    The system will:
+    - Generate a unique invitation token
+    - Send an email to the invited person
+    - Set an expiration date for the invitation (defaults to 7 days)
+    
+    **Example Request:**
+    ```json
+    {
+        "email": "newemployee@company.com",
+        "message": "Welcome to our team!"
+    }
+    ```
+    
+    **Note:** The employer is automatically set from your authenticated user.
+    """
+)
+def create(self, request, *args, **kwargs):
         """Send an invitation to a new employee"""
         # Get the employer for the current user
         employer = None
@@ -1198,13 +1273,6 @@ class AvatarProfileView(viewsets.ModelViewSet):
         return AvatarProfile.objects.filter(employee__user=self.request.user)
 
 
-@extend_schema(tags=['Employee - Wellness'])
-class WellnessHubView(viewsets.ModelViewSet):
-    serializer_class = WellnessHubSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return WellnessHub.objects.filter(employee__user=self.request.user)
 
 @extend_schema(tags=['Employee - Mood Tracking'])
 class MoodTrackingView(viewsets.ModelViewSet):
@@ -1214,16 +1282,12 @@ class MoodTrackingView(viewsets.ModelViewSet):
     search_fields = ['note']
 
     def get_queryset(self):
-        return EmployeeProfile.objects.filter(user=self.request.user)
-
-        return MoodTracking.objects.filter(user=self.request.user)
+        # FIXED: Return MoodTracking objects, not EmployeeProfile
+        return MoodTracking.objects.filter(employee__user=self.request.user)
 
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(user=self.request.user, employee=employee)
-
-
-
 @extend_schema(tags=['Employee - Assessments'])
 class AssessmentResultView(viewsets.ModelViewSet):
     serializer_class = AssessmentResultSerializer
@@ -1244,14 +1308,8 @@ class SelfHelpResourceView(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return WellnessHub.objects.filter(employee__user=self.request.user)
+        return MoodTracking.objects.filter(employee__user=self.request.user)
 
-
-@extend_schema(tags=['Resources'])
-class EducationalResourceView(viewsets.ModelViewSet):
-    queryset = EducationalResource.objects.all()
-    serializer_class = EducationalResourceSerializer
-    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return AssessmentResult.objects.filter(employee__user=self.request.user)
@@ -1271,14 +1329,12 @@ class NotificationView(viewsets.ModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['is_read', 'notification_type']
-    ordering_fields = ['created_at']
-    ordering = ['-created_at']
+    filterset_fields = ['read']  # Use the actual field name 'read' instead of 'is_read'
+    ordering_fields = ['sent_on']
+    ordering = ['-sent_on']
 
     def get_queryset(self):
         return Notification.objects.filter(employee__user=self.request.user)
-
-
 @extend_schema(tags=['Employee - Engagement'])
 class EngagementTrackerView(viewsets.ModelViewSet):
     serializer_class = EngagementTrackerSerializer
@@ -1749,10 +1805,10 @@ class OrganizationOverviewView(viewsets.ViewSet):
         total_employees = Employee.objects.count()
         
         # Get total tests
-        total_tests = WellnessTest.objects.count()
+        total_tests = MoodTracking.objects.count()
         
         # Get average score
-        avg_score = WellnessTest.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
+        avg_score = MoodTracking.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
         
         # Get at-risk departments
         at_risk_departments = Department.objects.filter(at_risk=True).count()
@@ -1863,7 +1919,7 @@ class WellnessReportsView(viewsets.ViewSet):
         resource_engagement = ResourceEngagement.objects.filter(completed=True).count()
         
         # Get average wellbeing trend
-        avg_wellbeing = WellnessTest.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
+        avg_wellbeing = MoodTracking.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
         
         # Get at-risk count
         at_risk = Department.objects.filter(at_risk=True).count()
@@ -1914,7 +1970,7 @@ class TestsByTypeView(viewsets.ViewSet):
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
-        tests_by_type = WellnessTest.objects.values('test_type').annotate(
+        tests_by_type = MoodTracking.objects.values('test_type').annotate(
             count=Count('id')
         ).order_by('-count')
         
@@ -1927,15 +1983,13 @@ class TestsByDepartmentView(viewsets.ViewSet):
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
-        
-        tests_by_department = WellnessTest.objects.values(
+        tests_by_department = MoodTracking.objects.values(
             'department__name'
         ).annotate(
             count=Count('id')
         ).order_by('-count')
         
         return Response(list(tests_by_department))
-
 
 # System Admin Views
 @extend_schema(tags=['System Admin'])
@@ -2815,703 +2869,3 @@ class DynamicQuestionViewSet(viewsets.ModelViewSet):
         questions = list(self.queryset.order_by('?')[:count])
         serializer = self.get_serializer(questions, many=True)
         return Response(serializer.data)
-
-
-# ===== MEDITATION & MINDFULNESS APP VIEWS =====
-
-@extend_schema_view(
-    list=extend_schema(tags=['Meditation - Categories']),
-    retrieve=extend_schema(tags=['Meditation - Categories']),
-)
-class MeditationCategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet for meditation categories (Sleep, Gratitude, Happiness, etc.)"""
-    queryset = MeditationCategory.objects.filter(is_active=True)
-    serializer_class = MeditationCategorySerializer
-    permission_classes = [permissions.AllowAny]
-    
-    @extend_schema(
-        description="Get all featured content for a specific category",
-        responses=FeaturedContentSerializer(many=True),
-        tags=['Meditation - Categories']
-    )
-    @action(detail=True, methods=['get'])
-    def featured_content(self, request, pk=None):
-        """Get all featured content for this category"""
-        category = self.get_object()
-        content = category.featured_content.filter(is_featured=True).order_by('-play_count')
-        serializer = FeaturedContentSerializer(content, many=True, context={'request': request})
-        return Response(serializer.data)
-
-
-@extend_schema_view(
-    list=extend_schema(tags=['Meditation - Featured Content']),
-    retrieve=extend_schema(tags=['Meditation - Featured Content']),
-)
-class FeaturedContentViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet for featured meditation content"""
-    queryset = FeaturedContent.objects.filter(is_featured=True)
-    serializer_class = FeaturedContentSerializer
-    permission_classes = [permissions.AllowAny]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['category', 'is_premium']
-    search_fields = ['title', 'description']
-    ordering_fields = ['play_count', 'duration_minutes', 'created_at']
-    ordering = ['-play_count']
-    
-    @extend_schema(
-        description="Increment play count for this content",
-        request=None,
-        responses={200: {"description": "Play count incremented"}},
-        tags=['Meditation - Featured Content']
-    )
-    @action(detail=True, methods=['post'])
-    def play(self, request, pk=None):
-        """Increment play count when user plays this content"""
-        content = self.get_object()
-        content.play_count += 1
-        content.save(update_fields=['play_count'])
-        
-        # Create meditation session
-        if request.user.is_authenticated:
-            MeditationSession.objects.create(
-                user=request.user,
-                featured_content=content,
-                duration_minutes=content.duration_minutes
-            )
-        
-        return Response({'message': 'Play count incremented', 'play_count': content.play_count})
-    
-    @extend_schema(
-        description="Toggle favorite status for this content",
-        request=None,
-        responses={200: {"description": "Favorite toggled"}},
-        tags=['Meditation - Featured Content']
-    )
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
-    def toggle_favorite(self, request, pk=None):
-        """Add or remove from favorites"""
-        content = self.get_object()
-        favorite, created = UserFavorite.objects.get_or_create(
-            user=request.user,
-            featured_content=content
-        )
-        
-        if not created:
-            favorite.delete()
-            return Response({'message': 'Removed from favorites', 'is_favorited': False})
-        
-        return Response({'message': 'Added to favorites', 'is_favorited': True})
-
-
-@extend_schema_view(
-    list=extend_schema(tags=['Meditation - Mood Tracking']),
-    create=extend_schema(tags=['Meditation - Mood Tracking']),
-    retrieve=extend_schema(tags=['Meditation - Mood Tracking']),
-)
-class DailyMoodCheckinViewSet(viewsets.ModelViewSet):
-    """ViewSet for daily mood check-ins"""
-    serializer_class = DailyMoodCheckinSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def get_queryset(self):
-        return DailyMoodCheckin.objects.filter(user=self.request.user).order_by('-checked_in_at')
-    
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-    
-    @extend_schema(
-        description="Get today's mood check-in",
-        responses=DailyMoodCheckinSerializer,
-        tags=['Meditation - Mood Tracking']
-    )
-    @action(detail=False, methods=['get'])
-    def today(self, request):
-        """Get today's mood check-in"""
-        today = timezone.now().date()
-        try:
-            checkin = DailyMoodCheckin.objects.get(user=request.user, date=today)
-            serializer = self.get_serializer(checkin)
-            return Response(serializer.data)
-        except DailyMoodCheckin.DoesNotExist:
-            return Response({'message': 'No check-in for today'}, status=status.HTTP_404_NOT_FOUND)
-    
-    @extend_schema(
-        description="Get mood history for the last N days",
-        parameters=[
-            OpenApiParameter(name='days', type=int, default=7, description='Number of days to retrieve')
-        ],
-        responses=DailyMoodCheckinSerializer(many=True),
-        tags=['Meditation - Mood Tracking']
-    )
-    @action(detail=False, methods=['get'])
-    def history(self, request):
-        """Get mood history for the last N days"""
-        days = int(request.query_params.get('days', 7))
-        from datetime import timedelta
-        start_date = timezone.now().date() - timedelta(days=days)
-        
-        checkins = DailyMoodCheckin.objects.filter(
-            user=request.user,
-            date__gte=start_date
-        ).order_by('-date')
-        
-        serializer = self.get_serializer(checkins, many=True)
-        return Response(serializer.data)
-
-
-@extend_schema_view(
-    retrieve=extend_schema(tags=['Meditation - Streak']),
-)
-class DailyStreakViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet for daily streak tracking"""
-    serializer_class = DailyStreakSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def get_queryset(self):
-        return DailyStreak.objects.filter(user=self.request.user)
-    
-    @extend_schema(
-        description="Get current user's streak",
-        responses=DailyStreakSerializer,
-        tags=['Meditation - Streak']
-    )
-    @action(detail=False, methods=['get'])
-    def current(self, request):
-        """Get current user's streak"""
-        streak, created = DailyStreak.objects.get_or_create(
-            user=request.user,
-            defaults={'current_streak': 0, 'longest_streak': 0, 'total_days_active': 0}
-        )
-        serializer = self.get_serializer(streak)
-        return Response(serializer.data)
-
-
-@extend_schema_view(
-    list=extend_schema(tags=['Meditation - Favorites']),
-    create=extend_schema(tags=['Meditation - Favorites']),
-    destroy=extend_schema(tags=['Meditation - Favorites']),
-)
-class UserFavoriteViewSet(viewsets.ModelViewSet):
-    """ViewSet for user favorites"""
-    serializer_class = UserFavoriteSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    http_method_names = ['get', 'post', 'delete']
-    
-    def get_queryset(self):
-        return UserFavorite.objects.filter(user=self.request.user)
-    
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-
-
-@extend_schema_view(
-    list=extend_schema(tags=['Meditation - Sessions']),
-    create=extend_schema(tags=['Meditation - Sessions']),
-    retrieve=extend_schema(tags=['Meditation - Sessions']),
-    partial_update=extend_schema(tags=['Meditation - Sessions']),
-)
-class MeditationSessionViewSet(viewsets.ModelViewSet):
-    """ViewSet for meditation sessions"""
-    serializer_class = MeditationSessionSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    http_method_names = ['get', 'post', 'patch']
-    
-    def get_queryset(self):
-        return MeditationSession.objects.filter(user=self.request.user).order_by('-started_at')
-    
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-    
-    @extend_schema(
-        description="Mark session as completed",
-        request=None,
-        responses={200: {"description": "Session marked as completed"}},
-        tags=['Meditation - Sessions']
-    )
-    @action(detail=True, methods=['post'])
-    def complete(self, request, pk=None):
-        """Mark a session as completed"""
-        session = self.get_object()
-        session.completed = True
-        session.completed_at = timezone.now()
-        session.save()
-        
-        # Update user's streak
-        if hasattr(request.user, 'daily_streak'):
-            request.user.daily_streak.update_streak()
-        
-        serializer = self.get_serializer(session)
-        return Response(serializer.data)
-    
-    @extend_schema(
-        description="Get session statistics",
-        responses={200: {"description": "Session statistics"}},
-        tags=['Meditation - Sessions']
-    )
-    @action(detail=False, methods=['get'])
-    def stats(self, request):
-        """Get user's meditation statistics"""
-        sessions = self.get_queryset()
-        total_sessions = sessions.count()
-        completed_sessions = sessions.filter(completed=True).count()
-        total_minutes = sessions.filter(completed=True).aggregate(
-            total=Sum('duration_minutes')
-        )['total'] or 0
-        
-        return Response({
-            'total_sessions': total_sessions,
-            'completed_sessions': completed_sessions,
-            'total_minutes': total_minutes,
-            'completion_rate': (completed_sessions / total_sessions * 100) if total_sessions > 0 else 0
-        })
-
-
-@extend_schema(
-    description="Get home screen data including categories, featured content, streak, and mood",
-    responses=HomeScreenSerializer,
-    tags=['Meditation - Home']
-)
-@api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
-def home_screen(request):
-    """Get all data needed for the home screen"""
-    # Get categories
-    categories = MeditationCategory.objects.filter(is_active=True).order_by('order')
-    
-    # Get featured content
-    featured_content = FeaturedContent.objects.filter(is_featured=True).order_by('-play_count')[:10]
-    
-    # Get or create user's streak
-    daily_streak, _ = DailyStreak.objects.get_or_create(
-        user=request.user,
-        defaults={'current_streak': 0, 'longest_streak': 0, 'total_days_active': 0}
-    )
-    
-    # Get today's mood
-    today = timezone.now().date()
-    try:
-        today_mood = DailyMoodCheckin.objects.get(user=request.user, date=today)
-    except DailyMoodCheckin.DoesNotExist:
-        today_mood = None
-    
-    # Get recent sessions
-    recent_sessions = MeditationSession.objects.filter(user=request.user).order_by('-started_at')[:5]
-    
-    # Serialize data
-    data = {
-        'categories': MeditationCategorySerializer(categories, many=True).data,
-        'featured_content': FeaturedContentSerializer(featured_content, many=True, context={'request': request}).data,
-        'daily_streak': DailyStreakSerializer(daily_streak).data,
-        'today_mood': DailyMoodCheckinSerializer(today_mood).data if today_mood else None,
-        'recent_sessions': MeditationSessionSerializer(recent_sessions, many=True).data
-    }
-    
-    return Response(data)
-
-
-@extend_schema(
-    description="Get explore screen data with all categories and their content",
-    responses=MeditationCategorySerializer(many=True),
-    tags=['Meditation - Explore']
-)
-@api_view(['GET'])
-@permission_classes([permissions.AllowAny])
-def explore_screen(request):
-    """Get all categories with their featured content for explore screen"""
-    categories = MeditationCategory.objects.filter(is_active=True).order_by('order')
-    serializer = MeditationCategorySerializer(categories, many=True, context={'request': request})
-    return Response(serializer.data)
-
-
-# ===== MOOD TRACKING VIEWS =====
-
-@extend_schema_view(
-    list=extend_schema(tags=['Mood Tracking']),
-    create=extend_schema(tags=['Mood Tracking']),
-    retrieve=extend_schema(tags=['Mood Tracking']),
-    update=extend_schema(tags=['Mood Tracking']),
-    partial_update=extend_schema(tags=['Mood Tracking']),
-    destroy=extend_schema(tags=['Mood Tracking']),
-)
-class MoodEntryViewSet(viewsets.ModelViewSet):
-    """ViewSet for mood entries with list and chart views"""
-    serializer_class = MoodEntrySerializer
-    permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['mood', 'date']
-    ordering_fields = ['date', 'created_at']
-    ordering = ['-date']
-    
-    def get_queryset(self):
-        return MoodEntry.objects.filter(user=self.request.user)
-    
-    def get_serializer_class(self):
-        if self.action == 'list':
-            return MoodEntryListSerializer
-        return MoodEntrySerializer
-    
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-    
-    @extend_schema(
-        description="Get today's mood entry",
-        responses=MoodEntrySerializer,
-        tags=['Mood Tracking']
-    )
-    @action(detail=False, methods=['get'])
-    def today(self, request):
-        """Get today's mood entry"""
-        today = timezone.now().date()
-        try:
-            entry = MoodEntry.objects.get(user=request.user, date=today)
-            serializer = MoodEntrySerializer(entry)
-            return Response(serializer.data)
-        except MoodEntry.DoesNotExist:
-            return Response(
-                {'message': 'No mood entry for today', 'has_entry': False},
-                status=status.HTTP_404_NOT_FOUND
-            )
-    
-    @extend_schema(
-        description="Get mood entries for chart view (last 7 days)",
-        parameters=[
-            OpenApiParameter(name='days', type=int, default=7, description='Number of days to retrieve')
-        ],
-        responses=MoodChartDataSerializer(many=True),
-        tags=['Mood Tracking']
-    )
-    @action(detail=False, methods=['get'])
-    def chart(self, request):
-        """Get mood data formatted for chart display"""
-        from datetime import timedelta
-        import calendar
-        
-        days = int(request.query_params.get('days', 7))
-        end_date = timezone.now().date()
-        start_date = end_date - timedelta(days=days - 1)
-        
-        entries = MoodEntry.objects.filter(
-            user=request.user,
-            date__gte=start_date,
-            date__lte=end_date
-        ).order_by('date')
-        
-        # Create a dict of entries by date
-        entries_by_date = {entry.date: entry for entry in entries}
-        
-        # Generate chart data for all days in range
-        chart_data = []
-        current_date = start_date
-        
-        while current_date <= end_date:
-            entry = entries_by_date.get(current_date)
-            day_name = calendar.day_abbr[current_date.weekday()]
-            
-            if entry:
-                chart_data.append({
-                    'date': current_date,
-                    'mood': entry.mood,
-                    'emoji': entry.emoji,
-                    'day_name': day_name
-                })
-            else:
-                chart_data.append({
-                    'date': current_date,
-                    'mood': None,
-                    'emoji': '⚪',  # Empty circle for no entry
-                    'day_name': day_name
-                })
-            
-            current_date += timedelta(days=1)
-        
-        serializer = MoodChartDataSerializer(chart_data, many=True)
-        return Response(serializer.data)
-    
-    @extend_schema(
-        description="Get mood analytics and statistics",
-        responses=MoodAnalyticsSerializer,
-        tags=['Mood Tracking']
-    )
-    @action(detail=False, methods=['get'])
-    def analytics(self, request):
-        """Get comprehensive mood analytics"""
-        from django.db.models import Count
-        from datetime import timedelta
-        
-        # Get or create mood pattern
-        pattern, _ = MoodPattern.objects.get_or_create(user=request.user)
-        pattern.update_statistics()
-        
-        # Get mood distribution
-        mood_distribution = list(
-            MoodEntry.objects.filter(user=request.user)
-            .values('mood')
-            .annotate(count=Count('mood'))
-            .order_by('-count')
-        )
-        
-        # Add emoji and display name to distribution
-        for item in mood_distribution:
-            item['emoji'] = MoodEntry.MOOD_EMOJI_MAP.get(item['mood'], '😐')
-            item['mood_display'] = dict(MoodEntry.MOOD_CHOICES).get(item['mood'], item['mood'])
-        
-        # Get weekly mood chart (last 7 days)
-        end_date = timezone.now().date()
-        start_date = end_date - timedelta(days=6)
-        
-        weekly_entries = MoodEntry.objects.filter(
-            user=request.user,
-            date__gte=start_date,
-            date__lte=end_date
-        ).order_by('date')
-        
-        weekly_chart = []
-        entries_by_date = {entry.date: entry for entry in weekly_entries}
-        
-        for i in range(7):
-            date = start_date + timedelta(days=i)
-            entry = entries_by_date.get(date)
-            
-            if entry:
-                weekly_chart.append({
-                    'date': date.strftime('%a'),
-                    'mood': entry.mood,
-                    'emoji': entry.emoji
-                })
-            else:
-                weekly_chart.append({
-                    'date': date.strftime('%a'),
-                    'mood': None,
-                    'emoji': '⚪'
-                })
-        
-        # Get recent entries
-        recent_entries = MoodEntry.objects.filter(user=request.user).order_by('-date')[:10]
-        
-        analytics_data = {
-            'positive_moods_percentage': pattern.positive_mood_percentage,
-            'most_common_mood': pattern.most_common_mood,
-            'most_common_mood_emoji': MoodEntry.MOOD_EMOJI_MAP.get(pattern.most_common_mood, '😐') if pattern.most_common_mood else '😐',
-            'total_entries': pattern.total_entries,
-            'current_streak': pattern.current_streak,
-            'mood_distribution': mood_distribution,
-            'weekly_mood_chart': weekly_chart,
-            'recent_entries': MoodEntryListSerializer(recent_entries, many=True).data
-        }
-        
-        serializer = MoodAnalyticsSerializer(analytics_data)
-        return Response(serializer.data)
-    
-    @extend_schema(
-        description="Get mood history with filters",
-        parameters=[
-            OpenApiParameter(name='start_date', type=str, description='Start date (YYYY-MM-DD)'),
-            OpenApiParameter(name='end_date', type=str, description='End date (YYYY-MM-DD)'),
-            OpenApiParameter(name='mood', type=str, description='Filter by mood'),
-        ],
-        responses=MoodEntryListSerializer(many=True),
-        tags=['Mood Tracking']
-    )
-    @action(detail=False, methods=['get'])
-    def history(self, request):
-        """Get mood history with optional filters"""
-        from datetime import datetime
-        
-        queryset = self.get_queryset()
-        
-        # Date range filter
-        start_date = request.query_params.get('start_date')
-        end_date = request.query_params.get('end_date')
-        
-        if start_date:
-            try:
-                start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-                queryset = queryset.filter(date__gte=start_date)
-            except ValueError:
-                pass
-        
-        if end_date:
-            try:
-                end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
-                queryset = queryset.filter(date__lte=end_date)
-            except ValueError:
-                pass
-        
-        # Mood filter
-        mood = request.query_params.get('mood')
-        if mood:
-            queryset = queryset.filter(mood=mood)
-        
-        serializer = MoodEntryListSerializer(queryset, many=True)
-        return Response(serializer.data)
-
-
-@extend_schema_view(
-    retrieve=extend_schema(tags=['Mood Tracking - Patterns']),
-)
-class MoodPatternViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet for mood patterns and statistics"""
-    serializer_class = MoodPatternSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def get_queryset(self):
-        return MoodPattern.objects.filter(user=self.request.user)
-    
-    @extend_schema(
-        description="Get current user's mood pattern",
-        responses=MoodPatternSerializer,
-        tags=['Mood Tracking - Patterns']
-    )
-    @action(detail=False, methods=['get'])
-    def current(self, request):
-        """Get current user's mood pattern"""
-        pattern, created = MoodPattern.objects.get_or_create(user=request.user)
-        if not created:
-            pattern.update_statistics()
-        serializer = self.get_serializer(pattern)
-        return Response(serializer.data)
-
-
-@extend_schema_view(
-    list=extend_schema(tags=['Mood Tracking - Insights']),
-    retrieve=extend_schema(tags=['Mood Tracking - Insights']),
-    partial_update=extend_schema(tags=['Mood Tracking - Insights']),
-)
-class MoodInsightViewSet(viewsets.ModelViewSet):
-    """ViewSet for mood insights"""
-    serializer_class = MoodInsightSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    http_method_names = ['get', 'patch']
-    
-    def get_queryset(self):
-        return MoodInsight.objects.filter(user=self.request.user)
-    
-    @extend_schema(
-        description="Get unread insights",
-        responses=MoodInsightSerializer(many=True),
-        tags=['Mood Tracking - Insights']
-    )
-    @action(detail=False, methods=['get'])
-    def unread(self, request):
-        """Get unread insights"""
-        insights = self.get_queryset().filter(is_read=False)
-        serializer = self.get_serializer(insights, many=True)
-        return Response(serializer.data)
-    
-    @extend_schema(
-        description="Mark insight as read",
-        request=None,
-        responses={200: {"description": "Insight marked as read"}},
-        tags=['Mood Tracking - Insights']
-    )
-    @action(detail=True, methods=['post'])
-    def mark_read(self, request, pk=None):
-        """Mark an insight as read"""
-        insight = self.get_object()
-        insight.is_read = True
-        insight.save()
-        serializer = self.get_serializer(insight)
-        return Response(serializer.data)
-    
-    @extend_schema(
-        description="Mark all insights as read",
-        request=None,
-        responses={200: {"description": "All insights marked as read"}},
-        tags=['Mood Tracking - Insights']
-    )
-    @action(detail=False, methods=['post'])
-    def mark_all_read(self, request):
-        """Mark all insights as read"""
-        self.get_queryset().update(is_read=True)
-        return Response({'message': 'All insights marked as read'})
-
-
-@extend_schema(
-    description="Get mood screen data (combines entries, analytics, and insights)",
-    responses={
-        200: {
-            "description": "Mood screen data",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "today_entry": {"mood": "happy", "emoji": "😊"},
-                        "analytics": {"positive_moods_percentage": 67, "most_common_mood": "Happy"},
-                        "recent_entries": [],
-                        "weekly_chart": [],
-                        "insights": []
-                    }
-                }
-            }
-        }
-    },
-    tags=['Mood Tracking']
-)
-@api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
-def mood_screen(request):
-    """Get all data needed for the mood tracking screen"""
-    from datetime import timedelta
-    
-    # Get today's entry
-    today = timezone.now().date()
-    try:
-        today_entry = MoodEntry.objects.get(user=request.user, date=today)
-        today_data = MoodEntrySerializer(today_entry).data
-    except MoodEntry.DoesNotExist:
-        today_data = None
-    
-    # Get mood pattern
-    pattern, _ = MoodPattern.objects.get_or_create(user=request.user)
-    pattern.update_statistics()
-    
-    # Get weekly chart
-    end_date = today
-    start_date = end_date - timedelta(days=6)
-    
-    weekly_entries = MoodEntry.objects.filter(
-        user=request.user,
-        date__gte=start_date,
-        date__lte=end_date
-    ).order_by('date')
-    
-    entries_by_date = {entry.date: entry for entry in weekly_entries}
-    weekly_chart = []
-    
-    for i in range(7):
-        date = start_date + timedelta(days=i)
-        entry = entries_by_date.get(date)
-        
-        if entry:
-            weekly_chart.append({
-                'date': date.strftime('%a'),
-                'mood': entry.mood,
-                'emoji': entry.emoji
-            })
-        else:
-            weekly_chart.append({
-                'date': date.strftime('%a'),
-                'mood': None,
-                'emoji': '⚪'
-            })
-    
-    # Get recent entries
-    recent_entries = MoodEntry.objects.filter(user=request.user).order_by('-date')[:6]
-    
-    # Get unread insights
-    insights = MoodInsight.objects.filter(user=request.user, is_read=False)[:3]
-    
-    data = {
-        'today_entry': today_data,
-        'analytics': {
-            'positive_moods_percentage': float(pattern.positive_mood_percentage),
-            'most_common_mood': dict(MoodEntry.MOOD_CHOICES).get(pattern.most_common_mood, '') if pattern.most_common_mood else '',
-            'most_common_mood_emoji': MoodEntry.MOOD_EMOJI_MAP.get(pattern.most_common_mood, '😐') if pattern.most_common_mood else '😐',
-            'total_entries': pattern.total_entries,
-            'current_streak': pattern.current_streak,
-        },
-        'recent_entries': MoodEntryListSerializer(recent_entries, many=True).data,
-        'weekly_chart': weekly_chart,
-        'insights': MoodInsightSerializer(insights, many=True).data
-    }
-    
-    return Response(data)

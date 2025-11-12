@@ -109,8 +109,11 @@ class PasswordResetOTP(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def is_expired(self):
-        # OTP expires after 60 seconds (1 minute)
-        return timezone.now() > self.created_at + timedelta(seconds=60)
+        # OTP expires after 5 minutes
+        return timezone.now() > self.created_at + timedelta(minutes=5)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.code}"
 
 
 # --- Employers Model. ---
@@ -227,23 +230,9 @@ class SelfAssessment(models.Model):
 # --- Employee Wellbeing Models ---
 # Mood Tracking model.
 class MoodTracking(models.Model):
-    MOOD_STATES = [
-        ("depressed", "Depressed"),
-        ("stressed", "Stressed"),
-        ("anxious", "Anxious"),
-        ("burned_out", "Burned Out"),
-        ("grieving", "Grieving"),
-        ("overwhelmed", "Overwhelmed"),
-        ("lonely", "Lonely"),
-        ("angry", "Angry"),
-        ("neutral", "Neutral"),
-        ("hopeful", "Hopeful"),
-        ("other", "Other"),
-    ]
-
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mood_checkins")
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE, null=True, blank=True, related_name="mood_checkins_employee")
-    mood = models.CharField(max_length=50, choices=MOOD_STATES)
+    mood = models.CharField(max_length=50, blank=True, null=True)
     note = models.TextField(blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
     checked_in_at = models.DateTimeField(auto_now_add=True)
@@ -452,6 +441,8 @@ class WellnessHub(models.Model):
     def __str__(self):
         return f"Wellness Hub - {self.employee.user.username}"
 
+
+
 # Assessment Results model.
 class AssessmentResult(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE)
@@ -462,7 +453,15 @@ class AssessmentResult(models.Model):
     def __str__(self):
         return f"Assessment - {self.employee.user.username} - {self.type}"
 
-# Educational Resources model - REMOVED (duplicate, see line 1076 for full version)
+# Educational Resources model.
+class EducationalResource(models.Model):
+    title = models.CharField(max_length=100)
+    type = models.CharField(max_length=20)  # article, podcast, video
+    url = models.URLField()
+    description = models.TextField()
+
+    def __str__(self):
+        return self.title
 
 # Crisis Triggers model.
 class CrisisTrigger(models.Model):
@@ -770,6 +769,8 @@ class WellnessTest(models.Model):
 
     class Meta:
         ordering = ['-completed_at']
+
+
 
 #-- Resource Engagement Model. --
 class ResourceEngagement(models.Model):
@@ -1318,320 +1319,3 @@ class DynamicQuestion(models.Model):
     category = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
-
-# ===== MEDITATION & MINDFULNESS APP MODELS =====
-
-#-- Category Model for Meditation App --
-class MeditationCategory(models.Model):
-    """Categories like Sleep, Gratitude, Happiness, Meditation, Mindfulness, Breathing"""
-    CATEGORY_CHOICES = [
-        ('sleep', 'Sleep'),
-        ('gratitude', 'Gratitude'),
-        ('happiness', 'Happiness'),
-        ('meditation', 'Meditation'),
-        ('mindfulness', 'Mindfulness'),
-        ('breathing', 'Breathing'),
-    ]
-    
-    name = models.CharField(max_length=50, choices=CATEGORY_CHOICES, unique=True)
-    icon = models.CharField(max_length=100, help_text="Icon name or emoji")
-    color = models.CharField(max_length=20, default="#4CAF50")
-    description = models.TextField(blank=True)
-    is_active = models.BooleanField(default=True)
-    order = models.PositiveIntegerField(default=0)
-    
-    class Meta:
-        ordering = ['order', 'name']
-        verbose_name = "Meditation Category"
-        verbose_name_plural = "Meditation Categories"
-    
-    def __str__(self):
-        return self.get_name_display()
-
-#-- Featured Content Model --
-class FeaturedContent(models.Model):
-    """Featured meditation sessions like Morning Meditation, Stress Relief, Deep Sleep"""
-    title = models.CharField(max_length=200)
-    category = models.ForeignKey(MeditationCategory, on_delete=models.CASCADE, related_name='featured_content')
-    description = models.TextField(blank=True)
-    image = models.ImageField(upload_to='featured_content/', help_text="Thumbnail image")
-    audio_file = models.FileField(upload_to='meditation_audio/', blank=True, null=True)
-    duration_minutes = models.PositiveIntegerField(help_text="Duration in minutes")
-    is_premium = models.BooleanField(default=False)
-    is_featured = models.BooleanField(default=True)
-    play_count = models.PositiveIntegerField(default=0)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        ordering = ['-is_featured', '-play_count', '-created_at']
-        verbose_name = "Featured Content"
-        verbose_name_plural = "Featured Content"
-    
-    def __str__(self):
-        return f"{self.title} - {self.duration_minutes}min"
-
-#-- Daily Mood Check-in Model --
-class DailyMoodCheckin(models.Model):
-    """Track daily mood: Great, Good, Okay, Bad"""
-    MOOD_CHOICES = [
-        ('great', 'Great'),
-        ('good', 'Good'),
-        ('okay', 'Okay'),
-        ('bad', 'Bad'),
-    ]
-    
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='daily_moods')
-    mood = models.CharField(max_length=10, choices=MOOD_CHOICES)
-    note = models.TextField(blank=True, help_text="Optional note about the mood")
-    checked_in_at = models.DateTimeField(auto_now_add=True)
-    date = models.DateField(auto_now_add=True)
-    
-    class Meta:
-        ordering = ['-checked_in_at']
-        unique_together = ['user', 'date']  # One check-in per day
-        verbose_name = "Daily Mood Check-in"
-        verbose_name_plural = "Daily Mood Check-ins"
-    
-    def __str__(self):
-        return f"{self.user.username} - {self.get_mood_display()} on {self.date}"
-
-#-- Daily Streak Model --
-class DailyStreak(models.Model):
-    """Track user's daily engagement streak"""
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='daily_streak')
-    current_streak = models.PositiveIntegerField(default=0)
-    longest_streak = models.PositiveIntegerField(default=0)
-    last_activity_date = models.DateField(auto_now=True)
-    total_days_active = models.PositiveIntegerField(default=0)
-    
-    class Meta:
-        verbose_name = "Daily Streak"
-        verbose_name_plural = "Daily Streaks"
-    
-    def __str__(self):
-        return f"{self.user.username} - {self.current_streak} days"
-    
-    def update_streak(self):
-        """Update streak based on last activity"""
-        from datetime import date, timedelta
-        today = date.today()
-        
-        if self.last_activity_date == today:
-            # Already checked in today
-            return
-        elif self.last_activity_date == today - timedelta(days=1):
-            # Consecutive day
-            self.current_streak += 1
-            if self.current_streak > self.longest_streak:
-                self.longest_streak = self.current_streak
-        else:
-            # Streak broken
-            self.current_streak = 1
-        
-        self.total_days_active += 1
-        self.last_activity_date = today
-        self.save()
-
-#-- User Favorites Model --
-class UserFavorite(models.Model):
-    """Track user's favorite meditation content"""
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='favorites')
-    featured_content = models.ForeignKey(FeaturedContent, on_delete=models.CASCADE, null=True, blank=True)
-    meditation_technique = models.ForeignKey(MeditationTechnique, on_delete=models.CASCADE, null=True, blank=True)
-    added_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        ordering = ['-added_at']
-        unique_together = [
-            ['user', 'featured_content'],
-            ['user', 'meditation_technique']
-        ]
-        verbose_name = "User Favorite"
-        verbose_name_plural = "User Favorites"
-    
-    def __str__(self):
-        return f"{self.user.username}'s favorite"
-
-#-- Meditation Session Model --
-class MeditationSession(models.Model):
-    """Track completed meditation sessions"""
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='meditation_sessions')
-    featured_content = models.ForeignKey(FeaturedContent, on_delete=models.CASCADE, null=True, blank=True)
-    meditation_technique = models.ForeignKey(MeditationTechnique, on_delete=models.CASCADE, null=True, blank=True)
-    duration_minutes = models.PositiveIntegerField()
-    completed = models.BooleanField(default=False)
-    started_at = models.DateTimeField(auto_now_add=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-    
-    class Meta:
-        ordering = ['-started_at']
-        verbose_name = "Meditation Session"
-        verbose_name_plural = "Meditation Sessions"
-    
-    def __str__(self):
-        return f"{self.user.username} - {self.duration_minutes}min session"
-
-
-# ===== MOOD TRACKING & JOURNAL MODELS =====
-
-class MoodEntry(models.Model):
-    """Enhanced mood tracking with more mood options"""
-    MOOD_CHOICES = [
-        ('sad', 'Sad'),
-        ('neutral', 'Neutral'),
-        ('happy', 'Happy'),
-        ('calm', 'Calm'),
-        ('excited', 'Excited'),
-        ('anxious', 'Anxious'),
-        ('stressed', 'Stressed'),
-        ('angry', 'Angry'),
-        ('grateful', 'Grateful'),
-        ('tired', 'Tired'),
-        ('energetic', 'Energetic'),
-        ('lonely', 'Lonely'),
-        ('loved', 'Loved'),
-        ('hopeful', 'Hopeful'),
-        ('overwhelmed', 'Overwhelmed'),
-    ]
-    
-    MOOD_EMOJI_MAP = {
-        'sad': '😢',
-        'neutral': '😐',
-        'happy': '😊',
-        'calm': '😌',
-        'excited': '🤩',
-        'anxious': '😰',
-        'stressed': '😫',
-        'angry': '😠',
-        'grateful': '🙏',
-        'tired': '😴',
-        'energetic': '⚡',
-        'lonely': '😔',
-        'loved': '🥰',
-        'hopeful': '🌟',
-        'overwhelmed': '😵',
-    }
-    
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='mood_entries')
-    mood = models.CharField(max_length=20, choices=MOOD_CHOICES)
-    note = models.TextField(blank=True, help_text="What's on your mind?")
-    date = models.DateField(auto_now_add=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    # Additional context
-    activities = models.JSONField(default=list, blank=True, help_text="Activities done today")
-    energy_level = models.IntegerField(default=5, help_text="Energy level 1-10")
-    sleep_quality = models.IntegerField(null=True, blank=True, help_text="Sleep quality 1-10")
-    
-    class Meta:
-        ordering = ['-created_at']
-        unique_together = ['user', 'date']
-        verbose_name = "Mood Entry"
-        verbose_name_plural = "Mood Entries"
-        indexes = [
-            models.Index(fields=['user', '-date']),
-        ]
-    
-    def __str__(self):
-        return f"{self.user.username} - {self.get_mood_display()} on {self.date}"
-    
-    @property
-    def emoji(self):
-        return self.MOOD_EMOJI_MAP.get(self.mood, '😐')
-    
-    @property
-    def is_positive(self):
-        """Check if mood is positive"""
-        positive_moods = ['happy', 'calm', 'excited', 'grateful', 'energetic', 'loved', 'hopeful']
-        return self.mood in positive_moods
-
-
-class MoodPattern(models.Model):
-    """Track mood patterns and analytics for users"""
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='mood_pattern')
-    total_entries = models.PositiveIntegerField(default=0)
-    positive_mood_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
-    most_common_mood = models.CharField(max_length=20, blank=True)
-    current_streak = models.PositiveIntegerField(default=0, help_text="Days with consecutive entries")
-    longest_streak = models.PositiveIntegerField(default=0)
-    last_entry_date = models.DateField(null=True, blank=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        verbose_name = "Mood Pattern"
-        verbose_name_plural = "Mood Patterns"
-    
-    def __str__(self):
-        return f"{self.user.username}'s Mood Pattern"
-    
-    def update_statistics(self):
-        """Update mood statistics"""
-        from django.db.models import Count
-        from datetime import date
-        
-        entries = MoodEntry.objects.filter(user=self.user)
-        self.total_entries = entries.count()
-        
-        if self.total_entries > 0:
-            # Calculate positive mood percentage
-            positive_count = entries.filter(
-                mood__in=['happy', 'calm', 'excited', 'grateful', 'energetic', 'loved', 'hopeful']
-            ).count()
-            self.positive_mood_percentage = (positive_count / self.total_entries) * 100
-            
-            # Find most common mood
-            most_common = entries.values('mood').annotate(
-                count=Count('mood')
-            ).order_by('-count').first()
-            
-            if most_common:
-                self.most_common_mood = most_common['mood']
-            
-            # Update streak
-            latest_entry = entries.first()
-            if latest_entry:
-                today = date.today()
-                if latest_entry.date == today or latest_entry.date == today - timedelta(days=1):
-                    # Calculate current streak
-                    streak = 1
-                    current_date = latest_entry.date - timedelta(days=1)
-                    
-                    while entries.filter(date=current_date).exists():
-                        streak += 1
-                        current_date -= timedelta(days=1)
-                    
-                    self.current_streak = streak
-                    if streak > self.longest_streak:
-                        self.longest_streak = streak
-                else:
-                    self.current_streak = 0
-                
-                self.last_entry_date = latest_entry.date
-        
-        self.save()
-
-
-class MoodInsight(models.Model):
-    """AI-generated insights about user's mood patterns"""
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='mood_insights')
-    insight_type = models.CharField(max_length=50, choices=[
-        ('pattern', 'Pattern Recognition'),
-        ('trigger', 'Trigger Identification'),
-        ('recommendation', 'Recommendation'),
-        ('achievement', 'Achievement'),
-        ('warning', 'Warning'),
-    ])
-    title = models.CharField(max_length=200)
-    description = models.TextField()
-    is_read = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        ordering = ['-created_at']
-        verbose_name = "Mood Insight"
-        verbose_name_plural = "Mood Insights"
-    
-    def __str__(self):
-        return f"{self.user.username} - {self.title}"

@@ -1,11 +1,14 @@
+# This is the name of the GitHub Actions workflow
 name: api CI/CD Pipeline
 
+# Define when this workflow should run
 on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
+  push:                     # Run the workflow whenever someone pushes code
+    branches: ["main"]      # ...only if that push is to the "main" branch
+  pull_request:             # Also run it when a Pull Request is made
+    branches: ["main"]      # ...that targets the "main" branch
 
+# Define the jobs (tasks) that this workflow will perform
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,15 +31,15 @@ jobs:
         ports:
           - 5432:5432
 
-    steps:
+    steps:                    # A list of all steps in this job
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4   # This pulls your project code from GitHub into the runner
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: "pip"
+          python-version: ${{ matrix.python-version }}  # Uses the version from the matrix (3.12 and 3.13)
+          cache: "pip"                                  # Cache pip packages for faster installs next time
 
       - name: Install dependencies
         run: |
@@ -45,14 +48,18 @@ jobs:
 
       - name: Lint with flake8
         run: |
+          # The first flake8 command checks for critical errors (E9, F63, F7, F82)
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # The second one checks code style and complexity, but doesn’t fail the build
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Run migrations check
         run: python manage.py makemigrations --check --dry-run
+        # Checks if all migrations are up-to-date (without creating new ones)
 
       - name: Collect static files
         run: python manage.py collectstatic --noinput
+        # Gathers all static files into one directory for deployment (no user input)
 
       - name: Run Tests with Pytest
         env:
@@ -64,18 +71,22 @@ jobs:
 
   deploy:
     name: Deploy to Render
-    needs: build
+    needs: build                     # This makes sure the "build" job finishes successfully first
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && success()
+    ## Only run this job if:
+    # - The branch is "main"
+    # - The build job was successful
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4     # Pulls your code again for this deploy job
 
       - name: Trigger Render deployment
         env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}   # Secret Render API key stored in GitHub Secrets
         run: |
+          ## This curl command calls Render’s API to trigger a deployment manually
           curl -X POST \
             -H "Authorization: Bearer $RENDER_API_KEY" \
             -H "Content-Type: application/json" \

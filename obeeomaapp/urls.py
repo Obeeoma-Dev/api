@@ -22,20 +22,16 @@ from obeeomaapp.views import (
     PasswordResetView, PasswordResetConfirmView, PasswordChangeView,
     OverviewView, TrendsView, EmployeeEngagementView, BillingView,
     UsersView, ReportsView, CrisisInsightsView,
-    EmployeeProfileView, AvatarProfileView, WellnessHubView,
+    EmployeeProfileView, AvatarProfileView, 
     MoodTrackingView, AssessmentResultView, SelfHelpResourceView,
-    EducationalResourceView, CrisisTriggerView, NotificationView, 
+     CrisisTriggerView, NotificationView, 
     EngagementTrackerView, FeedbackView, ChatSessionView, 
     ChatMessageView, RecommendationLogView, InvitationAcceptView, 
     InvitationVerifyView, home, OrganizationSignupView,
     InvitationAcceptanceView, InviteView, 
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
-    OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet,
-    MeditationCategoryViewSet, FeaturedContentViewSet, DailyMoodCheckinViewSet,
-    DailyStreakViewSet, UserFavoriteViewSet, MeditationSessionViewSet,
-    home_screen, explore_screen, MoodEntryViewSet, MoodPatternViewSet,
-    MoodInsightViewSet, mood_screen
+    OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet
     
 )
 
@@ -71,11 +67,10 @@ router.register(r'progress', ProgressViewSet)
 
 router.register(r'employee/profile', EmployeeProfileView, basename='employee-profile')
 router.register(r'employee/avatar', AvatarProfileView, basename='avatar-profile')
-router.register(r'employee/wellness', WellnessHubView, basename='wellness-hub')
 router.register(r'employee/mood-tracking', MoodTrackingView, basename='mood-tracking')
 router.register(r'employee/assessments', AssessmentResultView, basename='assessment-results')
 router.register(r'resources/self-help', SelfHelpResourceView, basename='self-help-resources')
-router.register(r'resources/educational', EducationalResourceView, basename='educational-resources')
+router.register(r'resources/educational', EducationalResourceViewSet, basename='educational-resources')
 router.register(r'employee/crisis', CrisisTriggerView, basename='crisis-trigger')
 router.register(r'employee/notifications', NotificationView, basename='notifications')
 router.register(r'employee/engagement', EngagementTrackerView, basename='engagement-tracker')
@@ -110,32 +105,18 @@ router.register(r'admin/reports-analytics', ReportsAnalyticsView, basename='repo
 router.register(r'admin/system-settings', SystemSettingsView, basename='system-settings')
 router.register(r'admin/feature-flags', FeaturesUsageView, basename='feature-flags')
 router.register(r'dynamic-questions', DynamicQuestionViewSet, basename='dynamic-question')
-
-# Meditation & Mindfulness App Routes
-router.register(r'meditation/categories', MeditationCategoryViewSet, basename='meditation-category')
-router.register(r'meditation/featured', FeaturedContentViewSet, basename='featured-content')
-router.register(r'meditation/mood-checkin', DailyMoodCheckinViewSet, basename='mood-checkin')
-router.register(r'meditation/streak', DailyStreakViewSet, basename='daily-streak')
-router.register(r'meditation/favorites', UserFavoriteViewSet, basename='user-favorite')
-router.register(r'meditation/sessions', MeditationSessionViewSet, basename='meditation-session')
-
-# Mood Tracking Routes
-router.register(r'mood/entries', MoodEntryViewSet, basename='mood-entry')
-router.register(r'mood/patterns', MoodPatternViewSet, basename='mood-pattern')
-router.register(r'mood/insights', MoodInsightViewSet, basename='mood-insight')
-
 # Employee Invitations
 router.register(r'invitations', InviteView, basename='invitations')
 
 urlpatterns = [
     # Home
     path("", home, name="home"),
-    
     # Debug endpoints
-    path("debug/email-config/", EmailConfigCheckView.as_view(), name="email-config-check"),
-
+    path(
+        "debug/email-config/", EmailConfigCheckView.as_view(), name="email-config-check"
+    ),
     # Authentication
-    path("auth/signup/", SignupView.as_view({'post': 'create'}), name="signup"),
+    path("auth/signup/", SignupView.as_view({"post": "create"}), name="signup"),
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/logout/", LogoutView.as_view(), name="logout"),
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
@@ -170,12 +151,12 @@ urlpatterns = [
     # Employee endpoints
     path('employee/profile/', EmployeeProfileView.as_view({'get': 'list', 'post': 'create'}), name='employee-profile'),
     path('employee/avatar/', AvatarProfileView.as_view({'get': 'list', 'post': 'create'}), name='avatar-profile'),
-    path('employee/wellness/', WellnessHubView.as_view({'get': 'list', 'post': 'create'}), name='wellness-hub'),
+    
     path('employee/assessments/', AssessmentResultView.as_view({'get': 'list', 'post': 'create'}), name='assessment-results'),
     path('resources/self-help/', SelfHelpResourceView.as_view({'get': 'list', 'post': 'create'}), name='self-help-resources'),
     path('assessment-result/<int:id>/', AssessmentResultView.as_view({'get': 'retrieve'}), name='assessment-result'),
 
-    path('resources/educational/', EducationalResourceView.as_view({'get': 'list', 'post': 'create'}), name='educational-resources'),
+    # path('resources/educational/', EducationalResourceView.as_view({'get': 'list', 'post': 'create'}), name='educational-resources'),
     path('employee/crisis/', CrisisTriggerView.as_view({'get': 'list', 'post': 'create'}), name='crisis-trigger'),
     path('employee/notifications/', NotificationView.as_view({'get': 'list', 'post': 'create'}), name='notifications'),
     path('employee/engagement/', EngagementTrackerView.as_view({'get': 'list', 'post': 'create'}), name='engagement-tracker'),
@@ -195,26 +176,26 @@ urlpatterns = [
     path('auth/verify-invite/', InvitationVerifyView.as_view(), name='verify-invite'),
     path('auth/accept-invite/', InvitationAcceptanceView.as_view(), name='accept-invite'),
 
-    # Meditation & Mindfulness App Endpoints
-    path('meditation/home/', home_screen, name='meditation-home'),
-    path('meditation/explore/', explore_screen, name='meditation-explore'),
-
-    # Mood Tracking Endpoints
-    path('mood/screen/', mood_screen, name='mood-screen'),
-
     # Include router URLs
     path("", include(router.urls)),
-
     # JWT Authentication
     path("auth/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("auth/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
-
     # API Schema
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
-
+    path(
+        "api/docs/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
+    ),
     # Swagger / Redoc
-    path("swagger/", schema_view.with_ui("swagger", cache_timeout=0), name="schema-swagger-ui"),
+    path(
+        "swagger/",
+        schema_view.with_ui("swagger", cache_timeout=0),
+        name="schema-swagger-ui",
+    ),
     path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
+    # Sana_ai.
+    path("api/", include("sana_ai.urls")),
 ]

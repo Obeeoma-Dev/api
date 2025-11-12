@@ -71,10 +71,12 @@ pytest-cov==6.0.0
 pytest-django==4.9.0
 python-decouple==3.8
 python-dotenv==1.1.1
+pytokens==0.2.0
 pytz==2025.2
 PyYAML==6.0.2
 qrcode==8.2
 referencing==0.36.2
+regex==2025.10.22
 requests==2.32.5
 requests-oauthlib==2.0.0
 rpds-py==0.27.1
@@ -94,3 +96,9 @@ urllib3==2.5.0
 websocket-client==1.8.0
 whitenoise==6.11.0
 wsproto==1.2.0
+transformers>=4.30.0
+sentencepiece>=0.1.99
+accelerate>=0.20.0
+# CPU-only PyTorch for Render (avoid large CUDA wheels)
+torch>=2.0.0 ; sys_platform == "linux" or sys_platform == "darwin"
+torch>=2.0.0 --index-url https://download.pytorch.org/whl/cpu ; sys_platform == "win32"

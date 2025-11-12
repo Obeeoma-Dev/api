@@ -11,6 +11,7 @@ from django.contrib.auth.hashers import make_password
 from .models import Organization, ContactPerson
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
+
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
 from .models import OnboardingState
@@ -235,18 +236,21 @@ class PasswordChangeSerializer(serializers.Serializer):
 class OTPVerificationSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=6)
 
-    def validate_code(self, value):
-        try:
-            otp_record = PasswordResetOTP.objects.get(code=value)
-        except PasswordResetOTP.DoesNotExist:
+    def validate(self, attrs):
+        code = attrs.get("code")
+
+        otp = PasswordResetToken.objects.filter(code=code).order_by('-created_at').first()
+        if not otp:
             raise serializers.ValidationError("Invalid verification code.")
 
-        # This part helps the system to Check expiry of the OTP
-        if otp_record.is_expired():
-            raise serializers.ValidationError("This code has expired. Please request a new one.")
-        self.context['user'] = otp_record.user
-        return value
-    
+        if otp.expires_at < timezone.now():
+            otp.delete()
+            raise serializers.ValidationError("This OTP has expired. Please request a new one.")
+
+        self.context["user"] = otp.user
+        self.context["otp"] = otp
+        return attrs
+
 # SERIALIZERS FOR MFA SETUP AND VERIFICATION
 
 # MFA Setup Serializer
@@ -303,6 +307,21 @@ class EmployeeSerializer(serializers.ModelSerializer):
         fields = ['id', 'employer', 'employer_name', 'department', 'department_name', 'first_name', 'last_name', 'name', 'email', 'status', 'joined_date', 'last_active', 'avatar']
 
 
+class NotificationSerializer(serializers.ModelSerializer):
+    is_read = serializers.BooleanField(source='read', read_only=True)  # Add this field
+    
+    class Meta:
+        model = Notification
+        fields = ['id', 'employee', 'message', 'sent_on', 'read', 'is_read']  # Include both
+        read_only_fields = ['employee', 'sent_on']
+
+class NotificationSerializer(serializers.ModelSerializer):
+    is_read = serializers.BooleanField(source='read', read_only=True)  # Add this field
+    
+    class Meta:
+        model = Notification
+        fields = ['id', 'employee', 'message', 'sent_on', 'read', 'is_read']  # Include both
+        read_only_fields = ['employee', 'sent_on']
 
 class AIManagementSerializer(serializers.ModelSerializer):
     class Meta:
@@ -520,12 +539,6 @@ class AvatarProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ['employee']
 
 
-class WellnessHubSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = WellnessHub
-        fields = '__all__'
-        read_only_fields = ['employee', 'updated_at']
-
 
 
 class AssessmentResultSerializer(serializers.ModelSerializer):
@@ -546,13 +559,6 @@ class CrisisTriggerSerializer(serializers.ModelSerializer):
         model = CrisisTrigger
         fields = '__all__'
         read_only_fields = ['employee', 'triggered_on']
-
-class NotificationSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Notification
-        fields = '__all__'
-        read_only_fields = ['employee', 'sent_on']
-
 
 class EngagementTrackerSerializer(serializers.ModelSerializer):
     class Meta:
@@ -732,16 +738,6 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
         model = PaymentMethod
         fields = '__all__'
         read_only_fields = ['employer', 'created_at']
-
-
-class WellnessTestSerializer(serializers.ModelSerializer):
-    employee_name = serializers.CharField(source='employee.name', read_only=True)
-    department_name = serializers.CharField(source='department.name', read_only=True)
-    
-    class Meta:
-        model = WellnessTest
-        fields = ['id', 'employee', 'employee_name', 'department', 'department_name', 'test_type', 'score', 'completed_at']
-
 
 class ResourceEngagementSerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source='employee.name', read_only=True)
@@ -992,12 +988,11 @@ class ReportsAnalyticsSerializer(serializers.Serializer):
     date_ranges = serializers.ListField()
     formats = serializers.ListField()
 
-
 from rest_framework import serializers
-from drf_spectacular.utils import extend_schema_field
 from .models import (
-    Video, Audio, Article, MeditationTechnique, SavedResource,
-    EducationalResource, UserActivity, OnboardingState
+    Video, EducationalResource, Audio, Article, 
+    MeditationTechnique, SavedResource, UserActivity,
+    OnboardingState, DynamicQuestion, Notification
 )
 
 # Video Recommendation Serializer
@@ -1188,250 +1183,15 @@ class OnboardingStateSerializer(serializers.ModelSerializer):
         model = OnboardingState
         fields = ['goal', 'completed', 'first_action_done']
 
-from rest_framework import serializers
-from .models import DynamicQuestion
-
+# Dynamic Question Serializer
 class DynamicQuestionSerializer(serializers.ModelSerializer):
     class Meta:
         model = DynamicQuestion
         fields = ['id', 'text', 'category', 'is_active', 'created_at']
 
-
-# ===== MEDITATION & MINDFULNESS APP SERIALIZERS =====
-
-class MeditationCategorySerializer(serializers.ModelSerializer):
-    """Serializer for meditation categories (Sleep, Gratitude, etc.)"""
-    content_count = serializers.SerializerMethodField()
-    
+# Notification Serializer - CORRECTED: Using 'read' not 'is_read'
+class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
-        model = MeditationCategory
-        fields = ['id', 'name', 'icon', 'color', 'description', 'is_active', 'order', 'content_count']
-    
-    @extend_schema_field(serializers.IntegerField())
-    def get_content_count(self, obj) -> int:
-        return obj.featured_content.filter(is_featured=True).count()
-
-
-class FeaturedContentSerializer(serializers.ModelSerializer):
-    """Serializer for featured meditation content"""
-    category_name = serializers.CharField(source='category.get_name_display', read_only=True)
-    category_icon = serializers.CharField(source='category.icon', read_only=True)
-    duration_display = serializers.SerializerMethodField()
-    is_favorited = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = FeaturedContent
-        fields = [
-            'id', 'title', 'category', 'category_name', 'category_icon',
-            'description', 'image', 'audio_file', 'duration_minutes',
-            'duration_display', 'is_premium', 'is_featured', 'play_count',
-            'is_favorited', 'created_at'
-        ]
-        read_only_fields = ['play_count']
-    
-    @extend_schema_field(serializers.CharField())
-    def get_duration_display(self, obj) -> str:
-        return f"{obj.duration_minutes} min"
-    
-    @extend_schema_field(serializers.BooleanField())
-    def get_is_favorited(self, obj) -> bool:
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return UserFavorite.objects.filter(user=request.user, featured_content=obj).exists()
-        return False
-
-
-class DailyMoodCheckinSerializer(serializers.ModelSerializer):
-    """Serializer for daily mood check-ins"""
-    mood_display = serializers.CharField(source='get_mood_display', read_only=True)
-    
-    class Meta:
-        model = DailyMoodCheckin
-        fields = ['id', 'mood', 'mood_display', 'note', 'checked_in_at', 'date']
-        read_only_fields = ['checked_in_at', 'date']
-    
-    def create(self, validated_data):
-        # Ensure only one check-in per day
-        user = self.context['request'].user
-        today = timezone.now().date()
-        
-        # Update or create today's check-in
-        checkin, created = DailyMoodCheckin.objects.update_or_create(
-            user=user,
-            date=today,
-            defaults=validated_data
-        )
-        
-        # Update user's streak
-        if hasattr(user, 'daily_streak'):
-            user.daily_streak.update_streak()
-        else:
-            DailyStreak.objects.create(user=user, current_streak=1, longest_streak=1, total_days_active=1)
-        
-        return checkin
-
-
-class DailyStreakSerializer(serializers.ModelSerializer):
-    """Serializer for daily streak tracking"""
-    class Meta:
-        model = DailyStreak
-        fields = ['id', 'current_streak', 'longest_streak', 'last_activity_date', 'total_days_active']
-        read_only_fields = ['current_streak', 'longest_streak', 'last_activity_date', 'total_days_active']
-
-
-class UserFavoriteSerializer(serializers.ModelSerializer):
-    """Serializer for user favorites"""
-    content_title = serializers.SerializerMethodField()
-    content_type = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = UserFavorite
-        fields = ['id', 'featured_content', 'meditation_technique', 'content_title', 'content_type', 'added_at']
-        read_only_fields = ['added_at']
-    
-    @extend_schema_field(serializers.CharField())
-    def get_content_title(self, obj) -> str:
-        if obj.featured_content:
-            return obj.featured_content.title
-        elif obj.meditation_technique:
-            return obj.meditation_technique.title
-        return "Unknown"
-    
-    @extend_schema_field(serializers.CharField())
-    def get_content_type(self, obj) -> str:
-        if obj.featured_content:
-            return "featured_content"
-        elif obj.meditation_technique:
-            return "meditation_technique"
-        return "unknown"
-
-
-class MeditationSessionSerializer(serializers.ModelSerializer):
-    """Serializer for meditation sessions"""
-    content_title = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = MeditationSession
-        fields = [
-            'id', 'featured_content', 'meditation_technique', 'content_title',
-            'duration_minutes', 'completed', 'started_at', 'completed_at'
-        ]
-        read_only_fields = ['started_at']
-    
-    @extend_schema_field(serializers.CharField())
-    def get_content_title(self, obj) -> str:
-        if obj.featured_content:
-            return obj.featured_content.title
-        elif obj.meditation_technique:
-            return obj.meditation_technique.title
-        return "Unknown"
-
-
-class HomeScreenSerializer(serializers.Serializer):
-    """Serializer for home screen data"""
-    categories = MeditationCategorySerializer(many=True)
-    featured_content = FeaturedContentSerializer(many=True)
-    daily_streak = DailyStreakSerializer()
-    today_mood = DailyMoodCheckinSerializer(allow_null=True)
-    recent_sessions = MeditationSessionSerializer(many=True)
-
-
-# ===== MOOD TRACKING SERIALIZERS =====
-
-class MoodEntrySerializer(serializers.ModelSerializer):
-    """Serializer for mood entries"""
-    mood_display = serializers.CharField(source='get_mood_display', read_only=True)
-    emoji = serializers.CharField(read_only=True)
-    is_positive = serializers.BooleanField(read_only=True)
-    
-    class Meta:
-        model = MoodEntry
-        fields = [
-            'id', 'mood', 'mood_display', 'emoji', 'note', 'date',
-            'created_at', 'activities', 'energy_level', 'sleep_quality',
-            'is_positive'
-        ]
-        read_only_fields = ['date', 'created_at']
-    
-    def create(self, validated_data):
-        # Update or create today's entry
-        user = self.context['request'].user
-        today = timezone.now().date()
-        
-        entry, created = MoodEntry.objects.update_or_create(
-            user=user,
-            date=today,
-            defaults=validated_data
-        )
-        
-        # Update mood pattern statistics
-        pattern, _ = MoodPattern.objects.get_or_create(user=user)
-        pattern.update_statistics()
-        
-        return entry
-
-
-class MoodEntryListSerializer(serializers.ModelSerializer):
-    """Simplified serializer for list view"""
-    mood_display = serializers.CharField(source='get_mood_display', read_only=True)
-    emoji = serializers.CharField(read_only=True)
-    
-    class Meta:
-        model = MoodEntry
-        fields = ['id', 'mood', 'mood_display', 'emoji', 'note', 'date', 'created_at']
-
-
-class MoodPatternSerializer(serializers.ModelSerializer):
-    """Serializer for mood patterns and analytics"""
-    most_common_mood_display = serializers.SerializerMethodField()
-    most_common_mood_emoji = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = MoodPattern
-        fields = [
-            'total_entries', 'positive_mood_percentage', 'most_common_mood',
-            'most_common_mood_display', 'most_common_mood_emoji',
-            'current_streak', 'longest_streak', 'last_entry_date', 'updated_at'
-        ]
-    
-    @extend_schema_field(serializers.CharField())
-    def get_most_common_mood_display(self, obj) -> str:
-        if obj.most_common_mood:
-            return dict(MoodEntry.MOOD_CHOICES).get(obj.most_common_mood, obj.most_common_mood)
-        return ""
-    
-    @extend_schema_field(serializers.CharField())
-    def get_most_common_mood_emoji(self, obj) -> str:
-        if obj.most_common_mood:
-            return MoodEntry.MOOD_EMOJI_MAP.get(obj.most_common_mood, '😐')
-        return ""
-
-
-class MoodInsightSerializer(serializers.ModelSerializer):
-    """Serializer for mood insights"""
-    insight_type_display = serializers.CharField(source='get_insight_type_display', read_only=True)
-    
-    class Meta:
-        model = MoodInsight
-        fields = ['id', 'insight_type', 'insight_type_display', 'title', 'description', 'is_read', 'created_at']
-        read_only_fields = ['created_at']
-
-
-class MoodAnalyticsSerializer(serializers.Serializer):
-    """Serializer for mood analytics dashboard"""
-    positive_moods_percentage = serializers.DecimalField(max_digits=5, decimal_places=2)
-    most_common_mood = serializers.CharField()
-    most_common_mood_emoji = serializers.CharField()
-    total_entries = serializers.IntegerField()
-    current_streak = serializers.IntegerField()
-    mood_distribution = serializers.ListField()
-    weekly_mood_chart = serializers.ListField()
-    recent_entries = MoodEntryListSerializer(many=True)
-
-
-class MoodChartDataSerializer(serializers.Serializer):
-    """Serializer for mood chart data"""
-    date = serializers.DateField()
-    mood = serializers.CharField()
-    emoji = serializers.CharField()
-    day_name = serializers.CharField()
+        model = Notification
+        fields = ['id', 'employee', 'message', 'sent_on', 'read']  # Use 'read' here
+        read_only_fields = ['employee', 'sent_on']
