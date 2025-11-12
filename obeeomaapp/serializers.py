@@ -1195,3 +1195,78 @@ class NotificationSerializer(serializers.ModelSerializer):
         model = Notification
         fields = ['id', 'employee', 'message', 'sent_on', 'read']  # Use 'read' here
         read_only_fields = ['employee', 'sent_on']
+
+
+# ===== ASSESSMENT QUESTIONNAIRE SERIALIZERS =====
+
+class AssessmentQuestionSerializer(serializers.ModelSerializer):
+    """Serializer for assessment questions"""
+    assessment_type_display = serializers.CharField(source='get_assessment_type_display', read_only=True)
+    
+    class Meta:
+        model = AssessmentQuestion
+        fields = ['id', 'assessment_type', 'assessment_type_display', 'question_number', 'question_text']
+
+
+class AssessmentResponseSerializer(serializers.ModelSerializer):
+    """Serializer for submitting assessment responses"""
+    severity_level = serializers.CharField(read_only=True)
+    recommendations = serializers.SerializerMethodField()
+    assessment_type_display = serializers.CharField(source='get_assessment_type_display', read_only=True)
+    
+    class Meta:
+        model = AssessmentResponse
+        fields = [
+            'id', 'assessment_type', 'assessment_type_display', 'responses',
+            'total_score', 'severity_level', 'difficulty_level',
+            'recommendations', 'completed_at'
+        ]
+        read_only_fields = ['total_score', 'severity_level', 'completed_at']
+    
+    def validate_responses(self, value):
+        """Validate responses array"""
+        assessment_type = self.initial_data.get('assessment_type')
+        
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Responses must be an array of scores.")
+        
+        # Check length
+        if assessment_type == 'PHQ-9' and len(value) != 9:
+            raise serializers.ValidationError("PHQ-9 requires exactly 9 responses.")
+        elif assessment_type == 'GAD-7' and len(value) != 7:
+            raise serializers.ValidationError("GAD-7 requires exactly 7 responses.")
+        
+        # Check each score is 0-3
+        for score in value:
+            if not isinstance(score, int) or score < 0 or score > 3:
+                raise serializers.ValidationError("Each response must be a score between 0 and 3.")
+        
+        return value
+    
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_recommendations(self, obj) -> list:
+        return obj.get_recommendations()
+
+
+class AssessmentResultSerializer(serializers.Serializer):
+    """Serializer for assessment results"""
+    assessment_type = serializers.CharField()
+    total_score = serializers.IntegerField()
+    severity_level = serializers.CharField()
+    severity_description = serializers.CharField()
+    recommendations = serializers.ListField(child=serializers.CharField())
+    completed_at = serializers.DateTimeField()
+    score_breakdown = serializers.DictField()
+
+
+class AssessmentQuestionsResponseSerializer(serializers.Serializer):
+    """Serializer for questions endpoint response"""
+    assessment_type = serializers.CharField()
+    title = serializers.CharField()
+    description = serializers.CharField()
+    instructions = serializers.CharField()
+    time_frame = serializers.CharField()
+    questions = AssessmentQuestionSerializer(many=True)
+    score_options = serializers.ListField()
+    difficulty_question = serializers.CharField()
+    difficulty_options = serializers.ListField()

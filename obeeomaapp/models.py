@@ -1319,3 +1319,161 @@ class DynamicQuestion(models.Model):
     category = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+# ===== ASSESSMENT QUESTIONNAIRE MODELS =====
+
+class AssessmentQuestion(models.Model):
+    """Questions for PHQ-9 and GAD-7 assessments"""
+    ASSESSMENT_TYPE_CHOICES = [
+        ('PHQ-9', 'Patient Health Questionnaire (PHQ-9)'),
+        ('GAD-7', 'Generalized Anxiety Disorder (GAD-7)'),
+    ]
+    
+    assessment_type = models.CharField(max_length=10, choices=ASSESSMENT_TYPE_CHOICES)
+    question_number = models.PositiveIntegerField()
+    question_text = models.TextField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['assessment_type', 'question_number']
+        unique_together = ['assessment_type', 'question_number']
+        verbose_name = "Assessment Question"
+        verbose_name_plural = "Assessment Questions"
+    
+    def __str__(self):
+        return f"{self.assessment_type} Q{self.question_number}: {self.question_text[:50]}"
+
+
+class AssessmentResponse(models.Model):
+    """User responses to assessment questions"""
+    SCORE_CHOICES = [
+        (0, 'Not at all'),
+        (1, 'Several days'),
+        (2, 'More than half the days'),
+        (3, 'Nearly every day'),
+    ]
+    
+    DIFFICULTY_CHOICES = [
+        ('not_difficult', 'Not difficult at all'),
+        ('somewhat_difficult', 'Somewhat difficult'),
+        ('very_difficult', 'Very Difficult'),
+        ('extremely_difficult', 'Extremely Difficult'),
+    ]
+    
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='assessment_responses')
+    assessment_type = models.CharField(max_length=10, choices=[('PHQ-9', 'PHQ-9'), ('GAD-7', 'GAD-7')])
+    responses = models.JSONField(help_text="Array of scores for each question")
+    total_score = models.PositiveIntegerField()
+    severity_level = models.CharField(max_length=50)
+    difficulty_level = models.CharField(max_length=30, choices=DIFFICULTY_CHOICES, null=True, blank=True)
+    completed_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-completed_at']
+        verbose_name = "Assessment Response"
+        verbose_name_plural = "Assessment Responses"
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.assessment_type} ({self.total_score})"
+    
+    def calculate_severity(self):
+        """Calculate severity based on total score"""
+        if self.assessment_type == 'PHQ-9':
+            if self.total_score <= 4:
+                return "Minimal depression"
+            elif self.total_score <= 9:
+                return "Mild depression"
+            elif self.total_score <= 14:
+                return "Moderate depression"
+            elif self.total_score <= 19:
+                return "Moderately severe depression"
+            else:
+                return "Severe depression"
+        
+        elif self.assessment_type == 'GAD-7':
+            if self.total_score <= 4:
+                return "Minimal anxiety"
+            elif self.total_score <= 9:
+                return "Mild anxiety"
+            elif self.total_score <= 14:
+                return "Moderate anxiety"
+            else:
+                return "Severe anxiety"
+        
+        return "Unknown"
+    
+    def get_recommendations(self):
+        """Get recommendations based on severity"""
+        recommendations = []
+        
+        if self.assessment_type == 'PHQ-9':
+            if self.total_score <= 4:
+                recommendations = [
+                    "Your responses suggest minimal depression symptoms.",
+                    "Continue with healthy lifestyle habits.",
+                    "Practice self-care and stress management."
+                ]
+            elif self.total_score <= 9:
+                recommendations = [
+                    "Your responses suggest mild depression symptoms.",
+                    "Consider talking to a mental health professional.",
+                    "Try meditation and mindfulness exercises.",
+                    "Maintain regular sleep and exercise routines."
+                ]
+            elif self.total_score <= 14:
+                recommendations = [
+                    "Your responses suggest moderate depression symptoms.",
+                    "We recommend consulting with a mental health professional.",
+                    "Consider therapy or counseling.",
+                    "Reach out to support groups or trusted friends."
+                ]
+            else:
+                recommendations = [
+                    "Your responses suggest significant depression symptoms.",
+                    "Please consult with a mental health professional as soon as possible.",
+                    "Consider contacting a crisis helpline if you're in immediate distress.",
+                    "You don't have to face this alone - help is available."
+                ]
+        
+        elif self.assessment_type == 'GAD-7':
+            if self.total_score <= 4:
+                recommendations = [
+                    "Your responses suggest minimal anxiety symptoms.",
+                    "Continue with healthy coping strategies.",
+                    "Practice relaxation techniques regularly."
+                ]
+            elif self.total_score <= 9:
+                recommendations = [
+                    "Your responses suggest mild anxiety symptoms.",
+                    "Consider learning anxiety management techniques.",
+                    "Try breathing exercises and meditation.",
+                    "Talk to someone you trust about your concerns."
+                ]
+            elif self.total_score <= 14:
+                recommendations = [
+                    "Your responses suggest moderate anxiety symptoms.",
+                    "We recommend consulting with a mental health professional.",
+                    "Consider therapy such as CBT (Cognitive Behavioral Therapy).",
+                    "Practice stress reduction techniques daily."
+                ]
+            else:
+                recommendations = [
+                    "Your responses suggest significant anxiety symptoms.",
+                    "Please consult with a mental health professional.",
+                    "Consider professional treatment options.",
+                    "Reach out for support - you don't have to manage this alone."
+                ]
+        
+        return recommendations
+    
+    def save(self, *args, **kwargs):
+        # Calculate total score
+        if isinstance(self.responses, list):
+            self.total_score = sum(self.responses)
+        
+        # Calculate severity
+        self.severity_level = self.calculate_severity()
+        
+        super().save(*args, **kwargs)

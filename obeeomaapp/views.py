@@ -520,7 +520,7 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         invitation = EmployeeInvitation.objects.get(
             token=token,
             accepted=False,
-            expires_at__gt=timezone.now()
+            expires_at__gt=timezone.now() + timedelta(days=7)
         )
         
         # Create user account
@@ -2786,3 +2786,201 @@ class DynamicQuestionViewSet(viewsets.ModelViewSet):
         questions = list(self.queryset.order_by('?')[:count])
         serializer = self.get_serializer(questions, many=True)
         return Response(serializer.data)
+
+
+# ===== ASSESSMENT QUESTIONNAIRE VIEWS =====
+
+@extend_schema_view(
+    list=extend_schema(tags=['Assessments - Questions']),
+    retrieve=extend_schema(tags=['Assessments - Questions']),
+)
+class AssessmentQuestionViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for assessment questions"""
+    queryset = AssessmentQuestion.objects.filter(is_active=True)
+    serializer_class = AssessmentQuestionSerializer
+    permission_classes = [permissions.AllowAny]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['assessment_type']
+    
+    @extend_schema(
+        description="Get all questions for a specific assessment type (PHQ-9 or GAD-7)",
+        parameters=[
+            OpenApiParameter(name='type', type=str, enum=['PHQ-9', 'GAD-7'], required=True, description='Assessment type')
+        ],
+        responses=AssessmentQuestionsResponseSerializer,
+        tags=['Assessments - Questions']
+    )
+    @action(detail=False, methods=['get'])
+    def by_type(self, request):
+        """Get all questions for a specific assessment with full details"""
+        assessment_type = request.query_params.get('type', 'PHQ-9')
+        
+        if assessment_type not in ['PHQ-9', 'GAD-7']:
+            return Response(
+                {'error': 'Invalid assessment type. Must be PHQ-9 or GAD-7'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        questions = AssessmentQuestion.objects.filter(
+            assessment_type=assessment_type,
+            is_active=True
+        ).order_by('question_number')
+        
+        # Prepare response data
+        if assessment_type == 'PHQ-9':
+            data = {
+                'assessment_type': 'PHQ-9',
+                'title': 'Patient Health Questionnaire (PHQ-9)',
+                'description': 'A 9-question screening tool for depression',
+                'instructions': 'Over the last 2 weeks, how often have you been bothered by any of the following problems? Please circle your answers.',
+                'time_frame': 'Last 2 weeks',
+                'questions': AssessmentQuestionSerializer(questions, many=True).data,
+                'score_options': [
+                    {'value': 0, 'label': 'Not at all'},
+                    {'value': 1, 'label': 'Several days'},
+                    {'value': 2, 'label': 'More than half the days'},
+                    {'value': 3, 'label': 'Nearly every day'}
+                ],
+                'difficulty_question': 'If you checked off any problems, how difficult have these made it for you to do your work, take care of things at home, or get along with other people?',
+                'difficulty_options': [
+                    {'value': 'not_difficult', 'label': 'Not difficult at all'},
+                    {'value': 'somewhat_difficult', 'label': 'Somewhat difficult'},
+                    {'value': 'very_difficult', 'label': 'Very Difficult'},
+                    {'value': 'extremely_difficult', 'label': 'Extremely Difficult'}
+                ]
+            }
+        else:  # GAD-7
+            data = {
+                'assessment_type': 'GAD-7',
+                'title': 'Generalized Anxiety Disorder (GAD-7)',
+                'description': 'A 7-question screening tool for anxiety',
+                'instructions': 'Over the last 2 weeks, how often have you been bothered by any of the following problems? Please circle your answers.',
+                'time_frame': 'Last 2 weeks',
+                'questions': AssessmentQuestionSerializer(questions, many=True).data,
+                'score_options': [
+                    {'value': 0, 'label': 'Not at all sure'},
+                    {'value': 1, 'label': 'Several days'},
+                    {'value': 2, 'label': 'Over half the days'},
+                    {'value': 3, 'label': 'Nearly every day'}
+                ],
+                'difficulty_question': 'If you checked off any problems, how difficult have these made it for you to do your work, take care of things at home, or get along with other people?',
+                'difficulty_options': [
+                    {'value': 'not_difficult', 'label': 'Not difficult at all'},
+                    {'value': 'somewhat_difficult', 'label': 'Somewhat difficult'},
+                    {'value': 'very_difficult', 'label': 'Very Difficult'},
+                    {'value': 'extremely_difficult', 'label': 'Extremely Difficult'}
+                ]
+            }
+        
+        serializer = AssessmentQuestionsResponseSerializer(data)
+        return Response(serializer.data)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['Assessments - Responses']),
+    create=extend_schema(tags=['Assessments - Responses']),
+    retrieve=extend_schema(tags=['Assessments - Responses']),
+)
+class AssessmentResponseViewSet(viewsets.ModelViewSet):
+    """ViewSet for assessment responses"""
+    serializer_class = AssessmentResponseSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post']
+    
+    def get_queryset(self):
+        return AssessmentResponse.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+    
+    @extend_schema(
+        description="Get user's assessment history",
+        parameters=[
+            OpenApiParameter(name='type', type=str, enum=['PHQ-9', 'GAD-7'], description='Filter by assessment type')
+        ],
+        responses=AssessmentResponseSerializer(many=True),
+        tags=['Assessments - Responses']
+    )
+    @action(detail=False, methods=['get'])
+    def history(self, request):
+        """Get user's assessment history"""
+        queryset = self.get_queryset()
+        
+        assessment_type = request.query_params.get('type')
+        if assessment_type:
+            queryset = queryset.filter(assessment_type=assessment_type)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @extend_schema(
+        description="Get latest assessment result",
+        parameters=[
+            OpenApiParameter(name='type', type=str, enum=['PHQ-9', 'GAD-7'], required=True, description='Assessment type')
+        ],
+        responses=AssessmentResponseSerializer,
+        tags=['Assessments - Responses']
+    )
+    @action(detail=False, methods=['get'])
+    def latest(self, request):
+        """Get user's latest assessment result"""
+        assessment_type = request.query_params.get('type')
+        
+        if not assessment_type:
+            return Response(
+                {'error': 'Assessment type is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            latest = self.get_queryset().filter(
+                assessment_type=assessment_type
+            ).latest('completed_at')
+            
+            serializer = self.get_serializer(latest)
+            return Response(serializer.data)
+        
+        except AssessmentResponse.DoesNotExist:
+            return Response(
+                {'message': f'No {assessment_type} assessment found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+    
+    @extend_schema(
+        description="Get assessment statistics",
+        responses={200: {"description": "Assessment statistics"}},
+        tags=['Assessments - Responses']
+    )
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get user's assessment statistics"""
+        from django.db.models import Avg, Count
+        
+        queryset = self.get_queryset()
+        
+        stats = {
+            'total_assessments': queryset.count(),
+            'phq9_count': queryset.filter(assessment_type='PHQ-9').count(),
+            'gad7_count': queryset.filter(assessment_type='GAD-7').count(),
+            'phq9_avg_score': queryset.filter(assessment_type='PHQ-9').aggregate(
+                avg=Avg('total_score')
+            )['avg'] or 0,
+            'gad7_avg_score': queryset.filter(assessment_type='GAD-7').aggregate(
+                avg=Avg('total_score')
+            )['avg'] or 0,
+        }
+        
+        # Get latest results
+        try:
+            latest_phq9 = queryset.filter(assessment_type='PHQ-9').latest('completed_at')
+            stats['latest_phq9'] = AssessmentResponseSerializer(latest_phq9).data
+        except AssessmentResponse.DoesNotExist:
+            stats['latest_phq9'] = None
+        
+        try:
+            latest_gad7 = queryset.filter(assessment_type='GAD-7').latest('completed_at')
+            stats['latest_gad7'] = AssessmentResponseSerializer(latest_gad7).data
+        except AssessmentResponse.DoesNotExist:
+            stats['latest_gad7'] = None
+        
+        return Response(stats)
