@@ -121,7 +121,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
         organization = Organization.objects.create(**validated_data)
 
         # Send email via Gmail API (OAuth)
-        login_link = "https://obeeoma.onrender.com/login"
+        login_link = "https://obeeoma.onrender.com/#/login"
         org_email = organization.companyEmail
         org_name = organization.organizationName
 
