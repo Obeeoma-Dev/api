@@ -2668,58 +2668,50 @@ class VideoViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
 
-from rest_framework import viewsets, permissions, filters
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.exceptions import NotFound
-from django_filters.rest_framework import DjangoFilterBackend
-from .models import Audio, UserActivity, SavedResource
-from .serializers import AudioSerializer
-from rest_framework.permissions import AllowAny, IsAuthenticated
 
 class AudioViewSet(viewsets.ModelViewSet):  # Full CRUD support
-class AudioViewSet(viewsets.ReadOnlyModelViewSet):
+    class AudioViewSet(viewsets.ReadOnlyModelViewSet):
    
-    queryset = Audio.objects.filter(is_active=True)
-    serializer_class = AudioSerializer
-    permission_classes = [AllowAny]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['category']
-    search_fields = ['title', 'description']
-    ordering_fields = ['created_at', 'plays', 'title']
-    lookup_field = 'pk'
+        queryset = Audio.objects.filter(is_active=True)
+        serializer_class = AudioSerializer
+        permission_classes = [AllowAny]
+        filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+        filterset_fields = ['category']
+        search_fields = ['title', 'description']
+        ordering_fields = ['created_at', 'plays', 'title']
+        lookup_field = 'pk'
 
-    @action(detail=True, methods=['post'])
-    def play(self, request, pk=None):
-        """Record that user played this audio"""
-        try:
-            audio = self.get_object()
-        except Exception:
-            raise NotFound("No audio matches the given query.")
+        @action(detail=True, methods=['post'])
+        def play(self, request, pk=None):
+            """Record that user played this audio"""
+            try:
+                audio = self.get_object()
+            except Exception:
+                raise NotFound("No audio matches the given query.")
 
-        audio.plays += 1
-        audio.save()
+            audio.plays += 1
+            audio.save()
 
-        if request.user.is_authenticated:
-            UserActivity.objects.create(user=request.user, audio=audio)
+            if request.user.is_authenticated:
+                UserActivity.objects.create(user=request.user, audio=audio)
 
-        return Response({'message': 'Play recorded', 'total_plays': audio.plays})
+            return Response({'message': 'Play recorded', 'total_plays': audio.plays})
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def save(self, request, pk=None):
-        """Save audio to user's library"""
-        try:
-            audio = self.get_object()
-        except Exception:
-            raise NotFound("No audio matches the given query.")
+        @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+        def save(self, request, pk=None):
+            """Save audio to user's library"""
+            try:
+                audio = self.get_object()
+            except Exception:
+                raise NotFound("No audio matches the given query.")
 
-        saved, created = SavedResource.objects.get_or_create(user=request.user, audio=audio)
+            saved, created = SavedResource.objects.get_or_create(user=request.user, audio=audio)
 
-        if created:
-            return Response({'message': 'Audio saved to your library'})
-        else:
-            saved.delete()
-            return Response({'message': 'Audio removed from library'})
+            if created:
+                return Response({'message': 'Audio saved to your library'})
+            else:
+                saved.delete()
+                return Response({'message': 'Audio removed from library'})
 
 
 
