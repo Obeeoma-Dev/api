@@ -70,9 +70,14 @@ class SignupSerializer(serializers.ModelSerializer):
     
 # SERIALIZER FOR CREATING AN ORGANIZATION
 class ContactPersonSerializer(serializers.ModelSerializer):
+    firstName = serializers.CharField(source='first_name')
+    lastName = serializers.CharField(source='last_name')
+    role = serializers.CharField()
+    email = serializers.EmailField()
+
     class Meta:
         model = ContactPerson
-        fields = ['fullname', 'role', 'email']
+        fields = ['firstName', 'lastName', 'role', 'email']
  # Gmail OAuth helper
 class OrganizationCreateSerializer(serializers.ModelSerializer):
     contactPerson = ContactPersonSerializer()
@@ -121,7 +126,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
         organization = Organization.objects.create(**validated_data)
 
         # Send email via Gmail API (OAuth)
-        login_link = "https://obeeoma.onrender.com/#/login"
+        login_link = "https://obeeoma.onrender.com/login"
         org_email = organization.companyEmail
         org_name = organization.organizationName
 
