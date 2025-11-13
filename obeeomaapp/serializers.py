@@ -11,13 +11,11 @@ from django.contrib.auth.hashers import make_password
 from .models import Organization, ContactPerson
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-
+from django.core.mail import send_mail
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
 from .models import OnboardingState
 User = get_user_model()
-
-# signup serializer
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
@@ -25,6 +23,7 @@ from django.contrib.auth.hashers import check_password
 
 User = get_user_model()
 
+# SIGNUP SERIALIZER
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
@@ -69,7 +68,7 @@ class SignupSerializer(serializers.ModelSerializer):
         return user
 
     
-    # SERIALIZER FOR CREATING AN ORGANIZATION
+# SERIALIZER FOR CREATING AN ORGANIZATION
 class ContactPersonSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContactPerson
@@ -103,6 +102,8 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         contact_data = validated_data.pop('contactPerson')
         validated_data.pop('confirmPassword')
+
+        # Create user
         user = User.objects.create(
             username=validated_data['companyEmail'],
             email=validated_data['companyEmail'],
@@ -111,14 +112,35 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
         user.set_password(validated_data['password'])
         user.save()
 
+        # This Creates the contact person
         contact_person = ContactPerson.objects.create(**contact_data)
+
+        # This Creates an organization
         validated_data['password'] = make_password(validated_data['password'])
         validated_data['owner'] = user
         validated_data['contactPerson'] = contact_person
-
         organization = Organization.objects.create(**validated_data)
-        return organization 
-      
+
+        # This logic Sends an email to the organization's email after creation
+        login_link = "https://yourdomain.com/login/"  
+        org_email = organization.companyEmail
+        org_name = organization.organizationName
+
+        send_mail(
+            subject="Organization Registered Successfully",
+            message=(
+                f"Hello {org_name},\n\n"
+                f"Your organization has been successfully registered on our platform.\n\n"
+                f"You can now log in using the link below:\n{login_link}\n\n"
+                f"Thank you for registering with us!"
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[org_email],
+            fail_silently=False,
+        )
+
+        return organization
+
 
 # Login Serializer
 
