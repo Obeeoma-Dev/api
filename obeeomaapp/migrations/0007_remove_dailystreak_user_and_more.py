@@ -12,6 +12,16 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Clear unique_together constraints FIRST, before removing fields
+        migrations.AlterUniqueTogether(
+            name='moodentry',
+            unique_together=None,
+        ),
+        migrations.AlterUniqueTogether(
+            name='userfavorite',
+            unique_together=None,
+        ),
+        # Now remove the fields
         migrations.RemoveField(
             model_name='dailystreak',
             name='user',
@@ -37,6 +47,10 @@ class Migration(migrations.Migration):
             name='user',
         ),
         migrations.AlterUniqueTogether(
+            name='userfavorite',
+            unique_together=None,
+        ),
+        migrations.AlterUniqueTogether(
             name='moodentry',
             unique_together=None,
         ),
@@ -51,10 +65,6 @@ class Migration(migrations.Migration):
         migrations.RemoveField(
             model_name='moodpattern',
             name='user',
-        ),
-        migrations.AlterUniqueTogether(
-            name='userfavorite',
-            unique_together=None,
         ),
         migrations.RemoveField(
             model_name='userfavorite',

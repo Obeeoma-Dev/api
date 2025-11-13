@@ -1046,9 +1046,12 @@ class VideoSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'youtube_url', 'thumbnail',
             'is_professionally_reviewed', 'reviewed_by', 'review_date',
-            'category', 'category_name', 'duration', 'views', 'is_saved',
+             'category_name', 'duration', 'views', 'is_saved',
             'target_mood', 'updated_at', 'created_at'
         ]
+        extra_kwargs = {
+            'category': {'required': False, 'allow_null': True}
+        }
         read_only_fields = ['views']
 
     @extend_schema_field(serializers.BooleanField())
@@ -1067,10 +1070,13 @@ class AudioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Audio
         fields = [
-            'id', 'title', 'description', 'audio_file', 'audio_url',
-            'audio_url_full', 'category', 'category_name', 'duration',
+            'id', 'title', 'description',  'audio_url',
+            'audio_url_full',  'category_name', 'duration',
             'plays', 'is_saved', 'created_at'
         ]
+        extra_kwargs = {
+            'category': {'required': False, 'allow_null': True}
+        }
         read_only_fields = ['plays']
 
     @extend_schema_field(serializers.BooleanField())
