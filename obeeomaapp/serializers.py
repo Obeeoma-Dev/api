@@ -11,13 +11,11 @@ from django.contrib.auth.hashers import make_password
 from .models import Organization, ContactPerson
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-
+from obeeomaapp.utils.gmail_http_api import send_gmail_api_email
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
 from .models import OnboardingState
 User = get_user_model()
-
-# signup serializer
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
@@ -25,6 +23,7 @@ from django.contrib.auth.hashers import check_password
 
 User = get_user_model()
 
+# SIGNUP SERIALIZER
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
@@ -69,13 +68,17 @@ class SignupSerializer(serializers.ModelSerializer):
         return user
 
     
-    # SERIALIZER FOR CREATING AN ORGANIZATION
+# SERIALIZER FOR CREATING AN ORGANIZATION
 class ContactPersonSerializer(serializers.ModelSerializer):
+    firstName = serializers.CharField(source='first_name')
+    lastName = serializers.CharField(source='last_name')
+    role = serializers.CharField()
+    email = serializers.EmailField()
+
     class Meta:
         model = ContactPerson
-        fields = ['fullname', 'role', 'email']
-
-
+        fields = ['firstName', 'lastName', 'role', 'email']
+ # Gmail OAuth helper
 class OrganizationCreateSerializer(serializers.ModelSerializer):
     contactPerson = ContactPersonSerializer()
     confirmPassword = serializers.CharField(write_only=True)
@@ -103,6 +106,8 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         contact_data = validated_data.pop('contactPerson')
         validated_data.pop('confirmPassword')
+
+        # Create user
         user = User.objects.create(
             username=validated_data['companyEmail'],
             email=validated_data['companyEmail'],
@@ -111,14 +116,36 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
         user.set_password(validated_data['password'])
         user.save()
 
+        # Create contact person
         contact_person = ContactPerson.objects.create(**contact_data)
+
+        # Create organization
         validated_data['password'] = make_password(validated_data['password'])
         validated_data['owner'] = user
         validated_data['contactPerson'] = contact_person
-
         organization = Organization.objects.create(**validated_data)
-        return organization 
-      
+
+        # Send email via Gmail API (OAuth)
+        login_link = "https://obeeoma.onrender.com/login"
+        org_email = organization.companyEmail
+        org_name = organization.organizationName
+
+        subject = "Organization Registered Successfully"
+        message = (
+            f"Hello {org_name},\n\n"
+            f"Your organization has been successfully registered on our platform.\n\n"
+            f"You can now log in using the link below:\n{login_link}\n\n"
+            f"Thank you for registering with us!"
+        )
+
+        try:
+            send_gmail_api_email(to_email=org_email, subject=subject, body=message)
+        except Exception as e:
+            # Log the error, but don't stop registration
+            print("Failed to send email:", e)
+
+        return organization
+
 
 # Login Serializer
 
@@ -1046,9 +1073,12 @@ class VideoSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'youtube_url', 'thumbnail',
             'is_professionally_reviewed', 'reviewed_by', 'review_date',
-            'category', 'category_name', 'duration', 'views', 'is_saved',
+             'category_name', 'duration', 'views', 'is_saved',
             'target_mood', 'updated_at', 'created_at'
         ]
+        extra_kwargs = {
+            'category': {'required': False, 'allow_null': True}
+        }
         read_only_fields = ['views']
 
     @extend_schema_field(serializers.BooleanField())
@@ -1067,10 +1097,13 @@ class AudioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Audio
         fields = [
-            'id', 'title', 'description', 'audio_file', 'audio_url',
-            'audio_url_full', 'category', 'category_name', 'duration',
+            'id', 'title', 'description',  'audio_url',
+            'audio_url_full',  'category_name', 'duration',
             'plays', 'is_saved', 'created_at'
         ]
+        extra_kwargs = {
+            'category': {'required': False, 'allow_null': True}
+        }
         read_only_fields = ['plays']
 
     @extend_schema_field(serializers.BooleanField())

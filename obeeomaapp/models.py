@@ -910,7 +910,7 @@ class SystemActivity(models.Model):
     class Meta:
         ordering = ['-created_at']
 
-#-- Hotline Call Model. --
+#Hotline Call Model. --
 class HotlineCall(models.Model):
     URGENCY_LEVELS = [
         ('low', 'Low'),
@@ -1090,8 +1090,8 @@ class Video(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField(help_text="What will users learn?")
     youtube_url = models.URLField(help_text="YouTube video URL")
+    category = models.ForeignKey(EducationalResource,on_delete=models.SET_NULL,null=True,blank=True,related_name='videos')
     thumbnail = models.URLField(blank=True, null=True)
-    category = models.ForeignKey(EducationalResource, on_delete=models.CASCADE, related_name='videos')
     duration = models.CharField(max_length=20, blank=True, help_text="e.g., 10:30")
     MOOD_CHOICES = [
         ('anxiety', 'Anxiety Relief'),
@@ -1104,11 +1104,12 @@ class Video(models.Model):
         ('anger', 'Anger Management'),
         ('grief', 'Grief & Loss'),
         ('general', 'General Wellness'),
+        ('sad', 'Sadness Support'),
     ]
     views = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)  # Remove default
+    updated_at = models.DateTimeField(auto_now=True)  
     target_mood = models.CharField(max_length=50, choices=MOOD_CHOICES, default='general')
     is_professionally_reviewed = models.BooleanField(default=False)
     reviewed_by = models.CharField(max_length=100, blank=True)
@@ -1132,7 +1133,8 @@ class Audio(models.Model):
     description = models.TextField(help_text="What does this audio help with?")
     audio_file = models.FileField(upload_to='audios/', blank=True, null=True)
     audio_url = models.URLField(blank=True, null=True, help_text="External audio URL")
-    category = models.ForeignKey(EducationalResource, on_delete=models.CASCADE, related_name='audios')
+    category = models.ForeignKey(EducationalResource, on_delete=models.SET_NULL, null=True, blank=True, related_name='audios')
+
     duration = models.CharField(max_length=20, blank=True)
     plays = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)

@@ -1,3 +1,5 @@
+# Make sure .dockerignore has these lines
+cat > .dockerignore << 'EOF'
 # Python
 __pycache__/
 *.py[cod]
@@ -31,6 +33,7 @@ htmlcov/
 # Documentation
 *.md
 !README.md
+docs/
 
 # CI/CD
 .github/
@@ -38,3 +41,5 @@ htmlcov/
 # Other
 .env.example
 *.bak
+EMAIL_CONFIG_GUIDE.md
+EOF
