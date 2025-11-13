@@ -11,7 +11,7 @@ from django.contrib.auth.hashers import make_password
 from .models import Organization, ContactPerson
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.core.mail import send_mail
+from obeeomaapp.utils.gmail_http_api import send_gmail_api_email
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
 from .models import OnboardingState
@@ -73,8 +73,7 @@ class ContactPersonSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContactPerson
         fields = ['fullname', 'role', 'email']
-
-
+ # Gmail OAuth helper
 class OrganizationCreateSerializer(serializers.ModelSerializer):
     contactPerson = ContactPersonSerializer()
     confirmPassword = serializers.CharField(write_only=True)
@@ -112,32 +111,33 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
         user.set_password(validated_data['password'])
         user.save()
 
-        # This Creates the contact person
+        # Create contact person
         contact_person = ContactPerson.objects.create(**contact_data)
 
-        # This Creates an organization
+        # Create organization
         validated_data['password'] = make_password(validated_data['password'])
         validated_data['owner'] = user
         validated_data['contactPerson'] = contact_person
         organization = Organization.objects.create(**validated_data)
 
-        # This logic Sends an email to the organization's email after creation
-        login_link = "https://yourdomain.com/login/"  
+        # Send email via Gmail API (OAuth)
+        login_link = "https://obeeoma.onrender.com/login"
         org_email = organization.companyEmail
         org_name = organization.organizationName
 
-        send_mail(
-            subject="Organization Registered Successfully",
-            message=(
-                f"Hello {org_name},\n\n"
-                f"Your organization has been successfully registered on our platform.\n\n"
-                f"You can now log in using the link below:\n{login_link}\n\n"
-                f"Thank you for registering with us!"
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[org_email],
-            fail_silently=False,
+        subject = "Organization Registered Successfully"
+        message = (
+            f"Hello {org_name},\n\n"
+            f"Your organization has been successfully registered on our platform.\n\n"
+            f"You can now log in using the link below:\n{login_link}\n\n"
+            f"Thank you for registering with us!"
         )
+
+        try:
+            send_gmail_api_email(to_email=org_email, subject=subject, body=message)
+        except Exception as e:
+            # Log the error, but don't stop registration
+            print("Failed to send email:", e)
 
         return organization
 
