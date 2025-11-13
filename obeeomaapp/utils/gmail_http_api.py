@@ -1,5 +1,3 @@
-# gmail_sender.py
-
 import os
 import base64
 import logging
@@ -13,37 +11,56 @@ logger = logging.getLogger(__name__)
 SCOPES = ['https://mail.google.com/', 'https://www.googleapis.com/auth/gmail.send']
 
 def get_gmail_service():
+    """
+    Initialize and return Gmail API service
+    """
     try:
-        creds = Credentials.from_authorized_user_info({
-            'client_id': os.getenv('GOOGLE_CLIENT_ID'),
-            'client_secret': os.getenv('GOOGLE_CLIENT_SECRET'),
-            'refresh_token': os.getenv('REFRESH_TOKEN')
-        }, SCOPES)
-        return build('gmail', 'v1', credentials=creds, cache_discovery=False)
+        # Get credentials from environment or token file
+        token_file = os.environ.get('GMAIL_TOKEN_FILE', 'token.json')
+        
+        if not os.path.exists(token_file):
+            logger.error(f"Token file {token_file} not found")
+            return None
+            
+        creds = Credentials.from_authorized_user_file(token_file, SCOPES)
+        service = build('gmail', 'v1', credentials=creds)
+        return service
     except Exception as e:
-        logger.error(f"Failed to create Gmail service: {str(e)}")
+        logger.error(f"Error initializing Gmail service: {str(e)}")
         return None
 
-def send_gmail_api_email(to_email, subject, body):
+def send_email(service, to_email, subject, message_text):
+    """
+    Send an email using Gmail API
+    """
     try:
-        service = get_gmail_service()
-        if not service:
-            logger.error("Gmail service not available")
-            return False
-
-        message = MIMEText(body)
+        message = MIMEText(message_text)
         message['to'] = to_email
         message['subject'] = subject
-        message['from'] = os.getenv('EMAIL_HOST_USER', 'obeeoma256@gmail.com')
-
-        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
-
-        service.users().messages().send(userId='me', body={'raw': raw}).execute()
-        logger.info(f"Email sent successfully to {to_email}")
+        
+        # Encode the message
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+        body = {'raw': raw_message}
+        
+        # Send the message
+        message = service.users().messages().send(userId='me', body=body).execute()
+        logger.info(f"Email sent successfully. Message ID: {message['id']}")
         return True
+        
     except HttpError as error:
-        logger.error(f"Gmail API error: {error}")
+        logger.error(f"HTTP error sending email: {error}")
         return False
     except Exception as e:
         logger.error(f"Unexpected error sending email: {str(e)}")
+        return False
+
+def send_simple_email(to_email, subject, message_text):
+    """
+    Simplified function to send email
+    """
+    service = get_gmail_service()
+    if service:
+        return send_email(service, to_email, subject, message_text)
+    else:
+        logger.error("Failed to initialize Gmail service")
         return False
