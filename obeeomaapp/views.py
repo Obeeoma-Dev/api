@@ -44,7 +44,7 @@ from .serializers import FeedbackSerializer
 import django_filters
 from .models import Feedback 
 from .models import DynamicQuestion
-from .models import AssessmentQuestion, AssessmentResponse
+from .models import AssessmentQuestion
 from .serializers import AssessmentQuestionSerializer
 from .serializers import DynamicQuestionSerializer
 import random
@@ -1049,10 +1049,7 @@ class InvitationVerifyView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-# I have just added this because it didnt have viewset for AssessmentQuestion
-class AssessmentQuestionViewSet(viewsets.ModelViewSet):
-    queryset = AssessmentQuestion.objects.all()
-    serializer_class = AssessmentQuestionSerializer
+
 
 @extend_schema(
     tags=["Authentication"],
