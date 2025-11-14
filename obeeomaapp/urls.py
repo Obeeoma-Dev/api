@@ -196,6 +196,7 @@ urlpatterns = [
         name="schema-swagger-ui",
     ),
     path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
+
     # Sana_ai.
-    path("api/", include("sana_ai.urls")),
+    # path("api/", include("sana_ai.urls")),
 ]
