@@ -248,46 +248,7 @@ def _build_login_success_payload(serializer, request):
     }
 
 
-class LoginView(APIView):
-    permission_classes = [permissions.AllowAny]
-    serializer_class = LoginSerializer
-    queryset = None
 
-    def post(self, request):
-        serializer = self.serializer_class(data=request.data, context={"request": request})
-        serializer.is_valid(raise_exception=True)
-
-        user = serializer.validated_data['user']
-
-    # This is for MFA Check 
-        if user.mfa_enabled:
-            # this logic Generates temporary token for MFA verification
-            temp_token = get_random_string(32)
-            cache.set(temp_token, user.id, timeout=300)  # valid 5 minutes
-            return Response({
-                "mfa_required": True,
-                "temp_token": temp_token
-            })
-
-        # Log the user in (this creates session cookie if needed)
-        django_login(request, user)
-
-        return Response(_build_login_success_payload(user))
-        user_data = {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "date_joined": user.date_joined,
-            "is_active": user.is_active,
-            "avatar": user.avatar.url if hasattr(user, 'avatar') and user.avatar else None,
-        }
-
-        return Response({
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-            "user": user_data
-        })
     
 # matching view for custom token obtain pair serializer
 @extend_schema(
