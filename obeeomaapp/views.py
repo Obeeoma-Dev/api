@@ -1049,7 +1049,10 @@ class InvitationVerifyView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-
+# I have just added this because it didnt have viewset for AssessmentQuestion
+class AssessmentQuestionViewSet(viewsets.ModelViewSet):
+    queryset = AssessmentQuestion.objects.all()
+    serializer_class = AssessmentQuestionSerializer
 
 @extend_schema(
     tags=["Authentication"],
