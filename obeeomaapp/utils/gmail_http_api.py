@@ -15,7 +15,6 @@ def get_gmail_service():
     Initialize and return Gmail API service
     """
     try:
-        # Get credentials from environment or token file
         token_file = os.environ.get('GMAIL_TOKEN_FILE', 'token.json')
         
         if not os.path.exists(token_file):
@@ -38,11 +37,9 @@ def send_email(service, to_email, subject, message_text):
         message['to'] = to_email
         message['subject'] = subject
         
-        # Encode the message
         raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
         body = {'raw': raw_message}
         
-        # Send the message
         message = service.users().messages().send(userId='me', body=body).execute()
         logger.info(f"Email sent successfully. Message ID: {message['id']}")
         return True
@@ -54,13 +51,13 @@ def send_email(service, to_email, subject, message_text):
         logger.error(f"Unexpected error sending email: {str(e)}")
         return False
 
-def send_simple_email(to_email, subject, message_text):
+def send_gmail_api_email(to_email, subject, body):
     """
-    Simplified function to send email
+    Wrapper function to match your existing code
     """
     service = get_gmail_service()
     if service:
-        return send_email(service, to_email, subject, message_text)
+        return send_email(service, to_email, subject, body)
     else:
         logger.error("Failed to initialize Gmail service")
         return False

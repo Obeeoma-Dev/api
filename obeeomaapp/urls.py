@@ -32,7 +32,7 @@ from obeeomaapp.views import (
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
     OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet,
-    AssessmentQuestionViewSet, AssessmentResponseViewSet
+    AssessmentQuestionViewSet
 )
 
 
@@ -106,7 +106,7 @@ router.register(r'dynamic-questions', DynamicQuestionViewSet, basename='dynamic-
 
 # Assessment Questionnaires (PHQ-9 & GAD-7)
 router.register(r'assessments/questions', AssessmentQuestionViewSet, basename='assessment-question')
-router.register(r'assessments/responses', AssessmentResponseViewSet, basename='assessment-response')
+#router.register(r'assessments/responses', AssessmentResponseViewSet, basename='assessment-response')
 
 # Employee Invitations
 router.register(r'invitations', InviteView, basename='invitations')
