@@ -10,7 +10,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 from .views import CustomTokenObtainPairView
 from obeeomaapp.views import (
-    MentalHealthAssessmentViewSet, OrganizationOverviewView, EmployeeManagementView,
+     OrganizationOverviewView, EmployeeManagementView,
     DepartmentManagementView, SubscriptionManagementView,
     WellnessReportsView, OrganizationSettingsView, TestsByTypeView,
     TestsByDepartmentView, SystemAdminOverviewView, 
@@ -23,8 +23,8 @@ from obeeomaapp.views import (
     OverviewView, TrendsView, EmployeeEngagementView, BillingView,
     UsersView, ReportsView, CrisisInsightsView,
     EmployeeProfileView, AvatarProfileView, 
-    MoodTrackingView, AssessmentResultView, SelfHelpResourceView,
-     CrisisTriggerView, NotificationView, 
+    MoodTrackingView, SelfHelpResourceView,
+    CrisisTriggerView, NotificationView, 
     EngagementTrackerView, FeedbackView, ChatSessionView, 
     ChatMessageView, RecommendationLogView, InvitationAcceptView, 
     InvitationVerifyView, home, OrganizationSignupView,

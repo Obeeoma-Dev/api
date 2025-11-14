@@ -43,6 +43,7 @@ from .serializers import FeedbackSerializer
 import django_filters
 from .models import Feedback 
 from .models import DynamicQuestion
+from .models import AssessmentQuestion, AssessmentResponse
 from .serializers import DynamicQuestionSerializer
 import random
 from rest_framework import viewsets, permissions, filters
