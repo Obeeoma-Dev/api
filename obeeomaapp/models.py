@@ -7,6 +7,7 @@ from django.utils.text import slugify
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
+
 User = settings.AUTH_USER_MODEL
 import pyotp
 from cryptography.fernet import Fernet
@@ -327,6 +328,10 @@ class HotlineActivity(models.Model):
     class Meta:
         ordering = ['-recorded_at']
         verbose_name_plural = "Hotline Activities"
+
+
+
+
 
 # Employee Engagement model.
 class EmployeeEngagement(models.Model):

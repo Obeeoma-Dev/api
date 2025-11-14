@@ -14,6 +14,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import NotFound
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from .models import OnboardingState
+from .models import CrisisHotline
+from .serializers import CrisisHotlineSerializer
 from .serializers import OnboardingStateSerializer
 from rest_framework.permissions import (
     IsAuthenticated,
@@ -579,6 +581,15 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
         )
         return user
 
+
+# VIEWS FOR HOTLINE
+class ActiveHotlineView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        hotline = CrisisHotline.objects.filter(is_active=True).first()
+        serializer = CrisisHotlineSerializer(hotline)
+        return Response(serializer.data)
 
 # --- Employee Invitation Views ---
 @extend_schema(tags=['Employee Invitations'])
@@ -1996,8 +2007,9 @@ class HotlineActivityView(viewsets.ViewSet):
         }
         
         return Response(data)
+    
 
-
+# ActiveHotlineView
 @extend_schema(tags=['System Admin'])
 class AIManagementView(viewsets.ViewSet):
     """AI Management dashboard for system admin"""

@@ -355,11 +355,15 @@ class AIManagementSerializer(serializers.ModelSerializer):
         model = AIManagement
         fields = ['id', 'employer', 'title', 'description', 'effectiveness', 'created_at']
 
-
+# SERIALIZERS FOR HOTLINE
 class HotlineActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = HotlineActivity
         fields = ['id', 'employer', 'call_count', 'spike_percentage', 'recorded_at']
+
+
+
+
 
 
 class EmployeeEngagementSerializer(serializers.ModelSerializer):
@@ -542,9 +546,15 @@ class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
             **validated_data
         )
 
+
+
+# CrisisHotlineSerializer
+class CrisisHotlineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CrisisHotline
+        fields = ['hotline_name', 'phone_number', 'country', 'region', 'is_active']
+        
 # --- Employee Profile ---
-
-
 class EmployeeProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmployeeProfile
