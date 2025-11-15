@@ -100,7 +100,7 @@ class IsCompanyAdmin(BasePermission):
         return bool(request.user and request.user.is_authenticated and request.user.is_staff)
 
 
-# Authentication Views ---Signup
+# SIGNUP VIEW
 @extend_schema(tags=['Authentication'])
 class SignupView(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -131,12 +131,13 @@ class VerifyOTPView(APIView):
         serializer.is_valid(raise_exception=True)
 
         user = serializer.context['user']
-        serializer.context['otp'].delete()  # Delete OTP after successful verification
+        serializer.context['otp'].delete()  # This Deletes OTP after successful verification
 
         return Response(
             {"message": "OTP verified successfully. You can now reset your password."},
             status=status.HTTP_200_OK
         )
+
 
 
 # LOGIN VIEW - Build success payload
@@ -161,6 +162,7 @@ def _build_login_success_payload(user):
         "avatar": user.avatar.url if hasattr(user, "avatar") and user.avatar else None,
     }
 
+    # Redirect URL based on role
     if user.role == "systemadmin":
         redirect_url = "/admin/dashboard/"
     elif user.role in ["organization", "employer"]:
@@ -196,7 +198,15 @@ class LoginView(APIView):
 
         user = serializer.validated_data['user']
 
-        # This is for MFA Check
+        # This is the ONBOARDING CHECK Logic 
+        if not getattr(user, 'is_onboarded', False):
+            return Response({
+                "onboarding_required": True,
+                "redirect_to": "/onboarding/",
+                "message": "Please complete onboarding before you can log in."
+            }, status=403)
+
+        # This is MFA Check
         if user.mfa_enabled:
             temp_token = get_random_string(32)
             cache.set(temp_token, user.id, timeout=300)  # valid 5 minutes
@@ -205,12 +215,12 @@ class LoginView(APIView):
                 "temp_token": temp_token
             })
 
+        # Login normally
         django_login(request, user)
         return Response(_build_login_success_payload(user))
 
 
-
-# matching view for custom token obtain pair serializer
+# Matching view for custom token obtain pair serializer
 @extend_schema(
     tags=['Authentication'],
     request=CustomTokenObtainPairSerializer,
@@ -220,8 +230,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
-
-    
+   
 
 # LOGOUT VIEW
 @extend_schema(
