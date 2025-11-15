@@ -230,6 +230,27 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
+# VIEW FOR COMPLETING ONBOARDING
+@extend_schema(
+    methods=['POST'],
+    request=None,
+    responses={200: {"message": "Onboarding completed successfully."}},
+    description="Endpoint to mark user onboarding as completed. Only POST is allowed."
+)
+class CompleteOnboardingView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['post']
+
+    def post(self, request):
+        user = request.user
+        user.is_onboarded = True
+        user.save()
+        return Response({
+            "message": "Onboarding completed successfully.",
+            "redirect_to": "/dashboard/"
+        })
+
+
    
 
 # LOGOUT VIEW

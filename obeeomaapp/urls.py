@@ -32,7 +32,7 @@ from obeeomaapp.views import (
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
     OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet,
-    AssessmentQuestionViewSet,ActiveHotlineView
+    AssessmentQuestionViewSet,ActiveHotlineView, CompleteOnboardingView,
 )
 
 
@@ -131,8 +131,10 @@ urlpatterns = [
     path('auth/mfa/verify/', views.mfa_verify, name='mfa-verify'),
 
     # Hotline Active Endpoint
-    
     path('auth/hotline/active/', ActiveHotlineView.as_view(), name="active-hotline"),
+    
+    # COMPLETE ONBOARDING ENDPOINT
+    path('auth/api/onboarding/complete/', CompleteOnboardingView.as_view(), name='complete-onboarding'),
 
     # Dashboard
     path("dashboard/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),
@@ -168,11 +170,10 @@ urlpatterns = [
     path('sana/sessions/', ChatSessionView.as_view({'get': 'list', 'post': 'create'}), name='chat-sessions'),
     path('sana/sessions/<int:session_id>/messages/', ChatMessageView.as_view({'get': 'list', 'post': 'create'}), name='chat-messages'),
     path('employee/recommendations/', RecommendationLogView.as_view({'get': 'list', 'post': 'create'}), name='recommendation-log'),
-    
 
-
+    # ONBOARDING ENDPOINT
     path('onboarding/', OnboardingView.as_view(), name='onboarding'),
-    path('onboarding/complete/', CompleteOnboardingView.as_view(), name='complete-onboarding'),
+   
 
 
 

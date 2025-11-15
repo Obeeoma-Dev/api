@@ -192,10 +192,6 @@ class LoginSerializer(serializers.Serializer):
 
         if not user.is_active:
             raise serializers.ValidationError('Account is not yet active.')
-        
-        # This logic is for ONBOARDING CHECK
-        if not getattr(user, 'is_onboarded', False):
-            raise serializers.ValidationError('You must complete onboarding before logging in.')
         attrs['user'] = user
         return attrs
     
