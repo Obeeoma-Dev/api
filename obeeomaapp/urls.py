@@ -31,7 +31,7 @@ from obeeomaapp.views import (
     InvitationAcceptanceView, InviteView, 
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
-    OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet,
+    CompleteOnboardingView, DynamicQuestionViewSet,
     AssessmentQuestionViewSet,ActiveHotlineView, CompleteOnboardingView,
 )
 
@@ -171,8 +171,8 @@ urlpatterns = [
     path('sana/sessions/<int:session_id>/messages/', ChatMessageView.as_view({'get': 'list', 'post': 'create'}), name='chat-messages'),
     path('employee/recommendations/', RecommendationLogView.as_view({'get': 'list', 'post': 'create'}), name='recommendation-log'),
 
-    # ONBOARDING ENDPOINT
-    path('onboarding/', OnboardingView.as_view(), name='onboarding'),
+    # # ONBOARDING ENDPOINT
+    # path('onboarding/', OnboardingView.as_view(), name='onboarding'),
    
 
 

@@ -1220,11 +1220,12 @@ class UserActivitySerializer(serializers.ModelSerializer):
             'completed', 'progress_percentage', 'notes', 'accessed_at'
         ]
 
-# Onboarding State Serializer
-class OnboardingStateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = OnboardingState
-        fields = ['goal', 'completed', 'first_action_done']
+# # Onboarding State Serializer
+# class OnboardingStateSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = OnboardingState
+#         fields = ['goal', 'completed', 'first_action_done']
+
 
 # Dynamic Question Serializer
 class DynamicQuestionSerializer(serializers.ModelSerializer):

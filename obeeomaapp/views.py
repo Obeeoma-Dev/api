@@ -2594,42 +2594,22 @@ class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 
-@extend_schema(
-    request=OnboardingStateSerializer,
-    responses=OnboardingStateSerializer,
-    methods=["GET", "PATCH"]
-)
-class OnboardingView(RetrieveUpdateAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = OnboardingStateSerializer
+# @extend_schema(
+#     request=OnboardingStateSerializer,
+#     responses=OnboardingStateSerializer,
+#     methods=["GET", "PATCH"]
+# )
+# class OnboardingView(RetrieveUpdateAPIView):
+#     permission_classes = [IsAuthenticated]
+#     serializer_class = OnboardingStateSerializer
 
-    def get_object(self):
-        obj, _ = OnboardingState.objects.get_or_create(user=self.request.user)
-        return obj
+#     def get_object(self):
+#         obj, _ = OnboardingState.objects.get_or_create(user=self.request.user)
+#         return obj
 
-# POST to mark onboarding as complete
-@extend_schema(
-    request=None,
-    responses={200: {"message": "Onboarding completed."}, 404: {"error": "Onboarding state not found."}},
-    methods=["POST"]
-)
-class CompleteOnboardingView(UpdateAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = OnboardingStateSerializer
-
-    def get_object(self):
-        try:
-            return OnboardingState.objects.get(user=self.request.user)
-        except OnboardingState.DoesNotExist:
-            return None
-
-    def update(self, request, *args, **kwargs):
-        state = self.get_object()
-        if not state:
-            return Response({'error': 'Onboarding state not found.'}, status=404)
-        state.completed = True
-        state.save()
-        return Response({'message': 'Onboarding completed.'})
+# Note: the onboarding 'state' view was intentionally removed to keep a single
+# POST-only completion endpoint. The active `CompleteOnboardingView` is defined
+# earlier in this file as a POST-only `APIView` that marks `user.is_onboarded=True`.
 
 
 
