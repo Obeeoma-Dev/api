@@ -1049,10 +1049,147 @@ class InvitationVerifyView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-# I have just added this because it didnt have viewset for AssessmentQuestion
-class AssessmentQuestionViewSet(viewsets.ModelViewSet):
-    queryset = AssessmentQuestion.objects.all()
+# ===== ASSESSMENT QUESTIONNAIRE VIEWS =====
+
+@extend_schema_view(
+    list=extend_schema(tags=['Assessments - Questions']),
+    retrieve=extend_schema(tags=['Assessments - Questions']),
+)
+class AssessmentQuestionViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for assessment questions"""
+    queryset = AssessmentQuestion.objects.filter(is_active=True)
     serializer_class = AssessmentQuestionSerializer
+    permission_classes = [permissions.AllowAny]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['assessment_type']
+    
+    @extend_schema(
+        description="Get all questions for a specific assessment type (PHQ-9 or GAD-7)",
+        parameters=[
+            OpenApiParameter(name='type', type=str, enum=['PHQ-9', 'GAD-7'], required=True, description='Assessment type')
+        ],
+        tags=['Assessments - Questions']
+    )
+    @action(detail=False, methods=['get'])
+    def by_type(self, request):
+        """Get all questions for a specific assessment with full details"""
+        assessment_type = request.query_params.get('type', 'PHQ-9')
+        
+        if assessment_type not in ['PHQ-9', 'GAD-7']:
+            return Response(
+                {'error': 'Invalid assessment type. Must be PHQ-9 or GAD-7'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        questions = AssessmentQuestion.objects.filter(
+            assessment_type=assessment_type,
+            is_active=True
+        ).order_by('question_number')
+        
+        # Prepare response data
+        if assessment_type == 'PHQ-9':
+            data = {
+                'assessment_type': 'PHQ-9',
+                'title': 'Patient Health Questionnaire (PHQ-9)',
+                'description': 'A 9-question screening tool for depression',
+                'instructions': 'Over the last 2 weeks, how often have you been bothered by any of the following problems?',
+                'time_frame': 'Last 2 weeks',
+                'questions': AssessmentQuestionSerializer(questions, many=True).data,
+                'score_options': [
+                    {'value': 0, 'label': 'Not at all'},
+                    {'value': 1, 'label': 'Several days'},
+                    {'value': 2, 'label': 'More than half the days'},
+                    {'value': 3, 'label': 'Nearly every day'}
+                ]
+            }
+        else:  # GAD-7
+            data = {
+                'assessment_type': 'GAD-7',
+                'title': 'Generalized Anxiety Disorder (GAD-7)',
+                'description': 'A 7-question screening tool for anxiety',
+                'instructions': 'Over the last 2 weeks, how often have you been bothered by any of the following problems?',
+                'time_frame': 'Last 2 weeks',
+                'questions': AssessmentQuestionSerializer(questions, many=True).data,
+                'score_options': [
+                    {'value': 0, 'label': 'Not at all'},
+                    {'value': 1, 'label': 'Several days'},
+                    {'value': 2, 'label': 'Over half the days'},
+                    {'value': 3, 'label': 'Nearly every day'}
+                ]
+            }
+        
+        return Response(data)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['Assessments - Responses']),
+    create=extend_schema(tags=['Assessments - Responses']),
+    retrieve=extend_schema(tags=['Assessments - Responses']),
+)
+class AssessmentResponseViewSet(viewsets.ModelViewSet):
+    """ViewSet for assessment responses"""
+    serializer_class = AssessmentResponseSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post']
+    
+    def get_queryset(self):
+        return AssessmentResponse.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+    
+    @extend_schema(
+        description="Get user's assessment history",
+        parameters=[
+            OpenApiParameter(name='type', type=str, enum=['PHQ-9', 'GAD-7'], description='Filter by assessment type')
+        ],
+        responses=AssessmentResponseSerializer(many=True),
+        tags=['Assessments - Responses']
+    )
+    @action(detail=False, methods=['get'])
+    def history(self, request):
+        """Get user's assessment history"""
+        queryset = self.get_queryset()
+        
+        assessment_type = request.query_params.get('type')
+        if assessment_type:
+            queryset = queryset.filter(assessment_type=assessment_type)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @extend_schema(
+        description="Get latest assessment result",
+        parameters=[
+            OpenApiParameter(name='type', type=str, enum=['PHQ-9', 'GAD-7'], required=True, description='Assessment type')
+        ],
+        responses=AssessmentResponseSerializer,
+        tags=['Assessments - Responses']
+    )
+    @action(detail=False, methods=['get'])
+    def latest(self, request):
+        """Get user's latest assessment result"""
+        assessment_type = request.query_params.get('type')
+        
+        if not assessment_type:
+            return Response(
+                {'error': 'Assessment type is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            latest = self.get_queryset().filter(
+                assessment_type=assessment_type
+            ).latest('completed_at')
+            
+            serializer = self.get_serializer(latest)
+            return Response(serializer.data)
+        
+        except AssessmentResponse.DoesNotExist:
+            return Response(
+                {'message': f'No {assessment_type} assessment found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
 @extend_schema(
     tags=["Authentication"],
