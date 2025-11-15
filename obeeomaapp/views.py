@@ -67,7 +67,7 @@ from django.core.mail import send_mail, EmailMultiAlternatives
 from .utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings
 from django.utils import timezone
-from datetime import timedelta
+from datetime import datetime, timedelta
 import secrets
 from rest_framework import filters
 import string
