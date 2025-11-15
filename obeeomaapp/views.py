@@ -356,8 +356,7 @@ Obeeoma Team
                 {"error": "Failed to send email. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-
+        
 # Confirm Password Reset View
 @extend_schema(tags=['Authentication'])
 class PasswordResetConfirmView(viewsets.ViewSet):
