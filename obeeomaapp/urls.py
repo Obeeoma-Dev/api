@@ -32,7 +32,7 @@ from obeeomaapp.views import (
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
     OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet,
-    AssessmentQuestionViewSet, AssessmentResponseViewSet
+    AssessmentQuestionViewSet,ActiveHotlineView
 )
 
 
@@ -130,6 +130,10 @@ urlpatterns = [
     path('auth/mfa/confirm/', views.mfa_confirm, name='mfa-confirm'),
     path('auth/mfa/verify/', views.mfa_verify, name='mfa-verify'),
 
+    # Hotline Active Endpoint
+    
+    path('auth/hotline/active/', ActiveHotlineView.as_view(), name="active-hotline"),
+
     # Dashboard
     path("dashboard/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),
     path("dashboard/trends/", TrendsView.as_view({'get': 'list'}), name="trends"),
@@ -196,6 +200,7 @@ urlpatterns = [
         name="schema-swagger-ui",
     ),
     path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
+
     # Sana_ai.
     path("api/", include("sana_ai.urls")),
 ]

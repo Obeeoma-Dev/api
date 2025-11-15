@@ -14,6 +14,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import NotFound
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from .models import OnboardingState
+from .models import CrisisHotline
+from .serializers import CrisisHotlineSerializer
 from .serializers import OnboardingStateSerializer
 from rest_framework.permissions import (
     IsAuthenticated,
@@ -124,49 +126,6 @@ class VerifyOTPView(APIView):
         request=OTPVerificationSerializer,
         responses={200: OpenApiTypes.OBJECT},
     )
-    @extend_schema(
-    tags=['Authentication'],
-    request=LoginSerializer,
-    responses={
-        200: {
-            "description": "Login successful",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                        "user": {
-                            "id": 1,
-                            "username": "johndoe",
-                            "email": "john@example.com",
-                            "role": "employee",
-                            "date_joined": "2025-01-01T00:00:00Z",
-                            "is_active": True,
-                            "avatar": None
-                        }
-                    }
-                }
-            }
-        },
-        401: {"description": "Invalid credentials"},
-        403: {"description": "Account is disabled"}
-    },
-    description="""
-    Login endpoint for all users (employees, employers, admins).
-
-    **Required fields:**
-    - username: Your username or email
-    - password: Your password
-
-    **Returns:**
-    - JWT access and refresh tokens
-    - User information including role
-    """
-)
-    class LoginView(APIView):
-        permission_classes = [permissions.AllowAny]
-    serializer_class = LoginSerializer
-
     def post(self, request):
         serializer = OTPVerificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -180,38 +139,9 @@ class VerifyOTPView(APIView):
         )
 
 
-
-# login view
-@extend_schema(
-    request=LoginSerializer,          
-    responses={200: OpenApiTypes.OBJECT},
-    tags=['Authentication'],
-    description="Login using username and password only."
-)
-@extend_schema(
-    request=LoginSerializer,
-    responses={200: OpenApiTypes.OBJECT},
-    tags=['Authentication'],
-    description="Login using username and password. MFA integrated if enabled."
-)
-
-# LOGIN VIEW
-def _build_login_success_payload(serializer, request):
+# LOGIN VIEW - Build success payload
+def _build_login_success_payload(user):
     refresh = RefreshToken.for_user(user)
-    username = serializer.validated_data['username']
-    password = serializer.validated_data['password']
-
-    user = authenticate(request=request, username=username, password=password)
-
-    if not user:
-        return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-    if not user.is_active:
-        return Response({"detail": "Account is disabled"}, status=status.HTTP_403_FORBIDDEN)
-
-    refresh = RefreshToken.for_user(user)
-
-    # ... rest of the logic ...
-
 
     display_username = user.username
     try:
@@ -248,6 +178,13 @@ def _build_login_success_payload(serializer, request):
     }
 
 
+# LOGIN VIEW - Main login endpoint
+@extend_schema(
+    request=LoginSerializer,
+    responses={200: OpenApiTypes.OBJECT},
+    tags=['Authentication'],
+    description="Login using username and password. MFA integrated if enabled."
+)
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = LoginSerializer
@@ -259,9 +196,8 @@ class LoginView(APIView):
 
         user = serializer.validated_data['user']
 
-    # This is for MFA Check 
+        # This is for MFA Check
         if user.mfa_enabled:
-            # this logic Generates temporary token for MFA verification
             temp_token = get_random_string(32)
             cache.set(temp_token, user.id, timeout=300)  # valid 5 minutes
             return Response({
@@ -269,26 +205,11 @@ class LoginView(APIView):
                 "temp_token": temp_token
             })
 
-        # Log the user in (this creates session cookie if needed)
         django_login(request, user)
-
         return Response(_build_login_success_payload(user))
-        user_data = {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "date_joined": user.date_joined,
-            "is_active": user.is_active,
-            "avatar": user.avatar.url if hasattr(user, 'avatar') and user.avatar else None,
-        }
 
-        return Response({
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-            "user": user_data
-        })
-    
+
+
 # matching view for custom token obtain pair serializer
 @extend_schema(
     tags=['Authentication'],
@@ -297,6 +218,7 @@ class LoginView(APIView):
 )
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
 
 
     
@@ -659,6 +581,15 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
         )
         return user
 
+
+# VIEWS FOR HOTLINE
+class ActiveHotlineView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        hotline = CrisisHotline.objects.filter(is_active=True).first()
+        serializer = CrisisHotlineSerializer(hotline)
+        return Response(serializer.data)
 
 # --- Employee Invitation Views ---
 @extend_schema(tags=['Employee Invitations'])
@@ -2213,8 +2144,9 @@ class HotlineActivityView(viewsets.ViewSet):
         }
         
         return Response(data)
+    
 
-
+# ActiveHotlineView
 @extend_schema(tags=['System Admin'])
 class AIManagementView(viewsets.ViewSet):
     """AI Management dashboard for system admin"""
