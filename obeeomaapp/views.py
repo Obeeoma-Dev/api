@@ -13,10 +13,10 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import NotFound
 from drf_spectacular.utils import extend_schema, OpenApiParameter
-from .models import OnboardingState
+# from .models import OnboardingState
 from .models import CrisisHotline
 from .serializers import CrisisHotlineSerializer
-from .serializers import OnboardingStateSerializer
+# from .serializers import OnboardingStateSerializer
 from rest_framework.permissions import (
     IsAuthenticated,
     BasePermission,

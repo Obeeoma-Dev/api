@@ -31,7 +31,7 @@ from obeeomaapp.views import (
     InvitationAcceptanceView, InviteView, 
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
-    OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet,
+    CompleteOnboardingView, DynamicQuestionViewSet,
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView
 )
 
