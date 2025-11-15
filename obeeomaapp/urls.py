@@ -32,7 +32,7 @@ from obeeomaapp.views import (
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
     OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet,
-    AssessmentQuestionViewSet,ActiveHotlineView
+    AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView
 )
 
 

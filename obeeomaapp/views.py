@@ -1653,30 +1653,166 @@ class OrganizationOverviewView(viewsets.ViewSet):
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
-        # Get total employees
-        total_employees = Employee.objects.count()
+        from django.db.models import Q, Count, Avg
+        from datetime import datetime, timedelta
         
-        # Get total tests
-        total_tests = MoodTracking.objects.count()
+        # Get organization/employer
+        employer = None
+        if hasattr(request.user, 'employer_profile'):
+            employer = request.user.employer_profile.employer
         
-        # Get average score
-        avg_score = MoodTracking.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
+        # Filter employees by employer if available
+        employee_queryset = Employee.objects.all()
+        if employer:
+            employee_queryset = employee_queryset.filter(employer=employer)
         
-        # Get at-risk departments
-        at_risk_departments = Department.objects.filter(at_risk=True).count()
+        # 1. Total Employees
+        total_employees = employee_queryset.count()
         
-        # Get recent activities
-        recent_activities = OrganizationActivity.objects.select_related('employer', 'department', 'employee').order_by('-created_at')[:10]
+        # 2. Wellness Index (average wellness score from assessments)
+        # Calculate from recent assessment responses
+        recent_assessments = AssessmentResponse.objects.filter(
+            user__in=employee_queryset.values_list('user', flat=True)
+        )
         
+        if recent_assessments.exists():
+            # Calculate wellness index (inverse of severity - higher is better)
+            # Assuming max score is 27 for PHQ-9, convert to percentage
+            avg_total_score = recent_assessments.aggregate(avg=Avg('total_score'))['avg'] or 0
+            wellness_index = max(0, int(100 - (avg_total_score / 27 * 100)))
+        else:
+            wellness_index = 0
+        
+        # 3. At Risk Count (employees with severe/high risk assessments)
+        at_risk_count = AssessmentResponse.objects.filter(
+            user__in=employee_queryset.values_list('user', flat=True),
+            severity_level__in=['Severe', 'Moderately Severe']
+        ).values('user').distinct().count()
+        
+        # 4. Employees List (with pagination)
+        employees_list = employee_queryset.select_related('department').order_by('-joined_date')[:10]
+        employees_data = [{
+            'id': emp.id,
+            'name': f"{emp.first_name} {emp.last_name}",
+            'email': emp.email,
+            'department': emp.department.name if emp.department else 'N/A',
+            'status': emp.status,
+        } for emp in employees_list]
+        
+        # 5. Engagement Trend (active vs inactive/suspended employees)
+        engagement_stats = employee_queryset.aggregate(
+            active=Count('id', filter=Q(status='active')),
+            inactive=Count('id', filter=Q(status__in=['inactive', 'suspended']))
+        )
+        
+        # 6. Feature Usage Breakdown
+        # Count usage of different features
+        total_users = employee_queryset.filter(status='active').count() or 1
+        
+        wellness_assessments_count = AssessmentResponse.objects.filter(
+            user__in=employee_queryset.values_list('user', flat=True)
+        ).values('user').distinct().count()
+        
+        mood_tracking_count = MoodTracking.objects.filter(
+            user__in=employee_queryset.values_list('user', flat=True)
+        ).values('user').distinct().count()
+        
+        # AI Chatbot usage (from chat sessions)
+        ai_chatbot_count = 0
+        try:
+            from sana_ai.models import ChatSession
+            ai_chatbot_count = ChatSession.objects.filter(
+                user__in=employee_queryset.values_list('user', flat=True)
+            ).values('user').distinct().count()
+        except:
+            pass
+        
+        # Resource library usage
+        resource_usage_count = SavedResource.objects.filter(
+            user__in=employee_queryset.values_list('user', flat=True)
+        ).values('user').distinct().count()
+        
+        feature_usage = {
+            'wellness_assessments': int((wellness_assessments_count / total_users) * 100),
+            'ai_chatbot': int((ai_chatbot_count / total_users) * 100),
+            'mood_tracking': int((mood_tracking_count / total_users) * 100),
+            'resource_library': int((resource_usage_count / total_users) * 100),
+        }
+        
+        # 7. Mood Trend (last 12 weeks)
+        # Count mood check-ins per week as engagement metric
+        mood_trend = []
+        for week in range(12, 0, -1):
+            week_start = datetime.now() - timedelta(weeks=week)
+            week_end = week_start + timedelta(weeks=1)
+            
+            # Count mood tracking entries for this week
+            mood_count = MoodTracking.objects.filter(
+                user__in=employee_queryset.values_list('user', flat=True),
+                checked_in_at__gte=week_start,
+                checked_in_at__lt=week_end
+            ).count()
+            
+            mood_trend.append({
+                'week': 13 - week,
+                'value': mood_count
+            })
+        
+        # 8. New Notifications (recent organization activities)
+        notifications = OrganizationActivity.objects.filter(
+            employer=employer
+        ).order_by('-created_at')[:5] if employer else []
+        
+        notifications_data = [{
+            'id': notif.id,
+            'message': notif.description,
+            'department': notif.department.name if notif.department else 'General',
+            'timestamp': notif.created_at,
+            'time_ago': self._get_time_ago(notif.created_at)
+        } for notif in notifications]
+        
+        # Compile all data
         data = {
-            'total_employees': total_employees,
-            'total_tests': total_tests,
-            'average_score': round(avg_score, 2),
-            'at_risk_departments': at_risk_departments,
-            'recent_activities': OrganizationActivitySerializer(recent_activities, many=True).data
+            'summary': {
+                'total_employees': total_employees,
+                'wellness_index': wellness_index,
+                'at_risk': at_risk_count,
+            },
+            'employees': {
+                'list': employees_data,
+                'total': total_employees,
+            },
+            'engagement_trend': {
+                'active': engagement_stats['active'],
+                'inactive': engagement_stats['inactive'],
+                'total': total_employees,
+            },
+            'feature_usage': feature_usage,
+            'mood_trend': mood_trend,
+            'notifications': notifications_data,
         }
         
         return Response(data)
+    
+    def _get_time_ago(self, timestamp):
+        """Helper to calculate time ago"""
+        now = datetime.now()
+        if timestamp.tzinfo:
+            from django.utils import timezone
+            now = timezone.now()
+        
+        diff = now - timestamp
+        
+        if diff.days > 0:
+            return f"{diff.days} day{'s' if diff.days > 1 else ''} ago"
+        elif diff.seconds >= 3600:
+            hours = diff.seconds // 3600
+            return f"{hours} hour{'s' if hours > 1 else ''} ago"
+        elif diff.seconds >= 60:
+            minutes = diff.seconds // 60
+            return f"{minutes} minute{'s' if minutes > 1 else ''} ago"
+        else:
+            return "just now"
 
 
 @extend_schema(tags=['Employer Dashboard'])
