@@ -2611,11 +2611,17 @@ class EducationalResourceViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
 
-
+from rest_framework import viewsets, permissions, filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.exceptions import NotFound
+from django_filters.rest_framework import DjangoFilterBackend
+from .models import Video, UserActivity, SavedResource
+from .serializers import VideoSerializer
+from rest_framework.permissions import AllowAny, IsAuthenticated
 
 class VideoViewSet(viewsets.ModelViewSet):  # Full CRUD support
     queryset = Video.objects.filter(is_active=True)
-class VideoViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = VideoSerializer
     permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -2623,11 +2629,6 @@ class VideoViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['title', 'description']
     ordering_fields = ['created_at', 'views', 'title']
     lookup_field = 'pk'  # Explicit lookup
-
-
-    def get_queryset(self):
-        # Only return active mental health videos
-        return Video.objects.filter(is_active=True, category__iexact="mental health")
 
     @action(detail=True, methods=['post'])
     def watch(self, request, pk=None):
@@ -2637,22 +2638,20 @@ class VideoViewSet(viewsets.ReadOnlyModelViewSet):
         except Exception:
             raise NotFound("No video matches the given query.")
 
-        try:
-            video = self.get_object()
-        except Exception:
-            return Response({"detail": "No video matches the given query."}, status=404)
-
         video.views += 1
         video.save()
-
 
         if request.user.is_authenticated:
             UserActivity.objects.create(user=request.user, video=video)
 
-
         return Response({'message': 'View recorded', 'total_views': video.views})
-
-
+        for employee in Employee.objects.all():
+            Notification.objects.create(
+                employee=employee,
+                message=f"New video added: {video.title}",
+                content_type="video",
+                object_id=video.id
+            )
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def save(self, request, pk=None):
         """Save video to user's library"""
@@ -2663,76 +2662,67 @@ class VideoViewSet(viewsets.ReadOnlyModelViewSet):
 
         saved, created = SavedResource.objects.get_or_create(user=request.user, video=video)
 
-        try:
-            video = self.get_object()
-        except Exception:
-            return Response({"detail": "No video matches the given query."}, status=404)
-
-        saved, created = SavedResource.objects.get_or_create(user=request.user, video=video)
-
         if created:
             return Response({'message': 'Video saved to your library'})
         else:
             saved.delete()
             return Response({'message': 'Video removed from library'})
 
-
     @action(detail=False, methods=['get'])
     def popular(self, request):
         """Return top 10 most viewed videos"""
         popular = self.queryset.order_by('-views')[:10]
-        """Return top 10 most viewed mental health videos"""
-        popular = self.get_queryset().order_by('-views')[:10]
         serializer = self.get_serializer(popular, many=True)
         return Response(serializer.data)
 
-
-
 class AudioViewSet(viewsets.ModelViewSet):  # Full CRUD support
-    class AudioViewSet(viewsets.ReadOnlyModelViewSet):
-   
-        queryset = Audio.objects.filter(is_active=True)
-        serializer_class = AudioSerializer
-        permission_classes = [AllowAny]
-        filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-        filterset_fields = ['category']
-        search_fields = ['title', 'description']
-        ordering_fields = ['created_at', 'plays', 'title']
-        lookup_field = 'pk'
+    queryset = Audio.objects.filter(is_active=True)
+    serializer_class = AudioSerializer
+    permission_classes = [AllowAny]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['category']
+    search_fields = ['title', 'description']
+    ordering_fields = ['created_at', 'plays', 'title']
+    lookup_field = 'pk'
 
-        @action(detail=True, methods=['post'])
-        def play(self, request, pk=None):
-            """Record that user played this audio"""
-            try:
-                audio = self.get_object()
-            except Exception:
-                raise NotFound("No audio matches the given query.")
+    @action(detail=True, methods=['post'])
+    def play(self, request, pk=None):
+        """Record that user played this audio"""
+        try:
+            audio = self.get_object()
+        except Exception:
+            raise NotFound("No audio matches the given query.")
 
-            audio.plays += 1
-            audio.save()
+        audio.plays += 1
+        audio.save()
 
-            if request.user.is_authenticated:
-                UserActivity.objects.create(user=request.user, audio=audio)
+        if request.user.is_authenticated:
+            UserActivity.objects.create(user=request.user, audio=audio)
 
-            return Response({'message': 'Play recorded', 'total_plays': audio.plays})
+        return Response({'message': 'Play recorded', 'total_plays': audio.plays})
+        
+        for employee in Employee.objects.all():
+            Notification.objects.create(
+                employee=employee,
+                message=f"New audio published: {audio.title}",
+                content_type="audio",
+                object_id=audio.id
+            )
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def save(self, request, pk=None):
+        """Save audio to user's library"""
+        try:
+            audio = self.get_object()
+        except Exception:
+            raise NotFound("No audio matches the given query.")
 
-        @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-        def save(self, request, pk=None):
-            """Save audio to user's library"""
-            try:
-                audio = self.get_object()
-            except Exception:
-                raise NotFound("No audio matches the given query.")
+        saved, created = SavedResource.objects.get_or_create(user=request.user, audio=audio)
 
-            saved, created = SavedResource.objects.get_or_create(user=request.user, audio=audio)
-
-            if created:
-                return Response({'message': 'Audio saved to your library'})
-            else:
-                saved.delete()
-                return Response({'message': 'Audio removed from library'})
-
-
+        if created:
+            return Response({'message': 'Audio saved to your library'})
+        else:
+            saved.delete()
+            return Response({'message': 'Audio removed from library'})
 
 class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Article.objects.filter(is_published=True)
@@ -2755,7 +2745,14 @@ class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
             UserActivity.objects.create(user=request.user, article=article)
         
         return Response({'message': 'Read recorded', 'total_views': article.views})
-    
+        
+        for employee in Employee.objects.all():
+            Notification.objects.create(
+                employee=employee,
+                message=f"New article published: {article.title}",
+                content_type="article",
+                object_id=article.id
+            )
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def save(self, request, slug=None):
         article = self.get_object()
@@ -2797,7 +2794,14 @@ class MeditationTechniqueViewSet(viewsets.ReadOnlyModelViewSet):
             UserActivity.objects.create(user=request.user, meditation=meditation, completed=True)
         
         return Response({'message': 'Practice recorded', 'total_sessions': meditation.times_practiced})
-    
+        
+        for employee in Employee.objects.all():
+            Notification.objects.create(
+                employee=employee,
+                message=f"New meditation published: {meditation.title}",
+                content_type="meditation",
+                object_id=meditation.id
+            )
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def save(self, request, pk=None):
         meditation = self.get_object()
