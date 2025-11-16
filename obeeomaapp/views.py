@@ -198,13 +198,13 @@ class LoginView(APIView):
 
         user = serializer.validated_data['user']
 
-        # This is the ONBOARDING CHECK Logic 
-        if not getattr(user, 'is_onboarded', False):
-            return Response({
-                "onboarding_required": True,
-                "redirect_to": "/onboarding/",
-                "message": "Please complete onboarding before you can log in."
-            }, status=403)
+        # # This is the ONBOARDING CHECK Logic 
+        # if not getattr(user, 'is_onboarded', False):
+        #     return Response({
+        #         "onboarding_required": True,
+        #         "redirect_to": "/onboarding/",
+        #         "message": "Please complete onboarding before you can log in."
+        #     }, status=403)
 
         # This is MFA Check
         if user.mfa_enabled:

@@ -134,7 +134,7 @@ urlpatterns = [
     path('auth/hotline/active/', ActiveHotlineView.as_view(), name="active-hotline"),
     
     # COMPLETE ONBOARDING ENDPOINT
-    path('auth/api/onboarding/complete/', CompleteOnboardingView.as_view(), name='complete-onboarding'),
+    # path('auth/api/onboarding/complete/', CompleteOnboardingView.as_view(), name='complete-onboarding'),
 
     # Dashboard
     path("dashboard/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),
