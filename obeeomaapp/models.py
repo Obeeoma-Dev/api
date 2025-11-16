@@ -467,6 +467,8 @@ class CrisisTrigger(models.Model):
 class Notification(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE)
     message = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=50)  
+    object_id = models.PositiveIntegerField()
     sent_on = models.DateTimeField(auto_now_add=True)
     read = models.BooleanField(default=False)
 
