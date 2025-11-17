@@ -471,9 +471,9 @@ class CrisisTrigger(models.Model):
 # Notifications model.
 class Notification(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE)
-    message = models.CharField(max_length=255)
-    content_type = models.CharField(max_length=50)  
-    object_id = models.PositiveIntegerField()
+    message = models.CharField(max_length=255, blank=True, null=True)
+    content_type = models.CharField(max_length=50, blank=True, null=True)  
+    object_id = models.PositiveIntegerField(blank=True, null=True)
     sent_on = models.DateTimeField(auto_now_add=True)
     read = models.BooleanField(default=False)
 
@@ -1098,7 +1098,7 @@ class Video(models.Model):
     description = models.TextField(help_text="What will users learn?")
     youtube_url = models.URLField(help_text="YouTube video URL")
     category = models.ForeignKey(EducationalResource,on_delete=models.SET_NULL,null=True,blank=True,related_name='videos')
-    thumbnail = models.URLField(blank=True, null=True)
+    # thumbnail = models.URLField(blank=True, null=True)
     duration = models.CharField(max_length=20, blank=True, help_text="e.g., 10:30")
     MOOD_CHOICES = [
         ('anxiety', 'Anxiety Relief'),

@@ -180,6 +180,8 @@ class EmployeeSerializerTest(TestCase):
             department=self.department,
             first_name='John',
             last_name='Doe',
+            first_name='John',
+            last_name='Doe',
             email='john@example.com',
             status='active'
         )
@@ -477,6 +479,29 @@ class EmployeeInvitationAcceptSerializerTest(TestCase):
 #         serializer = UserVideoInteractionSerializer(data=data)
 #         self.assertTrue(serializer.is_valid())  # Should still be valid
 
+        with self.assertRaises(ValidationError):
+            serializer.validate(data)
+
+
+class SubscriptionSerializerTest(TestCase):
+    def setUp(self):
+        self.employer = Employer.objects.create(name='Test Company')
+        self.subscription = Subscription.objects.create(
+            employer=self.employer,
+            plan='starter',
+            amount=99.00,
+            seats=10,
+            start_date=timezone.now().date(),
+            is_active=True
+        )
+
+    def test_subscription_serialization(self):
+        serializer = SubscriptionSerializer(instance=self.subscription)
+        self.assertEqual(serializer.data['plan'], 'starter')
+        self.assertEqual(serializer.data['amount'], '99.00')
+        self.assertEqual(serializer.data['seats'], 10)
+        self.assertTrue(serializer.data['is_active'])
+
 
 class DepartmentSerializerTest(TestCase):
     def setUp(self):
@@ -493,6 +518,8 @@ class DepartmentSerializerTest(TestCase):
             employer=self.employer,
             department=self.department,
             first_name='Employee',
+            last_name='1',
+            first_name='Employee',
             last_name='One',
             email='emp1@example.com'
         )
@@ -500,6 +527,8 @@ class DepartmentSerializerTest(TestCase):
             user=user2,
             employer=self.employer,
             department=self.department,
+            first_name='Employee',
+            last_name='2',
             first_name='Employee',
             last_name='Two',
             email='emp2@example.com'
@@ -701,6 +730,13 @@ class EmployeeProfileSerializerTest(TestCase):
 
     def test_employee_profile_serialization(self):
         serializer = EmployeeProfileSerializer(instance=self.employee_profile)
+        self.assertEqual(serializer.data['organization'], 'Test Company')
+        self.assertEqual(serializer.data['role'], 'Developer')
+        self.assertEqual(serializer.data['subscription_tier'], 'premium')
+        self.assertTrue(serializer.data['is_premium_active'])
+
+
+  
         # Test only fields that exist in the model
         self.assertIsNotNone(serializer.data)
 
