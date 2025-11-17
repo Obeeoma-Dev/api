@@ -17,7 +17,7 @@ from obeeomaapp.views import (
     OrganizationsManagementView, HotlineActivityView,
     AIManagementView, ClientEngagementView,
     ReportsAnalyticsView, SystemSettingsView, FeaturesUsageView,
-    EmployerViewSet, MyBadgesView, MyStreaksView, ProgressViewSet, 
+    MyBadgesView, MyStreaksView, ProgressViewSet, 
     EmailConfigCheckView, SignupView, LoginView, LogoutView, 
     PasswordResetView, PasswordResetConfirmView, PasswordChangeView,
     OverviewView, TrendsView, EmployeeEngagementView, BillingView,
@@ -56,7 +56,6 @@ router = DefaultRouter()
 # API FOR SIGNING UP AN ORGANIZATION
 router.register(r'organization-signup', OrganizationSignupView, basename='organization-signup')
 
-router.register(r'employers', EmployerViewSet, basename='employer')
 router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'progress', ProgressViewSet)
