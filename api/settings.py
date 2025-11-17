@@ -94,6 +94,10 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+
+    #Onboarding Middleware
+    'obeeomaapp.middleware.onboarding_middleware.EnsureOnboardingCompleteMiddleware',
+
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -283,3 +287,5 @@ GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://developers.googl
 GMAIL_SCOPES = [
     "https://mail.google.com/",  # Full Gmail access (includes send)
 ]
+
+

@@ -160,6 +160,7 @@ def _build_login_success_payload(user):
         "date_joined": user.date_joined,
         "is_active": user.is_active,
         "avatar": user.avatar.url if hasattr(user, "avatar") and user.avatar else None,
+        "onboarding_completed": user.onboarding_completed, 
     }
 
     # Redirect URL based on role
@@ -198,14 +199,6 @@ class LoginView(APIView):
 
         user = serializer.validated_data['user']
 
-        # # This is the ONBOARDING CHECK Logic 
-        # if not getattr(user, 'is_onboarded', False):
-        #     return Response({
-        #         "onboarding_required": True,
-        #         "redirect_to": "/onboarding/",
-        #         "message": "Please complete onboarding before you can log in."
-        #     }, status=403)
-
         # This is MFA Check
         if user.mfa_enabled:
             temp_token = get_random_string(32)
@@ -243,7 +236,7 @@ class CompleteOnboardingView(APIView):
 
     def post(self, request):
         user = request.user
-        user.is_onboarded = True
+        user.onboarding_completed = True
         user.save()
         return Response({
             "message": "Onboarding completed successfully.",
