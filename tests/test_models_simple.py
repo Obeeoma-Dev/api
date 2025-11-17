@@ -7,10 +7,8 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 
 from obeeomaapp.models import (
-    Employer, EmployeeInvitation, AuthenticationEvent, 
-    SystemSetting, SystemStatus, MentalHealthAssessment,
-    Department, PasswordResetToken, EmployeeProfile,
-    Subscription, SubscriptionPlan
+    Employer, EmployeeInvitation, Employee,
+    MentalHealthAssessment, Department
 )
 
 
@@ -37,8 +35,49 @@ class BasicUserModelTest(TestCase):
         self.assertTrue(admin.is_staff)
 
 
-class BasicEmployerModelTest(TestCase):
+class EmployerModelTest(TestCase):
     """Test Employer model"""
+    
+    def test_create_employer(self):
+        employer = Employer.objects.create(
+            name='Test Company',
+            is_active=True
+        )
+        self.assertEqual(employer.name, 'Test Company')
+        self.assertTrue(employer.is_active)
+
+
+class EmployeeModelTest(TestCase):
+    """Test Employee model"""
+    
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='employee1',
+            email='employee@example.com',
+            password='pass123'
+        )
+        self.employer = Employer.objects.create(
+            name='Test Company',
+            is_active=True
+        )
+    
+    def test_create_employee(self):
+        employee = Employee.objects.create(
+            user=self.user,
+            employer=self.employer,
+            first_name='John',
+            last_name='Doe',
+            email='john.doe@example.com',
+            status='active'
+        )
+        self.assertEqual(employee.first_name, 'John')
+        self.assertEqual(employee.last_name, 'Doe')
+        self.assertEqual(employee.name, 'John Doe')  # Test the property
+        self.assertEqual(employee.employer, self.employer)
+
+
+class InvitationModelTest(TestCase):
+    """Test EmployeeInvitation model"""
     
     def setUp(self):
         self.user = User.objects.create_user(
@@ -46,41 +85,26 @@ class BasicEmployerModelTest(TestCase):
             email='employer@example.com',
             password='pass123'
         )
-    
-    def test_create_employer(self):
-        employer = Employer.objects.create(
-            user=self.user,
-            company_name='Test Company',
-            industry='Technology'
-        )
-        self.assertEqual(employer.company_name, 'Test Company')
-        self.assertEqual(employer.user, self.user)
-
-
-class BasicInvitationModelTest(TestCase):
-    """Test EmployeeInvitation model"""
-    
-    def setUp(self):
-        user = User.objects.create_user(
-            username='employer1',
-            email='employer@example.com',
-            password='pass123'
-        )
         self.employer = Employer.objects.create(
-            user=user,
-            company_name='Test Company'
+            name='Test Company',
+            is_active=True
         )
     
     def test_create_invitation(self):
         invitation = EmployeeInvitation.objects.create(
             employer=self.employer,
-            email='employee@example.com'
+            email='employee@example.com',
+            invited_by=self.user,
+            token='test-token-123',
+            message='Welcome to our team!'
         )
         self.assertEqual(invitation.email, 'employee@example.com')
         self.assertEqual(invitation.employer, self.employer)
+        self.assertEqual(invitation.invited_by, self.user)
+        self.assertFalse(invitation.accepted)
 
 
-class BasicMentalHealthAssessmentTest(TestCase):
+class MentalHealthAssessmentModelTest(TestCase):
     """Test MentalHealthAssessment model"""
     
     def setUp(self):
@@ -90,11 +114,41 @@ class BasicMentalHealthAssessmentTest(TestCase):
             password='pass123'
         )
     
-    def test_create_assessment(self):
+    def test_create_gad7_assessment(self):
         assessment = MentalHealthAssessment.objects.create(
             user=self.user,
             assessment_type='GAD-7',
-            responses={'q1': 2, 'q2': 1}
+            gad7_scores=[2, 1, 0, 1, 2, 1, 0]
         )
         self.assertEqual(assessment.assessment_type, 'GAD-7')
         self.assertEqual(assessment.user, self.user)
+        self.assertEqual(len(assessment.gad7_scores), 7)
+        self.assertEqual(assessment.gad7_total, 7)
+    
+    def test_create_phq9_assessment(self):
+        assessment = MentalHealthAssessment.objects.create(
+            user=self.user,
+            assessment_type='PHQ-9',
+            phq9_scores=[2, 2, 1, 1, 0, 1, 2, 1, 0]
+        )
+        self.assertEqual(assessment.assessment_type, 'PHQ-9')
+        self.assertEqual(len(assessment.phq9_scores), 9)
+        self.assertEqual(assessment.phq9_total, 10)
+
+
+class DepartmentModelTest(TestCase):
+    """Test Department model"""
+    
+    def setUp(self):
+        self.employer = Employer.objects.create(
+            name='Test Company',
+            is_active=True
+        )
+    
+    def test_create_department(self):
+        department = Department.objects.create(
+            employer=self.employer,
+            name='Engineering'
+        )
+        self.assertEqual(department.name, 'Engineering')
+        self.assertEqual(department.employer, self.employer)
