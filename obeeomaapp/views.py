@@ -2900,7 +2900,7 @@ class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):
         tags=['Dynamic Questions']
     )
 )
-class DynamicQuestionViewSet(viewsets.ModelViewSet):
+class DynamicQuestionViewSet(viewsets.ModelViewSet): 
     queryset = DynamicQuestion.objects.filter(is_active=True)
     serializer_class = DynamicQuestionSerializer
     permission_classes = [permissions.IsAuthenticated]
