@@ -296,7 +296,7 @@ class CrisisHotline(models.Model):
     hotline_name = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=50)
     is_active = models.BooleanField(default=True)
-
+     
 # Dashboard Models for Employers
 class AIManagement(models.Model):
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="managements")

@@ -894,6 +894,13 @@ class HotlineCallSerializer(serializers.ModelSerializer):
         return f"{hours:02d}:{minutes:02d}"
 
 
+# CrisisHotlineSerializer
+class CrisisHotlineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CrisisHotline
+        fields = ['id', 'country', 'region', 'hotline_name', 'phone_number', 'is_active']
+
+
 class AIResourceSerializer(serializers.ModelSerializer):
     effectiveness_display = serializers.SerializerMethodField()
     
@@ -1022,19 +1029,19 @@ from .models import (
     OnboardingState, DynamicQuestion, Notification
 )
 
-# Video Recommendation Serializer
-class VideoRecommendationSerializer(serializers.ModelSerializer):
-    resource_category_name = serializers.CharField(source='resource_category.name', read_only=True)
-    mood_display = serializers.CharField(source='get_target_mood_display', read_only=True)
-    intensity_display = serializers.CharField(source='get_intensity_level_display', read_only=True)
-
-    class Meta:
-        model = Video
-        fields = [
-            'id', 'title', 'description', 'thumbnail', 'duration',
-            'views_count', 'helpful_count', 'resource_category_name',
-            'target_mood', 'mood_display', 'intensity_level', 'intensity_display',
-        ]
+# # Video Recommendation Serializer
+# class VideoRecommendationSerializer(serializers.ModelSerializer):
+#     resource_category_name = serializers.CharField(source='resource_category.name', read_only=True)
+#     mood_display = serializers.CharField(source='get_target_mood_display', read_only=True)
+#     intensity_display = serializers.CharField(source='get_intensity_level_display', read_only=True)
+#     thumbnail = serializers.SerializerMethodField() 
+#     class Meta:
+#         model = Video
+#         fields = [
+#             'id', 'title', 'description', 'thumbnail', 'duration',
+#             'views_count', 'helpful_count', 'resource_category_name',
+#             'target_mood', 'mood_display', 'intensity_level', 'intensity_display',
+#         ]
 
 # Educational Resource Serializer
 class EducationalResourceSerializer(serializers.ModelSerializer):
