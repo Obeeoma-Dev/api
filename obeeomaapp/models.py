@@ -82,8 +82,8 @@ class User(AbstractUser):
 
 #MODELS FOR CREATING AN ORGANIZATION
 class ContactPerson(models.Model):
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
+    first_name = models.CharField(max_length=100, null=True, blank=True)
+    last_name = models.CharField(max_length=100, null=True, blank=True)
     role = models.CharField(max_length=100)
     email = models.EmailField()
 
