@@ -8,7 +8,8 @@ ALLOWED_URLS = [
         "verify-invite",
         "accept-invite",
         "signup",                       # They create account after invitation
-        "complete-onboarding",                
+        "complete-onboarding", 
+        "organization-signup",                
         'docs',
         'schema',
         'swagger',
