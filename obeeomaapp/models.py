@@ -82,12 +82,13 @@ class User(AbstractUser):
 
 #MODELS FOR CREATING AN ORGANIZATION
 class ContactPerson(models.Model):
-    fullname = models.CharField(max_length=255)
+    first_name = models.CharField(max_length=100, null=True, blank=True)
+    last_name = models.CharField(max_length=100, null=True, blank=True)
     role = models.CharField(max_length=100)
     email = models.EmailField()
 
     def __str__(self):
-        return f"{self.fullname} - {self.role}"
+        return f"{self.first_name} {self.last_name} - {self.role}"
 
 # --- Organization Model ---
 class Organization(models.Model):
