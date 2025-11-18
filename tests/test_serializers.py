@@ -170,14 +170,23 @@ class EmployeeSerializerTest(TestCase):
             password='pass123'
         )
         self.employer = Employer.objects.create(name='Test Company', is_active=True)
+        self.user = User.objects.create_user(
+            username='employee1',
+            email='employee@example.com',
+            password='pass123'
+        )
+        self.employer = Employer.objects.create(name='Test Company', is_active=True)
         self.department = Department.objects.create(
             employer=self.employer,
             name='Engineering'
         )
         self.employee = Employee.objects.create(
             user=self.user,
+            user=self.user,
             employer=self.employer,
             department=self.department,
+            first_name='John',
+            last_name='Doe',
             first_name='John',
             last_name='Doe',
             email='john@example.com',
@@ -186,6 +195,8 @@ class EmployeeSerializerTest(TestCase):
 
     def test_employee_serialization(self):
         serializer = EmployeeSerializer(instance=self.employee)
+        self.assertEqual(serializer.data['first_name'], 'John')
+        self.assertEqual(serializer.data['last_name'], 'Doe')
         self.assertEqual(serializer.data['first_name'], 'John')
         self.assertEqual(serializer.data['last_name'], 'Doe')
         self.assertEqual(serializer.data['email'], 'john@example.com')
@@ -248,13 +259,16 @@ class AssessmentResponseSerializerTest(TestCase):
         data = {
             'assessment_type': 'GAD-7',
             'responses': [0, 1, 2, 1, 0, 1, 2]
+            'responses': [0, 1, 2, 1, 0, 1, 2]
         }
         serializer = AssessmentResponseSerializer(data=data)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
     def test_invalid_gad7_response_count(self):
         data = {
             'assessment_type': 'GAD-7',
+            'responses': [0, 1, 2]  # Wrong count
             'responses': [0, 1, 2]  # Wrong count
         }
         serializer = AssessmentResponseSerializer(data=data)
@@ -264,8 +278,10 @@ class AssessmentResponseSerializerTest(TestCase):
         data = {
             'assessment_type': 'PHQ-9',
             'responses': [0, 1, 2, 1, 0, 1, 2, 1, 0]
+            'responses': [0, 1, 2, 1, 0, 1, 2, 1, 0]
         }
         serializer = AssessmentResponseSerializer(data=data)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
 
@@ -316,13 +332,22 @@ class EmployeeInvitationAcceptSerializerTest(TestCase):
 
     def test_valid_invitation_acceptance(self):
         # Test that serializer validates all required fields
+        # Test that serializer validates all required fields
         data = {
             'token': 'test-token-123',
             'password': 'securepass123',
             'first_name': 'John',
             'last_name': 'Doe'
+            'password': 'securepass123',
+            'first_name': 'John',
+            'last_name': 'Doe'
         }
         serializer = EmployeeInvitationAcceptSerializer(data=data)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        validated_data = serializer.validated_data
+        self.assertEqual(validated_data['token'], 'test-token-123')
+        self.assertEqual(validated_data['first_name'], 'John')
+        self.assertEqual(validated_data['last_name'], 'Doe')
         self.assertTrue(serializer.is_valid(), serializer.errors)
         validated_data = serializer.validated_data
         self.assertEqual(validated_data['token'], 'test-token-123')
@@ -338,13 +363,27 @@ class EmployeeInvitationAcceptSerializerTest(TestCase):
             token='expired-token-123',
             expires_at=timezone.now() - timedelta(days=1)
         )
+        # Create an expired invitation
+        expired_invitation = EmployeeInvitation.objects.create(
+            employer=self.employer,
+            invited_by=self.user,
+            email='expired@example.com',
+            token='expired-token-123',
+            expires_at=timezone.now() - timedelta(days=1)
+        )
         data = {
+            'token': 'expired-token-123',
+            'password': 'securepass123',
+            'first_name': 'Jane',
+            'last_name': 'Doe'
             'token': 'expired-token-123',
             'password': 'securepass123',
             'first_name': 'Jane',
             'last_name': 'Doe'
         }
         serializer = EmployeeInvitationAcceptSerializer(data=data)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn('token', serializer.errors)
         self.assertFalse(serializer.is_valid())
         self.assertIn('token', serializer.errors)
 
@@ -477,6 +516,29 @@ class EmployeeInvitationAcceptSerializerTest(TestCase):
 #         serializer = UserVideoInteractionSerializer(data=data)
 #         self.assertTrue(serializer.is_valid())  # Should still be valid
 
+        with self.assertRaises(ValidationError):
+            serializer.validate(data)
+
+
+class SubscriptionSerializerTest(TestCase):
+    def setUp(self):
+        self.employer = Employer.objects.create(name='Test Company')
+        self.subscription = Subscription.objects.create(
+            employer=self.employer,
+            plan='starter',
+            amount=99.00,
+            seats=10,
+            start_date=timezone.now().date(),
+            is_active=True
+        )
+
+    def test_subscription_serialization(self):
+        serializer = SubscriptionSerializer(instance=self.subscription)
+        self.assertEqual(serializer.data['plan'], 'starter')
+        self.assertEqual(serializer.data['amount'], '99.00')
+        self.assertEqual(serializer.data['seats'], 10)
+        self.assertTrue(serializer.data['is_active'])
+
 
 class DepartmentSerializerTest(TestCase):
     def setUp(self):
@@ -488,18 +550,26 @@ class DepartmentSerializerTest(TestCase):
         # Create some employees
         user1 = User.objects.create_user(username='emp1', email='emp1@example.com', password='pass')
         user2 = User.objects.create_user(username='emp2', email='emp2@example.com', password='pass')
+        user1 = User.objects.create_user(username='emp1', email='emp1@example.com', password='pass')
+        user2 = User.objects.create_user(username='emp2', email='emp2@example.com', password='pass')
         self.employee1 = Employee.objects.create(
+            user=user1,
             user=user1,
             employer=self.employer,
             department=self.department,
+            first_name='Employee',
+            last_name='1',
             first_name='Employee',
             last_name='One',
             email='emp1@example.com'
         )
         self.employee2 = Employee.objects.create(
             user=user2,
+            user=user2,
             employer=self.employer,
             department=self.department,
+            first_name='Employee',
+            last_name='2',
             first_name='Employee',
             last_name='Two',
             email='emp2@example.com'
@@ -542,8 +612,57 @@ class DepartmentSerializerTest(TestCase):
 #         self.assertEqual(serializer.data['total_videos'], 2)
 #         self.assertEqual(serializer.data['icon'], '🧠')
 #         self.assertEqual(serializer.data['color_code'], '#667eea')
+# DISABLED - ResourceCategory model doesn't exist
+# class ResourceCategorySerializerTest(TestCase):
+#     def setUp(self):
+#         self.category = ResourceCategory.objects.create(
+#             name='Mindfulness',
+#             description='Mindfulness resources',
+#             icon='',
+#         )
+#         # Create some videos for this category
+#         EducationalVideo.objects.create(
+#             title='Video 1',
+#             description='Description 1',
+#             youtube_url='https://www.youtube.com/watch?v=test1',
+#             resource_category=self.category,
+#             is_active=True
+#         )
+#         EducationalVideo.objects.create(
+#             title='Video 2',
+#             description='Description 2',
+#             youtube_url='https://www.youtube.com/watch?v=test2',
+#             resource_category=self.category,
+#             is_active=True
+#         )
+# 
+#     def test_resource_category_serialization(self):
+#         serializer = ResourceCategorySerializer(instance=self.category)
+#         self.assertEqual(serializer.data['name'], 'Mindfulness')
+#         self.assertEqual(serializer.data['total_videos'], 2)
+#         self.assertEqual(serializer.data['icon'], '🧠')
+#         self.assertEqual(serializer.data['color_code'], '#667eea')
 
 
+# DISABLED - MoodCheckIn model doesn't exist
+# class MoodCheckInSerializerTest(TestCase):
+#     def setUp(self):
+#         self.user = User.objects.create_user(
+#             username='testuser',
+#             email='test@example.com',
+#             password='testpass123'
+#         )
+#         self.mood_checkin = MoodCheckIn.objects.create(
+#             user=self.user,
+#             mood='happy',
+#             note='Feeling great today!'
+#         )
+# 
+#     def test_mood_checkin_serialization(self):
+#         serializer = MoodCheckInSerializer(instance=self.mood_checkin)
+#         self.assertEqual(serializer.data['mood'], 'happy')
+#         self.assertEqual(serializer.data['note'], 'Feeling great today!')
+#         self.assertIn('checked_in_at', serializer.data)
 # DISABLED - MoodCheckIn model doesn't exist
 # class MoodCheckInSerializerTest(TestCase):
 #     def setUp(self):
@@ -682,6 +801,21 @@ class HotlineCallSerializerTest(TestCase):
 #         }
 #         serializer = SystemAdminOverviewSerializer(data=data)
 #         self.assertTrue(serializer.is_valid())
+# DISABLED - Serializer structure doesn't match expectations
+# class SystemAdminOverviewSerializerTest(TestCase):
+#     def test_system_admin_overview_serializer(self):
+#         data = {
+#             'total_organizations': 150,
+#             'total_clients': 7500,
+#             'monthly_revenue': 75000.00,
+#             'hotline_calls_today': 35,
+#             'organizations_this_month': 10,
+#             'clients_this_month': 500,
+#             'revenue_growth_percentage': 15.50,
+#             'hotline_growth_percentage': 8.75
+#         }
+#         serializer = SystemAdminOverviewSerializer(data=data)
+#         self.assertTrue(serializer.is_valid())
 
 
 class EmployeeProfileSerializerTest(TestCase):
@@ -701,6 +835,43 @@ class EmployeeProfileSerializerTest(TestCase):
 
     def test_employee_profile_serialization(self):
         serializer = EmployeeProfileSerializer(instance=self.employee_profile)
+        self.assertEqual(serializer.data['organization'], 'Test Company')
+        self.assertEqual(serializer.data['role'], 'Developer')
+        self.assertEqual(serializer.data['subscription_tier'], 'premium')
+        self.assertTrue(serializer.data['is_premium_active'])
+
+
+  
+        # Test only fields that exist in the model
+        self.assertIsNotNone(serializer.data)
+
+
+# DISABLED - WellnessHubSerializer doesn't exist
+# class WellnessHubSerializerTest(TestCase):
+#     def setUp(self):
+#         self.user = User.objects.create_user(
+#             username='testuser',
+#             email='test@example.com',
+#             password='testpass123'
+#         )
+#         self.employee_profile = EmployeeProfile.objects.create(
+#             user=self.user,
+#             organization='Test Company',
+#             role='Developer'
+#         )
+#         self.wellness_hub = WellnessHub.objects.create(
+#             employee=self.employee_profile,
+#             last_checkin_mood='happy',
+#             mood_logs=['happy', 'calm', 'energetic'],
+#             mood_insights={'trend': 'improving', 'average_mood': 4.2}
+#         )
+# 
+#     def test_wellness_hub_serialization(self):
+#         serializer = WellnessHubSerializer(instance=self.wellness_hub)
+#         self.assertEqual(serializer.data['last_checkin_mood'], 'happy')
+#         self.assertEqual(serializer.data['mood_logs'], ['happy', 'calm', 'energetic'])
+#         self.assertEqual(serializer.data['mood_insights'], {'trend': 'improving', 'average_mood': 4.2})
+  
         # Test only fields that exist in the model
         self.assertIsNotNone(serializer.data)
 
@@ -777,6 +948,8 @@ class SerializerEdgeCasesTest(TestCase):
     def test_serializer_with_none_instance(self):
         """Test serializers with None instance"""
         serializer = UserSerializer(instance=None)
+        # Serializer with None instance returns default empty values, not empty dict
+        self.assertIsInstance(serializer.data, dict)
         # Serializer with None instance returns default empty values, not empty dict
         self.assertIsInstance(serializer.data, dict)
 

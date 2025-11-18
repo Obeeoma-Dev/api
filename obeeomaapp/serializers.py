@@ -192,9 +192,9 @@ class LoginSerializer(serializers.Serializer):
 
         if not user.is_active:
             raise serializers.ValidationError('Account is not yet active.')
+
         attrs['user'] = user
         return attrs
-    
 
 
 # custom serializer for token obtain pair
@@ -355,15 +355,11 @@ class AIManagementSerializer(serializers.ModelSerializer):
         model = AIManagement
         fields = ['id', 'employer', 'title', 'description', 'effectiveness', 'created_at']
 
-# SERIALIZERS FOR HOTLINE
+
 class HotlineActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = HotlineActivity
         fields = ['id', 'employer', 'call_count', 'spike_percentage', 'recorded_at']
-
-
-
-
 
 
 class EmployeeEngagementSerializer(serializers.ModelSerializer):
@@ -375,7 +371,7 @@ class EmployeeEngagementSerializer(serializers.ModelSerializer):
 class SubscriptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subscription
-        fields = ['id', 'employer', 'plan', 'amount', 'start_date', 'end_date', 'is_active']
+        fields = ['id', 'employer', 'plan', 'amount', 'seats', 'start_date', 'end_date', 'is_active']
 
 
 class RecentActivitySerializer(serializers.ModelSerializer):
@@ -546,15 +542,9 @@ class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
             **validated_data
         )
 
-
-
-# CrisisHotlineSerializer
-class CrisisHotlineSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CrisisHotline
-        fields = ['hotline_name', 'phone_number', 'country', 'region', 'is_active']
-
 # --- Employee Profile ---
+
+
 class EmployeeProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmployeeProfile
@@ -1220,12 +1210,11 @@ class UserActivitySerializer(serializers.ModelSerializer):
             'completed', 'progress_percentage', 'notes', 'accessed_at'
         ]
 
-# # Onboarding State Serializer
-# class OnboardingStateSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = OnboardingState
-#         fields = ['goal', 'completed', 'first_action_done']
-
+# Onboarding State Serializer
+class OnboardingStateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OnboardingState
+        fields = ['goal', 'completed', 'first_action_done']
 
 # Dynamic Question Serializer
 class DynamicQuestionSerializer(serializers.ModelSerializer):
