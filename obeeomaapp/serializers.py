@@ -371,7 +371,7 @@ class EmployeeEngagementSerializer(serializers.ModelSerializer):
 class SubscriptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subscription
-        fields = ['id', 'employer', 'plan', 'amount', 'start_date', 'end_date', 'is_active']
+        fields = ['id', 'employer', 'plan', 'amount', 'seats', 'start_date', 'end_date', 'is_active']
 
 
 class RecentActivitySerializer(serializers.ModelSerializer):

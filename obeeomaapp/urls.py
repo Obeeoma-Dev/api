@@ -10,30 +10,29 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 from .views import CustomTokenObtainPairView
 from obeeomaapp.views import (
-    MentalHealthAssessmentViewSet, OrganizationOverviewView, EmployeeManagementView,
+     OrganizationOverviewView, EmployeeManagementView,
     DepartmentManagementView, SubscriptionManagementView,
     WellnessReportsView, OrganizationSettingsView, TestsByTypeView,
     TestsByDepartmentView, SystemAdminOverviewView, 
     OrganizationsManagementView, HotlineActivityView,
     AIManagementView, ClientEngagementView,
     ReportsAnalyticsView, SystemSettingsView, FeaturesUsageView,
-    EmployerViewSet, MyBadgesView, MyStreaksView, ProgressViewSet, 
+    MyBadgesView, MyStreaksView, ProgressViewSet, 
     EmailConfigCheckView, SignupView, LoginView, LogoutView, 
     PasswordResetView, PasswordResetConfirmView, PasswordChangeView,
     OverviewView, TrendsView, EmployeeEngagementView, BillingView,
     UsersView, ReportsView, CrisisInsightsView,
     EmployeeProfileView, AvatarProfileView, 
-    MoodTrackingView, AssessmentResultView, SelfHelpResourceView,
-     CrisisTriggerView, NotificationView, 
+    MoodTrackingView, SelfHelpResourceView,
+    CrisisTriggerView, NotificationView, 
     EngagementTrackerView, FeedbackView, ChatSessionView, 
     ChatMessageView, RecommendationLogView, InvitationAcceptView, 
     InvitationVerifyView, home, OrganizationSignupView,
     InvitationAcceptanceView, InviteView, 
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
-    OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet,
-    AssessmentQuestionViewSet, AssessmentResponseViewSet
-    
+    CompleteOnboardingView, DynamicQuestionViewSet,
+    AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView
 )
 
 
@@ -57,8 +56,6 @@ router = DefaultRouter()
 # API FOR SIGNING UP AN ORGANIZATION
 router.register(r'organization-signup', OrganizationSignupView, basename='organization-signup')
 
-router.register(r'mental-health/assessments', MentalHealthAssessmentViewSet, basename='mental-health-assessment')
-router.register(r'employers', EmployerViewSet, basename='employer')
 router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'progress', ProgressViewSet)
@@ -69,7 +66,6 @@ router.register(r'progress', ProgressViewSet)
 router.register(r'employee/profile', EmployeeProfileView, basename='employee-profile')
 router.register(r'employee/avatar', AvatarProfileView, basename='avatar-profile')
 router.register(r'employee/mood-tracking', MoodTrackingView, basename='mood-tracking')
-router.register(r'employee/assessments', AssessmentResultView, basename='assessment-results')
 router.register(r'resources/self-help', SelfHelpResourceView, basename='self-help-resources')
 router.register(r'resources/educational', EducationalResourceViewSet, basename='educational-resources')
 router.register(r'employee/crisis', CrisisTriggerView, basename='crisis-trigger')
@@ -133,6 +129,12 @@ urlpatterns = [
     path('auth/mfa/confirm/', views.mfa_confirm, name='mfa-confirm'),
     path('auth/mfa/verify/', views.mfa_verify, name='mfa-verify'),
 
+    # Hotline Active Endpoint
+    path('auth/hotline/active/', ActiveHotlineView.as_view(), name="active-hotline"),
+    
+    # COMPLETE ONBOARDING ENDPOINT
+    # path('auth/api/onboarding/complete/', CompleteOnboardingView.as_view(), name='complete-onboarding'),
+
     # Dashboard
     path("dashboard/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),
     path("dashboard/trends/", TrendsView.as_view({'get': 'list'}), name="trends"),
@@ -157,10 +159,7 @@ urlpatterns = [
     # Employee endpoints
     path('employee/profile/', EmployeeProfileView.as_view({'get': 'list', 'post': 'create'}), name='employee-profile'),
     path('employee/avatar/', AvatarProfileView.as_view({'get': 'list', 'post': 'create'}), name='avatar-profile'),
-    
-    path('employee/assessments/', AssessmentResultView.as_view({'get': 'list', 'post': 'create'}), name='assessment-results'),
     path('resources/self-help/', SelfHelpResourceView.as_view({'get': 'list', 'post': 'create'}), name='self-help-resources'),
-    path('assessment-result/<int:id>/', AssessmentResultView.as_view({'get': 'retrieve'}), name='assessment-result'),
 
     # path('resources/educational/', EducationalResourceView.as_view({'get': 'list', 'post': 'create'}), name='educational-resources'),
     path('employee/crisis/', CrisisTriggerView.as_view({'get': 'list', 'post': 'create'}), name='crisis-trigger'),
@@ -170,11 +169,10 @@ urlpatterns = [
     path('sana/sessions/', ChatSessionView.as_view({'get': 'list', 'post': 'create'}), name='chat-sessions'),
     path('sana/sessions/<int:session_id>/messages/', ChatMessageView.as_view({'get': 'list', 'post': 'create'}), name='chat-messages'),
     path('employee/recommendations/', RecommendationLogView.as_view({'get': 'list', 'post': 'create'}), name='recommendation-log'),
-    
 
-
-    path('onboarding/', OnboardingView.as_view(), name='onboarding'),
-    path('onboarding/complete/', CompleteOnboardingView.as_view(), name='complete-onboarding'),
+    # # ONBOARDING ENDPOINT
+    # path('onboarding/', OnboardingView.as_view(), name='onboarding'),
+   
 
 
 
@@ -202,6 +200,7 @@ urlpatterns = [
         name="schema-swagger-ui",
     ),
     path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
+
     # Sana_ai.
     path("api/", include("sana_ai.urls")),
 ]

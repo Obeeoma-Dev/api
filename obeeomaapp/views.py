@@ -13,8 +13,10 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import NotFound
 from drf_spectacular.utils import extend_schema, OpenApiParameter
-from .models import OnboardingState
-from .serializers import OnboardingStateSerializer
+# from .models import OnboardingState
+from .models import CrisisHotline
+from .serializers import CrisisHotlineSerializer
+# from .serializers import OnboardingStateSerializer
 from rest_framework.permissions import (
     IsAuthenticated,
     BasePermission,
@@ -44,6 +46,8 @@ from .serializers import FeedbackSerializer
 import django_filters
 from .models import Feedback 
 from .models import DynamicQuestion
+from .models import AssessmentQuestion
+from .serializers import AssessmentQuestionSerializer
 from .serializers import DynamicQuestionSerializer
 import random
 from rest_framework import viewsets, permissions, filters
@@ -63,7 +67,7 @@ from django.core.mail import send_mail, EmailMultiAlternatives
 from .utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings
 from django.utils import timezone
-from datetime import timedelta
+from datetime import datetime, timedelta
 import secrets
 from rest_framework import filters
 import string
@@ -96,7 +100,7 @@ class IsCompanyAdmin(BasePermission):
         return bool(request.user and request.user.is_authenticated and request.user.is_staff)
 
 
-# Authentication Views ---Signup
+# SIGNUP VIEW
 @extend_schema(tags=['Authentication'])
 class SignupView(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -122,55 +126,12 @@ class VerifyOTPView(APIView):
         request=OTPVerificationSerializer,
         responses={200: OpenApiTypes.OBJECT},
     )
-    @extend_schema(
-    tags=['Authentication'],
-    request=LoginSerializer,
-    responses={
-        200: {
-            "description": "Login successful",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                        "user": {
-                            "id": 1,
-                            "username": "johndoe",
-                            "email": "john@example.com",
-                            "role": "employee",
-                            "date_joined": "2025-01-01T00:00:00Z",
-                            "is_active": True,
-                            "avatar": None
-                        }
-                    }
-                }
-            }
-        },
-        401: {"description": "Invalid credentials"},
-        403: {"description": "Account is disabled"}
-    },
-    description="""
-    Login endpoint for all users (employees, employers, admins).
-
-    **Required fields:**
-    - username: Your username or email
-    - password: Your password
-
-    **Returns:**
-    - JWT access and refresh tokens
-    - User information including role
-    """
-)
-    class LoginView(APIView):
-        permission_classes = [permissions.AllowAny]
-    serializer_class = LoginSerializer
-
     def post(self, request):
         serializer = OTPVerificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = serializer.context['user']
-        serializer.context['otp'].delete()  # Delete OTP after successful verification
+        serializer.context['otp'].delete()  # This Deletes OTP after successful verification
 
         return Response(
             {"message": "OTP verified successfully. You can now reset your password."},
@@ -179,37 +140,9 @@ class VerifyOTPView(APIView):
 
 
 
-# login view
-@extend_schema(
-    request=LoginSerializer,          
-    responses={200: OpenApiTypes.OBJECT},
-    tags=['Authentication'],
-    description="Login using username and password only."
-)
-@extend_schema(
-    request=LoginSerializer,
-    responses={200: OpenApiTypes.OBJECT},
-    tags=['Authentication'],
-    description="Login using username and password. MFA integrated if enabled."
-)
-
-# LOGIN VIEW
-def _build_login_success_payload(serializer, request):
+# LOGIN VIEW - Build success payload
+def _build_login_success_payload(user):
     refresh = RefreshToken.for_user(user)
-    username = serializer.validated_data['username']
-    password = serializer.validated_data['password']
-
-    user = authenticate(request=request, username=username, password=password)
-
-    if not user:
-        return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-    if not user.is_active:
-        return Response({"detail": "Account is disabled"}, status=status.HTTP_403_FORBIDDEN)
-
-    refresh = RefreshToken.for_user(user)
-
-    # ... rest of the logic ...
-
 
     display_username = user.username
     try:
@@ -229,6 +162,7 @@ def _build_login_success_payload(serializer, request):
         "avatar": user.avatar.url if hasattr(user, "avatar") and user.avatar else None,
     }
 
+    # Redirect URL based on role
     if user.role == "systemadmin":
         redirect_url = "/admin/dashboard/"
     elif user.role in ["organization", "employer"]:
@@ -246,6 +180,13 @@ def _build_login_success_payload(serializer, request):
     }
 
 
+# LOGIN VIEW - Main login endpoint
+@extend_schema(
+    request=LoginSerializer,
+    responses={200: OpenApiTypes.OBJECT},
+    tags=['Authentication'],
+    description="Login using username and password. MFA integrated if enabled."
+)
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = LoginSerializer
@@ -257,9 +198,16 @@ class LoginView(APIView):
 
         user = serializer.validated_data['user']
 
-    # This is for MFA Check 
+        # # This is the ONBOARDING CHECK Logic 
+        # if not getattr(user, 'is_onboarded', False):
+        #     return Response({
+        #         "onboarding_required": True,
+        #         "redirect_to": "/onboarding/",
+        #         "message": "Please complete onboarding before you can log in."
+        #     }, status=403)
+
+        # This is MFA Check
         if user.mfa_enabled:
-            # this logic Generates temporary token for MFA verification
             temp_token = get_random_string(32)
             cache.set(temp_token, user.id, timeout=300)  # valid 5 minutes
             return Response({
@@ -267,27 +215,12 @@ class LoginView(APIView):
                 "temp_token": temp_token
             })
 
-        # Log the user in (this creates session cookie if needed)
+        # Login normally
         django_login(request, user)
-
         return Response(_build_login_success_payload(user))
-        user_data = {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "date_joined": user.date_joined,
-            "is_active": user.is_active,
-            "avatar": user.avatar.url if hasattr(user, 'avatar') and user.avatar else None,
-        }
 
-        return Response({
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-            "user": user_data
-        })
-    
-# matching view for custom token obtain pair serializer
+
+# Matching view for custom token obtain pair serializer
 @extend_schema(
     tags=['Authentication'],
     request=CustomTokenObtainPairSerializer,
@@ -297,7 +230,28 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
-    
+# VIEW FOR COMPLETING ONBOARDING
+@extend_schema(
+    methods=['POST'],
+    request=None,
+    responses={200: {"message": "Onboarding completed successfully."}},
+    description="Endpoint to mark user onboarding as completed. Only POST is allowed."
+)
+class CompleteOnboardingView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['post']
+
+    def post(self, request):
+        user = request.user
+        user.is_onboarded = True
+        user.save()
+        return Response({
+            "message": "Onboarding completed successfully.",
+            "redirect_to": "/dashboard/"
+        })
+
+
+   
 
 # LOGOUT VIEW
 @extend_schema(
@@ -402,8 +356,7 @@ Obeeoma Team
                 {"error": "Failed to send email. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-
+        
 # Confirm Password Reset View
 @extend_schema(tags=['Authentication'])
 class PasswordResetConfirmView(viewsets.ViewSet):
@@ -658,6 +611,15 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
         return user
 
 
+# VIEWS FOR HOTLINE
+class ActiveHotlineView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        hotline = CrisisHotline.objects.filter(is_active=True).first()
+        serializer = CrisisHotlineSerializer(hotline)
+        return Response(serializer.data)
+
 # --- Employee Invitation Views ---
 @extend_schema(tags=['Employee Invitations'])
 class InviteView(viewsets.ModelViewSet):
@@ -705,49 +667,50 @@ class InviteView(viewsets.ModelViewSet):
             return EmployeeInvitation.objects.filter(employer=employer).order_by('-created_at')
         
         return EmployeeInvitation.objects.none()
-@extend_schema(
-    request=EmployeeInvitationCreateSerializer,
-    responses={
-        201: {
-            "description": "Invitation sent successfully",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "message": "Invitation sent successfully",
-                        "invitation": {
-                            "id": 1,
-                            "email": "newemployee@company.com",
-                            "message": "Welcome to our team!",
-                            "expires_at": "2025-11-06T19:13:03.648Z",
-                            "created_at": "2025-10-30T19:13:03.648Z"
-                        },
-                        "invitation_link": "/auth/accept-invite/?token=abc123xyz"
+    
+    @extend_schema(
+        request=EmployeeInvitationCreateSerializer,
+        responses={
+            201: {
+                "description": "Invitation sent successfully",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "message": "Invitation sent successfully",
+                            "invitation": {
+                                "id": 1,
+                                "email": "newemployee@company.com",
+                                "message": "Welcome to our team!",
+                                "expires_at": "2025-11-06T19:13:03.648Z",
+                                "created_at": "2025-10-30T19:13:03.648Z"
+                            },
+                            "invitation_link": "/auth/accept-invite/?token=abc123xyz"
+                        }
                     }
                 }
-            }
+            },
+            400: {"description": "Bad Request - Invalid data or user has no organization"}
         },
-        400: {"description": "Bad Request - Invalid data or user has no organization"}
-    },
-    description="""
-    Send an invitation to a new employee.
-    
-    The system will:
-    - Generate a unique invitation token
-    - Send an email to the invited person
-    - Set an expiration date for the invitation (defaults to 7 days)
-    
-    **Example Request:**
-    ```json
-    {
-        "email": "newemployee@company.com",
-        "message": "Welcome to our team!"
-    }
-    ```
-    
-    **Note:** The employer is automatically set from your authenticated user.
-    """
-)
-def create(self, request, *args, **kwargs):
+        description="""
+        Send an invitation to a new employee.
+        
+        The system will:
+        - Generate a unique invitation token
+        - Send an email to the invited person
+        - Set an expiration date for the invitation (defaults to 7 days)
+        
+        **Example Request:**
+        ```json
+        {
+            "email": "newemployee@company.com",
+            "message": "Welcome to our team!"
+        }
+        ```
+        
+        **Note:** The employer is automatically set from your authenticated user.
+        """
+    )
+    def create(self, request, *args, **kwargs):
         """Send an invitation to a new employee"""
         # Get the employer for the current user
         employer = None
@@ -1047,6 +1010,147 @@ class InvitationVerifyView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+# ===== ASSESSMENT QUESTIONNAIRE VIEWS =====
+
+@extend_schema_view(
+    list=extend_schema(tags=['Assessments - Questions']),
+    retrieve=extend_schema(tags=['Assessments - Questions']),
+)
+class AssessmentQuestionViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for assessment questions"""
+    queryset = AssessmentQuestion.objects.filter(is_active=True)
+    serializer_class = AssessmentQuestionSerializer
+    permission_classes = [permissions.AllowAny]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['assessment_type']
+    
+    @extend_schema(
+        description="Get all questions for a specific assessment type (PHQ-9 or GAD-7)",
+        parameters=[
+            OpenApiParameter(name='type', type=str, enum=['PHQ-9', 'GAD-7'], required=True, description='Assessment type')
+        ],
+        tags=['Assessments - Questions']
+    )
+    @action(detail=False, methods=['get'])
+    def by_type(self, request):
+        """Get all questions for a specific assessment with full details"""
+        assessment_type = request.query_params.get('type', 'PHQ-9')
+        
+        if assessment_type not in ['PHQ-9', 'GAD-7']:
+            return Response(
+                {'error': 'Invalid assessment type. Must be PHQ-9 or GAD-7'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        questions = AssessmentQuestion.objects.filter(
+            assessment_type=assessment_type,
+            is_active=True
+        ).order_by('question_number')
+        
+        # Prepare response data
+        if assessment_type == 'PHQ-9':
+            data = {
+                'assessment_type': 'PHQ-9',
+                'title': 'Patient Health Questionnaire (PHQ-9)',
+                'description': 'A 9-question screening tool for depression',
+                'instructions': 'Over the last 2 weeks, how often have you been bothered by any of the following problems?',
+                'time_frame': 'Last 2 weeks',
+                'questions': AssessmentQuestionSerializer(questions, many=True).data,
+                'score_options': [
+                    {'value': 0, 'label': 'Not at all'},
+                    {'value': 1, 'label': 'Several days'},
+                    {'value': 2, 'label': 'More than half the days'},
+                    {'value': 3, 'label': 'Nearly every day'}
+                ]
+            }
+        else:  # GAD-7
+            data = {
+                'assessment_type': 'GAD-7',
+                'title': 'Generalized Anxiety Disorder (GAD-7)',
+                'description': 'A 7-question screening tool for anxiety',
+                'instructions': 'Over the last 2 weeks, how often have you been bothered by any of the following problems?',
+                'time_frame': 'Last 2 weeks',
+                'questions': AssessmentQuestionSerializer(questions, many=True).data,
+                'score_options': [
+                    {'value': 0, 'label': 'Not at all'},
+                    {'value': 1, 'label': 'Several days'},
+                    {'value': 2, 'label': 'Over half the days'},
+                    {'value': 3, 'label': 'Nearly every day'}
+                ]
+            }
+        
+        return Response(data)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['Assessments - Responses']),
+    create=extend_schema(tags=['Assessments - Responses']),
+    retrieve=extend_schema(tags=['Assessments - Responses']),
+)
+class AssessmentResponseViewSet(viewsets.ModelViewSet):
+    """ViewSet for assessment responses"""
+    serializer_class = AssessmentResponseSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post']
+    
+    def get_queryset(self):
+        return AssessmentResponse.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+    
+    @extend_schema(
+        description="Get user's assessment history",
+        parameters=[
+            OpenApiParameter(name='type', type=str, enum=['PHQ-9', 'GAD-7'], description='Filter by assessment type')
+        ],
+        responses=AssessmentResponseSerializer(many=True),
+        tags=['Assessments - Responses']
+    )
+    @action(detail=False, methods=['get'])
+    def history(self, request):
+        """Get user's assessment history"""
+        queryset = self.get_queryset()
+        
+        assessment_type = request.query_params.get('type')
+        if assessment_type:
+            queryset = queryset.filter(assessment_type=assessment_type)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @extend_schema(
+        description="Get latest assessment result",
+        parameters=[
+            OpenApiParameter(name='type', type=str, enum=['PHQ-9', 'GAD-7'], required=True, description='Assessment type')
+        ],
+        responses=AssessmentResponseSerializer,
+        tags=['Assessments - Responses']
+    )
+    @action(detail=False, methods=['get'])
+    def latest(self, request):
+        """Get user's latest assessment result"""
+        assessment_type = request.query_params.get('type')
+        
+        if not assessment_type:
+            return Response(
+                {'error': 'Assessment type is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            latest = self.get_queryset().filter(
+                assessment_type=assessment_type
+            ).latest('completed_at')
+            
+            serializer = self.get_serializer(latest)
+            return Response(serializer.data)
+        
+        except AssessmentResponse.DoesNotExist:
+            return Response(
+                {'message': f'No {assessment_type} assessment found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
 @extend_schema(
     tags=["Authentication"],
@@ -1291,18 +1395,6 @@ class MoodTrackingView(viewsets.ModelViewSet):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(user=self.request.user, employee=employee)
 @extend_schema(tags=['Employee - Assessments'])
-class AssessmentResultView(viewsets.ModelViewSet):
-    serializer_class = AssessmentResultSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return AvatarProfile.objects.filter(employee__user=self.request.user)
-
-    def perform_create(self, serializer):
-        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
-        serializer.save(employee=employee)
-
-
 @extend_schema(tags=['Resources'])
 class SelfHelpResourceView(viewsets.ModelViewSet):
     queryset = SelfHelpResource.objects.all()
@@ -1435,216 +1527,6 @@ class RecommendationLogView(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(employee=employee)
-
-
-@extend_schema(tags=['Employee - Assessments'])
-class MentalHealthAssessmentViewSet(viewsets.ModelViewSet):
-    """ViewSet for mental health assessments"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return MentalHealthAssessment.objects.filter(user=self.request.user)
-
-    def get_serializer_class(self):
-        if self.action == 'list':
-            return MentalHealthAssessmentListSerializer
-        return MentalHealthAssessmentSerializer
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-
-    @action(detail=False, methods=['get'], url_path='questionnaires')
-    def get_questionnaires(self, request):
-        """Get assessment questionnaires with all questions"""
-        questionnaires = {
-            "gad7": {
-                "name": "GAD-7 (Generalized Anxiety Disorder)",
-                "description": "This questionnaire measures anxiety symptoms over the past 2 weeks.",
-                "instructions": "Over the last 2 weeks, how often have you been bothered by the following problems?",
-                "response_options": [
-                    {"value": 0, "label": "Not at all"},
-                    {"value": 1, "label": "Several days"},
-                    {"value": 2, "label": "More than half the days"},
-                    {"value": 3, "label": "Nearly every day"}
-                ],
-                "questions": [
-                    {"id": 1, "text": "Feeling nervous, anxious, or on edge"},
-                    {"id": 2, "text": "Not being able to stop or control worrying"},
-                    {"id": 3, "text": "Worrying too much about different things"},
-                    {"id": 4, "text": "Trouble relaxing"},
-                    {"id": 5, "text": "Being so restless that it's hard to sit still"},
-                    {"id": 6, "text": "Becoming easily annoyed or irritable"},
-                    {"id": 7, "text": "Feeling afraid as if something awful might happen"}
-                ],
-                "scoring": {
-                    "minimal": {"range": "0-4", "description": "Minimal anxiety"},
-                    "mild": {"range": "5-9", "description": "Mild anxiety"},
-                    "moderate": {"range": "10-14", "description": "Moderate anxiety"},
-                    "severe": {"range": "15-21", "description": "Severe anxiety"}
-                }
-            },
-            "phq9": {
-                "name": "PHQ-9 (Patient Health Questionnaire)",
-                "description": "This questionnaire measures depression symptoms over the past 2 weeks.",
-                "instructions": "Over the last 2 weeks, how often have you been bothered by any of the following problems?",
-                "response_options": [
-                    {"value": 0, "label": "Not at all"},
-                    {"value": 1, "label": "Several days"},
-                    {"value": 2, "label": "More than half the days"},
-                    {"value": 3, "label": "Nearly every day"}
-                ],
-                "questions": [
-                    {"id": 1, "text": "Little interest or pleasure in doing things"},
-                    {"id": 2, "text": "Feeling down, depressed, or hopeless"},
-                    {"id": 3, "text": "Trouble falling or staying asleep, or sleeping too much"},
-                    {"id": 4, "text": "Feeling tired or having little energy"},
-                    {"id": 5, "text": "Poor appetite or overeating"},
-                    {"id": 6, "text": "Feeling bad about yourself - or that you are a failure or have let yourself or your family down"},
-                    {"id": 7, "text": "Trouble concentrating on things, such as reading the newspaper or watching television"},
-                    {"id": 8, "text": "Moving or speaking so slowly that other people could have noticed. Or the opposite - being so fidgety or restless that you have been moving around a lot more than usual"},
-                    {"id": 9, "text": "Thoughts that you would be better off dead, or of hurting yourself in some way"}
-                ],
-                "scoring": {
-                    "minimal": {"range": "0-4", "description": "Minimal depression"},
-                    "mild": {"range": "5-9", "description": "Mild depression"},
-                    "moderate": {"range": "10-14", "description": "Moderate depression"},
-                    "moderately_severe": {"range": "15-19", "description": "Moderately severe depression"},
-                    "severe": {"range": "20-27", "description": "Severe depression"}
-                },
-                "crisis_note": "If you answered question 9 with anything other than 'Not at all', please seek immediate help. Contact a mental health professional or call a crisis hotline."
-            },
-            "submission_format": {
-                "description": "How to submit your responses",
-                "example_gad7_only": {
-                    "assessment_type": "GAD-7",
-                    "gad7_responses": [0, 1, 2, 1, 0, 2, 1]
-                },
-                "example_phq9_only": {
-                    "assessment_type": "PHQ-9",
-                    "phq9_responses": [1, 2, 1, 0, 1, 2, 1, 0, 1]
-                },
-                "example_both": {
-                    "assessment_type": "BOTH",
-                    "gad7_responses": [0, 1, 2, 1, 0, 2, 1],
-                    "phq9_responses": [1, 2, 1, 0, 1, 2, 1, 0, 1]
-                },
-                "submit_endpoint": "/api/v1/mental-health/assessments/submit-assessment/"
-            }
-        }
-        
-        return Response(questionnaires)
-
-    @action(detail=False, methods=['post'], url_path='submit-assessment')
-    def submit_assessment(self, request):
-        """Submit a new assessment with responses"""
-        serializer = AssessmentResponseSerializer(data=request.data)
-        if serializer.is_valid():
-            data = serializer.validated_data
-            assessment_type = data['assessment_type']
-            gad7_responses = data.get('gad7_responses', [])
-            phq9_responses = data.get('phq9_responses', [])
-
-            # Create assessment instance
-            assessment_data = {
-                'assessment_type': assessment_type,
-                'gad7_scores': gad7_responses,
-                'phq9_scores': phq9_responses,
-            }
-            
-            assessment_serializer = MentalHealthAssessmentSerializer(data=assessment_data)
-            if assessment_serializer.is_valid():
-                assessment = assessment_serializer.save(user=request.user)
-                
-                return Response({
-                    'message': 'Assessment submitted successfully',
-                    'assessment': MentalHealthAssessmentSerializer(assessment).data
-                }, status=status.HTTP_201_CREATED)
-            else:
-                return Response(assessment_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=False, methods=['get'], url_path='my-results')
-    def my_results(self, request):
-        """Get user's assessment results with summary"""
-        assessments = self.get_queryset()
-        
-        if not assessments.exists():
-            return Response({
-                'message': 'No assessments found',
-                'assessments': [],
-                'summary': None
-            })
-
-        # Get latest assessment
-        latest = assessments.first()
-        
-        # Calculate summary statistics
-        all_assessments = list(assessments.values('gad7_total', 'phq9_total', 'assessment_date'))
-        
-        summary = {
-            'total_assessments': len(all_assessments),
-            'latest_assessment_date': latest.assessment_date,
-            'latest_gad7_score': latest.gad7_total,
-            'latest_phq9_score': latest.phq9_total,
-            'latest_gad7_severity': latest.gad7_severity,
-            'latest_phq9_severity': latest.phq9_severity,
-            'average_gad7_score': sum(a['gad7_total'] for a in all_assessments if a['gad7_total'] > 0) / max(1, len([a for a in all_assessments if a['gad7_total'] > 0])),
-            'average_phq9_score': sum(a['phq9_total'] for a in all_assessments if a['phq9_total'] > 0) / max(1, len([a for a in all_assessments if a['phq9_total'] > 0])),
-        }
-
-        return Response({
-            'assessments': MentalHealthAssessmentListSerializer(assessments, many=True).data,
-            'summary': summary
-        })
-
-    @action(detail=True, methods=['get'], url_path='detailed-results')
-    def detailed_results(self, request, pk=None):
-        """Get detailed results for a specific assessment"""
-        assessment = self.get_object()
-        
-        detailed_data = {
-            'assessment': MentalHealthAssessmentSerializer(assessment).data,
-            'interpretation': {
-                'gad7': {
-                    'score': assessment.gad7_total,
-                    'severity': assessment.gad7_severity,
-                    'recommendation': self._get_gad7_recommendation(assessment.gad7_total)
-                },
-                'phq9': {
-                    'score': assessment.phq9_total,
-                    'severity': assessment.phq9_severity,
-                    'recommendation': self._get_phq9_recommendation(assessment.phq9_total)
-                }
-            }
-        }
-        
-        return Response(detailed_data)
-
-    def _get_gad7_recommendation(self, score):
-        """Get recommendation based on GAD-7 score"""
-        if score <= 4:
-            return "Your anxiety levels are minimal. Continue with current self-care practices."
-        elif score <= 9:
-            return "Mild anxiety detected. Consider stress management techniques and regular check-ins."
-        elif score <= 14:
-            return "Moderate anxiety levels. Consider speaking with a healthcare provider or mental health professional."
-        else:
-            return "Severe anxiety levels. Please consider reaching out to a mental health professional for support."
-
-    def _get_phq9_recommendation(self, score):
-        """Get recommendation based on PHQ-9 score"""
-        if score <= 4:
-            return "Your mood appears stable. Continue with current self-care practices."
-        elif score <= 9:
-            return "Mild depression symptoms detected. Consider mood tracking and self-care activities."
-        elif score <= 14:
-            return "Moderate depression symptoms. Consider speaking with a healthcare provider."
-        elif score <= 19:
-            return "Moderately severe depression symptoms. Please consider reaching out to a mental health professional."
-        else:
-            return "Severe depression symptoms detected. Please seek immediate support from a mental health professional."
-
 
 # --- Employee-specific: Badges and Engagement Streaks ---
 @extend_schema(tags=['Employee - Engagement'])
@@ -1801,30 +1683,166 @@ class OrganizationOverviewView(viewsets.ViewSet):
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
-        # Get total employees
-        total_employees = Employee.objects.count()
+        from django.db.models import Q, Count, Avg
+        from datetime import datetime, timedelta
         
-        # Get total tests
-        total_tests = MoodTracking.objects.count()
+        # Get organization/employer
+        employer = None
+        if hasattr(request.user, 'employer_profile'):
+            employer = request.user.employer_profile.employer
         
-        # Get average score
-        avg_score = MoodTracking.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
+        # Filter employees by employer if available
+        employee_queryset = Employee.objects.all()
+        if employer:
+            employee_queryset = employee_queryset.filter(employer=employer)
         
-        # Get at-risk departments
-        at_risk_departments = Department.objects.filter(at_risk=True).count()
+        # 1. Total Employees
+        total_employees = employee_queryset.count()
         
-        # Get recent activities
-        recent_activities = OrganizationActivity.objects.select_related('employer', 'department', 'employee').order_by('-created_at')[:10]
+        # 2. Wellness Index (average wellness score from assessments)
+        # Calculate from recent assessment responses
+        recent_assessments = AssessmentResponse.objects.filter(
+            user__in=employee_queryset.values_list('user', flat=True)
+        )
         
+        if recent_assessments.exists():
+            # Calculate wellness index (inverse of severity - higher is better)
+            # Assuming max score is 27 for PHQ-9, convert to percentage
+            avg_total_score = recent_assessments.aggregate(avg=Avg('total_score'))['avg'] or 0
+            wellness_index = max(0, int(100 - (avg_total_score / 27 * 100)))
+        else:
+            wellness_index = 0
+        
+        # 3. At Risk Count (employees with severe/high risk assessments)
+        at_risk_count = AssessmentResponse.objects.filter(
+            user__in=employee_queryset.values_list('user', flat=True),
+            severity_level__in=['Severe', 'Moderately Severe']
+        ).values('user').distinct().count()
+        
+        # 4. Employees List (with pagination)
+        employees_list = employee_queryset.select_related('department').order_by('-joined_date')[:10]
+        employees_data = [{
+            'id': emp.id,
+            'name': f"{emp.first_name} {emp.last_name}",
+            'email': emp.email,
+            'department': emp.department.name if emp.department else 'N/A',
+            'status': emp.status,
+        } for emp in employees_list]
+        
+        # 5. Engagement Trend (active vs inactive/suspended employees)
+        engagement_stats = employee_queryset.aggregate(
+            active=Count('id', filter=Q(status='active')),
+            inactive=Count('id', filter=Q(status__in=['inactive', 'suspended']))
+        )
+        
+        # 6. Feature Usage Breakdown
+        # Count usage of different features
+        total_users = employee_queryset.filter(status='active').count() or 1
+        
+        wellness_assessments_count = AssessmentResponse.objects.filter(
+            user__in=employee_queryset.values_list('user', flat=True)
+        ).values('user').distinct().count()
+        
+        mood_tracking_count = MoodTracking.objects.filter(
+            user__in=employee_queryset.values_list('user', flat=True)
+        ).values('user').distinct().count()
+        
+        # AI Chatbot usage (from chat sessions)
+        ai_chatbot_count = 0
+        try:
+            from sana_ai.models import ChatSession
+            ai_chatbot_count = ChatSession.objects.filter(
+                user__in=employee_queryset.values_list('user', flat=True)
+            ).values('user').distinct().count()
+        except:
+            pass
+        
+        # Resource library usage
+        resource_usage_count = SavedResource.objects.filter(
+            user__in=employee_queryset.values_list('user', flat=True)
+        ).values('user').distinct().count()
+        
+        feature_usage = {
+            'wellness_assessments': int((wellness_assessments_count / total_users) * 100),
+            'ai_chatbot': int((ai_chatbot_count / total_users) * 100),
+            'mood_tracking': int((mood_tracking_count / total_users) * 100),
+            'resource_library': int((resource_usage_count / total_users) * 100),
+        }
+        
+        # 7. Mood Trend (last 12 weeks)
+        # Count mood check-ins per week as engagement metric
+        mood_trend = []
+        for week in range(12, 0, -1):
+            week_start = datetime.now() - timedelta(weeks=week)
+            week_end = week_start + timedelta(weeks=1)
+            
+            # Count mood tracking entries for this week
+            mood_count = MoodTracking.objects.filter(
+                user__in=employee_queryset.values_list('user', flat=True),
+                checked_in_at__gte=week_start,
+                checked_in_at__lt=week_end
+            ).count()
+            
+            mood_trend.append({
+                'week': 13 - week,
+                'value': mood_count
+            })
+        
+        # 8. New Notifications (recent organization activities)
+        notifications = OrganizationActivity.objects.filter(
+            employer=employer
+        ).order_by('-created_at')[:5] if employer else []
+        
+        notifications_data = [{
+            'id': notif.id,
+            'message': notif.description,
+            'department': notif.department.name if notif.department else 'General',
+            'timestamp': notif.created_at,
+            'time_ago': self._get_time_ago(notif.created_at)
+        } for notif in notifications]
+        
+        # Compile all data
         data = {
-            'total_employees': total_employees,
-            'total_tests': total_tests,
-            'average_score': round(avg_score, 2),
-            'at_risk_departments': at_risk_departments,
-            'recent_activities': OrganizationActivitySerializer(recent_activities, many=True).data
+            'summary': {
+                'total_employees': total_employees,
+                'wellness_index': wellness_index,
+                'at_risk': at_risk_count,
+            },
+            'employees': {
+                'list': employees_data,
+                'total': total_employees,
+            },
+            'engagement_trend': {
+                'active': engagement_stats['active'],
+                'inactive': engagement_stats['inactive'],
+                'total': total_employees,
+            },
+            'feature_usage': feature_usage,
+            'mood_trend': mood_trend,
+            'notifications': notifications_data,
         }
         
         return Response(data)
+    
+    def _get_time_ago(self, timestamp):
+        """Helper to calculate time ago"""
+        now = datetime.now()
+        if timestamp.tzinfo:
+            from django.utils import timezone
+            now = timezone.now()
+        
+        diff = now - timestamp
+        
+        if diff.days > 0:
+            return f"{diff.days} day{'s' if diff.days > 1 else ''} ago"
+        elif diff.seconds >= 3600:
+            hours = diff.seconds // 3600
+            return f"{hours} hour{'s' if hours > 1 else ''} ago"
+        elif diff.seconds >= 60:
+            minutes = diff.seconds // 60
+            return f"{minutes} minute{'s' if minutes > 1 else ''} ago"
+        else:
+            return "just now"
 
 
 @extend_schema(tags=['Employer Dashboard'])
@@ -2292,8 +2310,9 @@ class HotlineActivityView(viewsets.ViewSet):
         }
         
         return Response(data)
+    
 
-
+# ActiveHotlineView
 @extend_schema(tags=['System Admin'])
 class AIManagementView(viewsets.ViewSet):
     """AI Management dashboard for system admin"""
@@ -2852,42 +2871,22 @@ class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 
-@extend_schema(
-    request=OnboardingStateSerializer,
-    responses=OnboardingStateSerializer,
-    methods=["GET", "PATCH"]
-)
-class OnboardingView(RetrieveUpdateAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = OnboardingStateSerializer
+# @extend_schema(
+#     request=OnboardingStateSerializer,
+#     responses=OnboardingStateSerializer,
+#     methods=["GET", "PATCH"]
+# )
+# class OnboardingView(RetrieveUpdateAPIView):
+#     permission_classes = [IsAuthenticated]
+#     serializer_class = OnboardingStateSerializer
 
-    def get_object(self):
-        obj, _ = OnboardingState.objects.get_or_create(user=self.request.user)
-        return obj
+#     def get_object(self):
+#         obj, _ = OnboardingState.objects.get_or_create(user=self.request.user)
+#         return obj
 
-# POST to mark onboarding as complete
-@extend_schema(
-    request=None,
-    responses={200: {"message": "Onboarding completed."}, 404: {"error": "Onboarding state not found."}},
-    methods=["POST"]
-)
-class CompleteOnboardingView(UpdateAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = OnboardingStateSerializer
-
-    def get_object(self):
-        try:
-            return OnboardingState.objects.get(user=self.request.user)
-        except OnboardingState.DoesNotExist:
-            return None
-
-    def update(self, request, *args, **kwargs):
-        state = self.get_object()
-        if not state:
-            return Response({'error': 'Onboarding state not found.'}, status=404)
-        state.completed = True
-        state.save()
-        return Response({'message': 'Onboarding completed.'})
+# Note: the onboarding 'state' view was intentionally removed to keep a single
+# POST-only completion endpoint. The active `CompleteOnboardingView` is defined
+# earlier in this file as a POST-only `APIView` that marks `user.is_onboarded=True`.
 
 
 
