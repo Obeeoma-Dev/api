@@ -96,7 +96,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
 
     #Onboarding Middleware
-    'obeeomaapp.middleware.onboarding_middleware.EnsureOnboardingCompleteMiddleware',
+    #'obeeomaapp.middleware.onboarding_middleware.EnsureOnboardingCompleteMiddleware',
 
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
