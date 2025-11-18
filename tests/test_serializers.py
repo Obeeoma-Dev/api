@@ -258,18 +258,15 @@ class AssessmentResponseSerializerTest(TestCase):
     def test_valid_gad7_response(self):
         data = {
             'assessment_type': 'GAD-7',
-            'responses': [0, 1, 2, 1, 0, 1, 2]
-            'responses': [0, 1, 2, 1, 0, 1, 2]
+            'responses': [0, 1, 2, 1, 0, 1, 2],
         }
         serializer = AssessmentResponseSerializer(data=data)
-        self.assertTrue(serializer.is_valid(), serializer.errors)
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
     def test_invalid_gad7_response_count(self):
         data = {
             'assessment_type': 'GAD-7',
-            'responses': [0, 1, 2]  # Wrong count
-            'responses': [0, 1, 2]  # Wrong count
+            'responses': [0, 1, 2],  # Wrong count
         }
         serializer = AssessmentResponseSerializer(data=data)
         self.assertFalse(serializer.is_valid())
@@ -277,8 +274,7 @@ class AssessmentResponseSerializerTest(TestCase):
     def test_valid_phq9_response(self):
         data = {
             'assessment_type': 'PHQ-9',
-            'responses': [0, 1, 2, 1, 0, 1, 2, 1, 0]
-            'responses': [0, 1, 2, 1, 0, 1, 2, 1, 0]
+            'responses': [0, 1, 2, 1, 0, 1, 2, 1, 0],
         }
         serializer = AssessmentResponseSerializer(data=data)
         self.assertTrue(serializer.is_valid(), serializer.errors)
@@ -332,22 +328,13 @@ class EmployeeInvitationAcceptSerializerTest(TestCase):
 
     def test_valid_invitation_acceptance(self):
         # Test that serializer validates all required fields
-        # Test that serializer validates all required fields
         data = {
             'token': 'test-token-123',
             'password': 'securepass123',
             'first_name': 'John',
-            'last_name': 'Doe'
-            'password': 'securepass123',
-            'first_name': 'John',
-            'last_name': 'Doe'
+            'last_name': 'Doe',
         }
         serializer = EmployeeInvitationAcceptSerializer(data=data)
-        self.assertTrue(serializer.is_valid(), serializer.errors)
-        validated_data = serializer.validated_data
-        self.assertEqual(validated_data['token'], 'test-token-123')
-        self.assertEqual(validated_data['first_name'], 'John')
-        self.assertEqual(validated_data['last_name'], 'Doe')
         self.assertTrue(serializer.is_valid(), serializer.errors)
         validated_data = serializer.validated_data
         self.assertEqual(validated_data['token'], 'test-token-123')
