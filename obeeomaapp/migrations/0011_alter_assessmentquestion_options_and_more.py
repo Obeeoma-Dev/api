@@ -26,10 +26,8 @@ class Migration(migrations.Migration):
                 "verbose_name_plural": "Assessment Responses",
             },
         ),
-        migrations.RemoveField(
-            model_name="contactperson",
-            name="fullname",
-        ),
+        
+        
         migrations.AddField(
             model_name="assessmentresponse",
             name="difficulty_level",
@@ -44,16 +42,6 @@ class Migration(migrations.Migration):
                 max_length=30,
                 null=True,
             ),
-        ),
-        migrations.AddField(
-            model_name="contactperson",
-            name="first_name",
-            field=models.CharField(blank=True, max_length=100, null=True),
-        ),
-        migrations.AddField(
-            model_name="contactperson",
-            name="last_name",
-            field=models.CharField(blank=True, max_length=100, null=True),
         ),
         migrations.AlterField(
             model_name="assessmentquestion",
