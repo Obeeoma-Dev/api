@@ -1071,9 +1071,9 @@ class VideoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Video
         fields = [
-            'id', 'title', 'description', 'youtube_url', 'thumbnail',
+            'id', 'title', 'description', 'youtube_url',
             'is_professionally_reviewed', 'reviewed_by', 'review_date',
-             'category_name', 'duration', 'views', 'is_saved',
+            'category_name', 'duration', 'views', 'is_saved',
             'target_mood', 'updated_at', 'created_at'
         ]
         extra_kwargs = {
