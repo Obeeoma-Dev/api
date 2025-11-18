@@ -180,8 +180,6 @@ class EmployeeSerializerTest(TestCase):
             department=self.department,
             first_name='John',
             last_name='Doe',
-            first_name='John',
-            last_name='Doe',
             email='john@example.com',
             status='active'
         )
@@ -479,8 +477,7 @@ class EmployeeInvitationAcceptSerializerTest(TestCase):
 #         serializer = UserVideoInteractionSerializer(data=data)
 #         self.assertTrue(serializer.is_valid())  # Should still be valid
 
-        with self.assertRaises(ValidationError):
-            serializer.validate(data)
+
 
 
 class SubscriptionSerializerTest(TestCase):
@@ -518,8 +515,6 @@ class DepartmentSerializerTest(TestCase):
             employer=self.employer,
             department=self.department,
             first_name='Employee',
-            last_name='1',
-            first_name='Employee',
             last_name='One',
             email='emp1@example.com'
         )
@@ -527,8 +522,6 @@ class DepartmentSerializerTest(TestCase):
             user=user2,
             employer=self.employer,
             department=self.department,
-            first_name='Employee',
-            last_name='2',
             first_name='Employee',
             last_name='Two',
             email='emp2@example.com'
