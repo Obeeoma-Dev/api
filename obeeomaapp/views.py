@@ -2970,3 +2970,46 @@ class DynamicQuestionViewSet(viewsets.ModelViewSet):
         questions = list(self.queryset.order_by('?')[:count])
         serializer = self.get_serializer(questions, many=True)
         return Response(serializer.data)
+
+# views.py
+from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
+from .models import UserAchievement, Achievement
+from .serializers import UserAchievementSerializer
+
+class UserAchievementViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = UserAchievementSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return UserAchievement.objects.filter(user=self.request.user).select_related('achievement')
+
+    @action(detail=False, methods=['post'])
+    def update_progress(self, request):
+        """Increment progress for a given achievement"""
+        achievement_title = request.data.get('title')
+        increment = int(request.data.get('increment', 1))
+
+        achievement = get_object_or_404(Achievement, title=achievement_title, is_active=True)
+        ua, _ = UserAchievement.objects.get_or_create(user=request.user, achievement=achievement)
+        ua.increment_progress(increment)
+
+        serializer = self.get_serializer(ua)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        """Return overall summary of achievements"""
+        achievements = self.get_queryset()
+        total = achievements.count()
+        completed = achievements.filter(achieved=True).count()
+        serializer = self.get_serializer(achievements, many=True)
+
+        return Response({
+            'total_achievements': total,
+            'completed': completed,
+            'progress': serializer.data
+        })
