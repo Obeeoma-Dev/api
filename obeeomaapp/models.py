@@ -21,6 +21,14 @@ class User(AbstractUser):
     )
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
+     # Added this logic to get the number of employees under a particular organisation
+    organization = models.ForeignKey(
+        'Organization',
+        on_delete=models.SET_NULL,
+        related_name='employees',
+        null=True,
+        blank=True
+    )
     onboarding_completed = models.BooleanField(default=False)
     is_suspended = models.BooleanField(default=False)
 

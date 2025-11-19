@@ -32,7 +32,7 @@ from obeeomaapp.views import (
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
     DynamicQuestionViewSet,
-    AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView
+    AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,OrganizationDetailView
     # CompleteOnboardingView
 )
 
@@ -132,6 +132,11 @@ urlpatterns = [
 
     # Hotline Active Endpoint
     path('auth/hotline/active/', ActiveHotlineView.as_view(), name="active-hotline"),
+
+    # Organisation detials endpoint
+    path('auth/organizations/<int:org_id>/details/', OrganizationDetailView.as_view(), name='organization-details'),
+
+
     
     # COMPLETE ONBOARDING ENDPOINT
     # path('auth/api/onboarding/complete/', CompleteOnboardingView.as_view(), name='complete-onboarding'),

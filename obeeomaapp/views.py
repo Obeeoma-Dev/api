@@ -117,6 +117,19 @@ class OrganizationSignupView(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationCreateSerializer
     permission_classes = [permissions.AllowAny]
+    
+
+# view for organization details
+class OrganizationDetailView(APIView):
+    def get(self, request, org_id):
+        try:
+            org = Organization.objects.get(id=org_id)
+        except Organization.DoesNotExist:
+            return Response({"error": "Organization not found"}, status=404)
+
+        serializer = OrganizationDetailSerializer(org)
+        return Response(serializer.data)
+
 
 # VIEWS FOR VERIFYING THE OTP
 class VerifyOTPView(APIView):

@@ -145,6 +145,25 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
             print("Failed to send email:", e)
 
         return organization
+    
+
+# organization details serializer
+class OrganizationDetailSerializer(serializers.ModelSerializer):
+    employee_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Organization
+        fields = [
+            'organizationName',
+            'organisationSize',
+            'phoneNumber',
+            'companyEmail',
+            'Location',
+            'employee_count'
+        ]
+
+    def get_employee_count(self, obj):
+        return obj.employees.count()
 
 
 # Login Serializer
@@ -319,9 +338,6 @@ class EmployerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Employer
         fields = '__all__'
-
-
-
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
