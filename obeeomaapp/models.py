@@ -101,7 +101,7 @@ class ContactPerson(models.Model):
 # --- Organization Model ---
 class Organization(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='organizations', null=True, blank=True)
-    organizationName = models.CharField(max_length=255)
+    organizationName = models.CharField(max_length=255, unique=True)
     organisationSize = models.CharField(max_length=50)
     phoneNumber = models.CharField(max_length=20)
     companyEmail = models.EmailField(unique=True)
