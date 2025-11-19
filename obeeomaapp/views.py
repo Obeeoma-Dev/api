@@ -1,4 +1,6 @@
 # Keep only these imports (external modules)
+
+from rest_framework.permissions import IsAdminUser, AllowAny, SAFE_METHODS, BasePermission
 from django.http import JsonResponse
 from django.db.models import Avg, Count, Sum
 from rest_framework.decorators import action
@@ -2604,19 +2606,22 @@ class EducationalResourceViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
 
-from rest_framework import viewsets, permissions, filters
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.exceptions import NotFound
-from django_filters.rest_framework import DjangoFilterBackend
-from .models import Video, UserActivity, SavedResource
-from .serializers import VideoSerializer
-from rest_framework.permissions import AllowAny, IsAuthenticated
+
+
+class AdminOrReadOnly(BasePermission):
+    """
+    Custom permission: Read-only for everyone, write for admins only.
+    """
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:  # GET, HEAD, OPTIONS
+            return True
+        return request.user and request.user.is_staff  # Only admins can write
+
 
 class VideoViewSet(viewsets.ModelViewSet):  # Full CRUD support
     queryset = Video.objects.filter(is_active=True)
     serializer_class = VideoSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
     search_fields = ['title', 'description']
@@ -2637,7 +2642,7 @@ class VideoViewSet(viewsets.ModelViewSet):  # Full CRUD support
         if request.user.is_authenticated:
             UserActivity.objects.create(user=request.user, video=video)
 
-        return Response({'message': 'View recorded', 'total_views': video.views})
+        # Notify employees (optional, but should be outside Response)
         for employee in Employee.objects.all():
             Notification.objects.create(
                 employee=employee,
@@ -2645,7 +2650,10 @@ class VideoViewSet(viewsets.ModelViewSet):  # Full CRUD support
                 content_type="video",
                 object_id=video.id
             )
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+
+        return Response({'message': 'View recorded', 'total_views': video.views})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     def save(self, request, pk=None):
         """Save video to user's library"""
         try:
@@ -2668,10 +2676,20 @@ class VideoViewSet(viewsets.ModelViewSet):  # Full CRUD support
         serializer = self.get_serializer(popular, many=True)
         return Response(serializer.data)
 
+class AdminOrReadOnly(BasePermission):
+    """
+    Read-only for everyone, write access only for admins.
+    """
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:  # GET, HEAD, OPTIONS
+            return True
+        return request.user and request.user.is_staff  # Only admins can write
+
+
 class AudioViewSet(viewsets.ModelViewSet):  # Full CRUD support
     queryset = Audio.objects.filter(is_active=True)
     serializer_class = AudioSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
     search_fields = ['title', 'description']
@@ -2692,8 +2710,7 @@ class AudioViewSet(viewsets.ModelViewSet):  # Full CRUD support
         if request.user.is_authenticated:
             UserActivity.objects.create(user=request.user, audio=audio)
 
-        return Response({'message': 'Play recorded', 'total_plays': audio.plays})
-        
+        # Notify employees (should be outside Response)
         for employee in Employee.objects.all():
             Notification.objects.create(
                 employee=employee,
@@ -2701,6 +2718,9 @@ class AudioViewSet(viewsets.ModelViewSet):  # Full CRUD support
                 content_type="audio",
                 object_id=audio.id
             )
+
+        return Response({'message': 'Play recorded', 'total_plays': audio.plays})
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def save(self, request, pk=None):
         """Save audio to user's library"""
@@ -2717,28 +2737,42 @@ class AudioViewSet(viewsets.ModelViewSet):  # Full CRUD support
             saved.delete()
             return Response({'message': 'Audio removed from library'})
 
-class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
+class AdminOrReadOnly(BasePermission):
+    """
+    Read-only for everyone, write access only for admins.
+    """
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:  # GET, HEAD, OPTIONS
+            return True
+        return request.user and request.user.is_staff  # Only admins can write
+
+
+class ArticleViewSet(viewsets.ModelViewSet):  # Full CRUD support
     queryset = Article.objects.filter(is_published=True)
     serializer_class = ArticleSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
     search_fields = ['title', 'content', 'excerpt']
     ordering_fields = ['published_date', 'views', 'reading_time']
     lookup_field = 'slug'
-    
+
     @action(detail=True, methods=['post'])
     def read(self, request, slug=None):
-        article = self.get_object()
+        """Record that user read this article"""
+        try:
+            article = self.get_object()
+        except Exception:
+            raise NotFound("No article matches the given query.")
+
         article.views += 1
         article.save()
-        
+
         # Track user activity if authenticated
         if request.user.is_authenticated:
             UserActivity.objects.create(user=request.user, article=article)
-        
-        return Response({'message': 'Read recorded', 'total_views': article.views})
-        
+
+        # Notify employees (should be outside Response)
         for employee in Employee.objects.all():
             Notification.objects.create(
                 employee=employee,
@@ -2746,48 +2780,72 @@ class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
                 content_type="article",
                 object_id=article.id
             )
+
+        return Response({'message': 'Read recorded', 'total_views': article.views})
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def save(self, request, slug=None):
-        article = self.get_object()
+        """Save article to user's library"""
+        try:
+            article = self.get_object()
+        except Exception:
+            raise NotFound("No article matches the given query.")
+
         saved, created = SavedResource.objects.get_or_create(
-            user=request.user, 
+            user=request.user,
             article=article
         )
-        
+
         if created:
             return Response({'message': 'Article saved to your library'})
         else:
             saved.delete()
             return Response({'message': 'Article removed from library'})
-    
+
     @action(detail=False, methods=['get'])
     def trending(self, request):
+        """Return top 10 most viewed articles"""
         trending = self.queryset.order_by('-views')[:10]
         serializer = self.get_serializer(trending, many=True)
         return Response(serializer.data)
 
 
-class MeditationTechniqueViewSet(viewsets.ReadOnlyModelViewSet):
+from rest_framework.permissions import IsAdminUser, IsAuthenticated, SAFE_METHODS, BasePermission
+class AdminOrReadOnly(BasePermission):
+    """
+    Read-only for everyone, write access only for admins.
+    """
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:  # GET, HEAD, OPTIONS
+            return True
+        return request.user and request.user.is_staff  # Only admins can write
+
+
+class MeditationTechniqueViewSet(viewsets.ModelViewSet):  # Full CRUD support
     queryset = MeditationTechnique.objects.filter(is_active=True)
     serializer_class = MeditationTechniqueSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category', 'difficulty']
     search_fields = ['title', 'description', 'benefits']
     ordering_fields = ['difficulty', 'duration', 'times_practiced']
-    
+
     @action(detail=True, methods=['post'])
     def practice(self, request, pk=None):
-        meditation = self.get_object()
+        """Record that user practiced this meditation technique"""
+        try:
+            meditation = self.get_object()
+        except Exception:
+            raise NotFound("No meditation technique matches the given query.")
+
         meditation.times_practiced += 1
         meditation.save()
-        
+
         # Track user activity if authenticated
         if request.user.is_authenticated:
             UserActivity.objects.create(user=request.user, meditation=meditation, completed=True)
-        
-        return Response({'message': 'Practice recorded', 'total_sessions': meditation.times_practiced})
-        
+
+        # Notify employees (should be outside Response)
         for employee in Employee.objects.all():
             Notification.objects.create(
                 employee=employee,
@@ -2795,26 +2853,34 @@ class MeditationTechniqueViewSet(viewsets.ReadOnlyModelViewSet):
                 content_type="meditation",
                 object_id=meditation.id
             )
+
+        return Response({'message': 'Practice recorded', 'total_sessions': meditation.times_practiced})
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def save(self, request, pk=None):
-        meditation = self.get_object()
+        """Save meditation technique to user's library"""
+        try:
+            meditation = self.get_object()
+        except Exception:
+            raise NotFound("No meditation technique matches the given query.")
+
         saved, created = SavedResource.objects.get_or_create(
-            user=request.user, 
+            user=request.user,
             meditation=meditation
         )
-        
+
         if created:
             return Response({'message': 'Meditation saved to your library'})
         else:
             saved.delete()
             return Response({'message': 'Meditation removed from library'})
-    
+
     @action(detail=False, methods=['get'])
     def for_beginners(self, request):
+        """Return beginner-friendly meditation techniques"""
         beginners = self.queryset.filter(difficulty='beginner')
         serializer = self.get_serializer(beginners, many=True)
         return Response(serializer.data)
-
 
 class SavedResourceViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = SavedResourceSerializer
