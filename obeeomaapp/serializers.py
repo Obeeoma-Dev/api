@@ -1324,3 +1324,32 @@ class AssessmentQuestionsResponseSerializer(serializers.Serializer):
     score_options = serializers.ListField()
     difficulty_question = serializers.CharField()
     difficulty_options = serializers.ListField()
+
+# serializers.py
+from rest_framework import serializers
+from .models import UserAchievement
+
+class UserAchievementSerializer(serializers.ModelSerializer):
+    title = serializers.CharField(source='achievement.title')
+    description = serializers.CharField(source='achievement.description')
+    category = serializers.CharField(source='achievement.category')
+    target_count = serializers.IntegerField(source='achievement.target_count')
+    progress_percentage = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserAchievement
+        fields = [
+            'title', 'description', 'category',
+            'progress_count', 'target_count',
+            'progress_percentage', 'achieved', 'achieved_date'
+        ]
+
+    def get_progress_percentage(self, obj):
+        return obj.progress_percentage()
+
+
+# CrisisHotlineSerializer
+class CrisisHotlineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CrisisHotline
+        fields = ['id', 'country', 'region', 'hotline_name', 'phone_number', 'is_active']

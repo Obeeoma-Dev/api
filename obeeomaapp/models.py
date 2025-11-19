@@ -1485,3 +1485,47 @@ class AssessmentResponse(models.Model):
         self.severity_level = self.calculate_severity()
         
         super().save(*args, **kwargs)
+
+# models.py
+
+
+class Achievement(models.Model):
+    CATEGORY_CHOICES = [
+        ('assessment', 'Assessment'),
+        ('moodtracking', 'MoodTracking'),
+        ('yourprogress', 'Your Progress'),
+        ('educationalresource', 'Educational Resource'),
+    ]
+
+    title = models.CharField(max_length=100, unique=True)
+    description = models.TextField()
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    target_count = models.PositiveIntegerField()
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.title
+
+from django.conf import settings
+from django.db import models
+
+class UserAchievement(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    achievement = models.ForeignKey("Achievement", on_delete=models.CASCADE)
+    progress_count = models.PositiveIntegerField(default=0)
+    achieved = models.BooleanField(default=False)
+    achieved_date = models.DateField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('user', 'achievement')
+
+
+    def progress_percentage(self):
+        return min(100, int((self.progress_count / self.achievement.target_count) * 100))
+
+    def increment_progress(self, count=1):
+        self.progress_count += count
+        if not self.achieved and self.progress_count >= self.achievement.target_count:
+            self.achieved = True
+            self.achieved_date = timezone.now().date()
+        self.save()
