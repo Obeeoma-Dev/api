@@ -103,6 +103,7 @@ class IsCompanyAdmin(BasePermission):
 
 
 # SIGNUP VIEW
+
 @extend_schema(tags=['Authentication'])
 class SignupView(viewsets.ModelViewSet):
     queryset = User.objects.all()
