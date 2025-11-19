@@ -146,8 +146,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
 
         return organization
     
-
-# organization details serializer
+# serilaizer for organisation detials
 class OrganizationDetailSerializer(serializers.ModelSerializer):
     employee_count = serializers.SerializerMethodField()
 
@@ -164,7 +163,6 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
 
     def get_employee_count(self, obj):
         return obj.employees.count()
-
 
 # Login Serializer
 
