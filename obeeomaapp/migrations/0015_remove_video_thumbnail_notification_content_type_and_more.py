@@ -9,36 +9,30 @@ class Migration(migrations.Migration):
     dependencies = [
         ("obeeomaapp", "0014_contactperson_add_name_fields"),
     ]
+    migrations.AddField(
+        model_name="notification",
+        name="content_type",
+        field=models.CharField(blank=True, max_length=50, null=True),
+    ),
+    migrations.AddField(
+        model_name="notification",
+        name="object_id",
+        field=models.PositiveIntegerField(blank=True, null=True),
+    ),
+    migrations.AddField(
+        model_name="user",
+        name="organization",
+        field=models.ForeignKey(
+            blank=True,
+            null=True,
+            on_delete=django.db.models.deletion.SET_NULL,
+            related_name="employees",
+            to="obeeomaapp.organization",
+        ),
+    ),
+    migrations.AlterField(
+        model_name="notification",
+        name="message",
+        field=models.CharField(blank=True, max_length=255, null=True),
+    ),
 
-    operations = [
-        migrations.RemoveField(
-            model_name="video",
-            name="thumbnail",
-        ),
-        migrations.AddField(
-            model_name="notification",
-            name="content_type",
-            field=models.CharField(blank=True, max_length=50, null=True),
-        ),
-        migrations.AddField(
-            model_name="notification",
-            name="object_id",
-            field=models.PositiveIntegerField(blank=True, null=True),
-        ),
-        migrations.AddField(
-            model_name="user",
-            name="organization",
-            field=models.ForeignKey(
-                blank=True,
-                null=True,
-                on_delete=django.db.models.deletion.SET_NULL,
-                related_name="employees",
-                to="obeeomaapp.organization",
-            ),
-        ),
-        migrations.AlterField(
-            model_name="notification",
-            name="message",
-            field=models.CharField(blank=True, max_length=255, null=True),
-        ),
-    ]
