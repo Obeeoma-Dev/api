@@ -325,6 +325,26 @@ class PasswordChangeSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         return validated_data
+    
+# Resetpasswordcomplete serializer
+
+class ResetPasswordCompleteSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    new_password = serializers.CharField(write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        if attrs['new_password'] != attrs['confirm_password']:
+            raise serializers.ValidationError("Passwords do not match.")
+
+        try:
+            user = User.objects.get(email=attrs['email'])
+        except User.DoesNotExist:
+            raise serializers.ValidationError("User not found.")
+
+        attrs['user'] = user
+        return attrs
+
 
     
 # SERIAILZER FOR VERIFYING OTP

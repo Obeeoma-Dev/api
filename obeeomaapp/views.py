@@ -413,9 +413,10 @@ class PasswordResetConfirmView(viewsets.ViewSet):
             return Response({"error": "Invalid verification code"}, status=status.HTTP_400_BAD_REQUEST)
 
 # View for changing or updating password
+# View for changing or updating password
 @extend_schema(tags=['Authentication'])
 class PasswordChangeView(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     serializer_class = PasswordChangeSerializer
 
     def create(self, request):
@@ -526,7 +527,26 @@ def mfa_verify(request):
 
     return Response(_build_login_success_payload(user))
 
+# Resetpassword completeview
+@extend_schema(tags=['Authentication'])
+class ResetPasswordCompleteView(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+    serializer_class = ResetPasswordCompleteSerializer
 
+    def create(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.validated_data['user']
+        new_password = serializer.validated_data['new_password']
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response(
+            {"message": "Password has been reset successfully."},
+            status=status.HTTP_200_OK
+        )
 
 # Employee Invitation Serializers
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):

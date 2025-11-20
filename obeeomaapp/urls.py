@@ -28,11 +28,11 @@ from obeeomaapp.views import (
     EngagementTrackerView, FeedbackView, ChatSessionView, 
     ChatMessageView, RecommendationLogView, InvitationAcceptView, 
     InvitationVerifyView, home, OrganizationSignupView,
-    InvitationAcceptanceView, InviteView, 
-    VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
-    SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
-    DynamicQuestionViewSet,
-    AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,OrganizationDetailView,UserAchievementViewSet   
+    InvitationAcceptanceView, InviteView,                     
+    VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet,
+    SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet,DynamicQuestionViewSet,AssessmentQuestionViewSet,
+    
+    ActiveHotlineView,OrganizationDetailView,UserAchievementViewSet ,AssessmentResponseViewSet ,ResetPasswordCompleteView
     # CompleteOnboardingView
 )
 
@@ -127,6 +127,8 @@ urlpatterns = [
     path("auth/reset-password/confirm/", PasswordResetConfirmView.as_view({'post': 'create'}), name="password-reset-confirm"),
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
     path('auth/verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
+    path('auth/reset-password/complete/', ResetPasswordCompleteView.as_view({'post': 'create'}), name='password-reset-complete'),
+
     path('auth/mfa/setup/', views.mfa_setup, name='mfa-setup'),
     path('auth/mfa/confirm/', views.mfa_confirm, name='mfa-confirm'),
     path('auth/mfa/verify/', views.mfa_verify, name='mfa-verify'),
