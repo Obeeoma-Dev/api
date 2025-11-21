@@ -292,7 +292,32 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         })
         return data
 
-    
+#  EmployeeOnboardingSerializer
+class EmployeeOnboardingSerializer(serializers.Serializer):
+    username = serializers.CharField(required=True)
+    password = serializers.CharField(write_only=True, required=True)
+    confirm_password = serializers.CharField(write_only=True, required=True)
+    avatar = serializers.ImageField(required=True)
+
+    def validate_username(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("Username already taken.")
+        return value
+
+    def validate(self, attrs):
+        if attrs["password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        return attrs
+
+    def update(self, user, validated_data):
+        user.username = validated_data["username"]
+        user.set_password(validated_data["password"])
+        user.avatar = validated_data["avatar"]
+        user.onboarding_completed = True
+        user.save()
+        return user
+
+
 # Logout Serializer
 class LogoutSerializer(serializers.Serializer):
      refresh = serializers.CharField()

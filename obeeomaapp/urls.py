@@ -31,7 +31,7 @@ from obeeomaapp.views import (
     CompleteAccountSetupView, InviteView, EmployeeFirstLoginView,
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
-    # CompleteOnboardingView,
+     CompleteOnboardingView,
     DynamicQuestionViewSet, UserAchievementViewSet,
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView
     
@@ -129,7 +129,6 @@ urlpatterns = [
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
     path('auth/verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
     path('auth/reset-password/complete/', ResetPasswordCompleteView.as_view({'post': 'create'}), name='password-reset-complete'),
-
     path('auth/mfa/setup/', views.mfa_setup, name='mfa-setup'),
     path('auth/mfa/confirm/', views.mfa_confirm, name='mfa-confirm'),
     path('auth/mfa/verify/', views.mfa_verify, name='mfa-verify'),
@@ -140,6 +139,8 @@ urlpatterns = [
     # Organisation detials endpoint
     path('auth/organizations/<int:org_id>/details/', OrganizationDetailView.as_view(), name='organization-details'),
 
+    # Complete Onboarding Endpoint
+    path('auth/complete-onboarding/', CompleteOnboardingView.as_view(), name='complete-onboarding'),
 
     
    
@@ -178,9 +179,6 @@ urlpatterns = [
     path('sana/sessions/<int:session_id>/messages/', ChatMessageView.as_view({'get': 'list', 'post': 'create'}), name='chat-messages'),
     path('employee/recommendations/', RecommendationLogView.as_view({'get': 'list', 'post': 'create'}), name='recommendation-log'),
 
-    # # ONBOARDING ENDPOINT
-    # path('onboarding/', OnboardingView.as_view(), name='onboarding'),
-   
 
 
 

@@ -223,6 +223,13 @@ class LoginView(APIView):
                 "mfa_required": True,
                 "temp_token": temp_token
             })
+        if not user.onboarding_completed:
+    # Return onboarding-required response
+         return Response({
+        "onboarding_required": True,
+        "temp_access_token": RefreshToken.for_user(user).access_token,  
+        "message": "Onboarding required before using the system."
+    }, status=200)
 
         # Login normally
         django_login(request, user)
@@ -239,10 +246,31 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
+#  CompleteOnboardingView
+class CompleteOnboardingView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        request=EmployeeOnboardingSerializer,
+        responses={200: OpenApiTypes.OBJECT},
+        tags=['Onboarding'],
+        description="Complete first-time user onboarding."
+    )
+    def post(self, request):
+        user = request.user
 
+        if user.onboarding_completed:
+            return Response({"detail": "Onboarding already completed."}, status=400)
 
-   
+        serializer = EmployeeOnboardingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.update(user, serializer.validated_data)
+
+        # Now allow permanent login
+        return Response({
+            "message": "Onboarding completed successfully.",
+            "login_allowed": True
+        })
 
 # LOGOUT VIEW
 @extend_schema(
@@ -935,7 +963,7 @@ The Obeeoma Team
     <div class="container">
         <div class="header">
             <div class="logo">OBEEOMA • A HAPPY HEART</div>
-            <h1>🎉 Welcome to {employer.name}!</h1>
+            <h1> Welcome to {employer.name}!</h1>
             <p>Join our team on Obeeoma</p>
         </div>
         
@@ -945,7 +973,7 @@ The Obeeoma Team
             </div>
             
             <div class="credentials">
-                <h3>🔑 Your One-Time Login Credentials</h3>
+                <h3> Your One-Time Login Credentials</h3>
                 <div class="cred-row">
                     <span class="cred-label">Username</span>
                     <span class="cred-value">{invitation.temporary_username}</span>
@@ -961,7 +989,7 @@ The Obeeoma Team
             </div>
             
             <div class="info-box">
-                ⚠️ <strong>Important:</strong> These credentials are for one-time use only and expire on <strong>{invitation.expires_at.strftime('%b %d, %Y')}</strong>.
+                 <strong>Important:</strong> These credentials are for one-time use only and expire on <strong>{invitation.expires_at.strftime('%b %d, %Y')}</strong>.
             </div>
         </div>
         
