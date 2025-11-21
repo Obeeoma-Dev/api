@@ -18,7 +18,7 @@ from obeeomaapp.views import (
     AIManagementView, ClientEngagementView,
     ReportsAnalyticsView, SystemSettingsView, FeaturesUsageView,
     MyBadgesView, MyStreaksView, ProgressViewSet, 
-    EmailConfigCheckView, SignupView, LoginView, LogoutView, 
+    EmailConfigCheckView, LoginView, LogoutView, 
     PasswordResetView, PasswordResetConfirmView, PasswordChangeView,
     OverviewView, TrendsView, EmployeeEngagementView, BillingView,
     UsersView, ReportsView, CrisisInsightsView,
@@ -121,7 +121,7 @@ urlpatterns = [
         "debug/email-config/", EmailConfigCheckView.as_view(), name="email-config-check"
     ),
     # Authentication
-    path("auth/signup/", SignupView.as_view({"post": "create"}), name="signup"),
+    # path("auth/signup/", SignupView.as_view({"post": "create"}), name="signup"),
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/logout/", LogoutView.as_view(), name="logout"),
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
