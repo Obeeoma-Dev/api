@@ -31,9 +31,8 @@ from obeeomaapp.views import (
     InvitationAcceptanceView, InviteView,                     
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet,
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet,DynamicQuestionViewSet,AssessmentQuestionViewSet,
-    
     ActiveHotlineView,OrganizationDetailView,UserAchievementViewSet ,AssessmentResponseViewSet ,ResetPasswordCompleteView
-    # CompleteOnboardingView
+
 )
 
 
@@ -140,9 +139,6 @@ urlpatterns = [
     path('auth/organizations/<int:org_id>/details/', OrganizationDetailView.as_view(), name='organization-details'),
 
 
-    
-    # COMPLETE ONBOARDING ENDPOINT
-    # path('auth/api/onboarding/complete/', CompleteOnboardingView.as_view(), name='complete-onboarding'),
 
     # Dashboard
     path("dashboard/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),
