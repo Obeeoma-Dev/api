@@ -28,7 +28,7 @@ from obeeomaapp.views import (
     EngagementTrackerView, FeedbackView, ChatSessionView, 
     ChatMessageView, RecommendationLogView, InvitationAcceptView, 
     InvitationVerifyView, home, OrganizationSignupView,
-    InvitationAcceptanceView, InviteView, 
+    CompleteAccountSetupView, InviteView, EmployeeFirstLoginView,
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
     # CompleteOnboardingView,
@@ -178,9 +178,10 @@ urlpatterns = [
 
 
 
-    # Invitation acceptance (public) - Updated to use InvitationAcceptanceView
+    # Employee invitation flow
+    path('auth/first-login/', EmployeeFirstLoginView.as_view(), name='first-login'),
+    path('auth/complete-account-setup/', CompleteAccountSetupView.as_view(), name='complete-account-setup'),
     path('auth/verify-invite/', InvitationVerifyView.as_view(), name='verify-invite'),
-    path('auth/accept-invite/', InvitationAcceptanceView.as_view(), name='accept-invite'),
 
     # Include router URLs
     path("", include(router.urls)),

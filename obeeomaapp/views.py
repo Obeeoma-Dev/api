@@ -166,9 +166,9 @@ def _build_login_success_payload(user):
     }
 
     # Redirect URL based on role
-    if user.role == "systemadmin":
+    if user.role == "system_admin":
         redirect_url = "/admin/dashboard/"
-    elif user.role in ["organization", "employer"]:
+    elif user.role == "employer":
         redirect_url = "/organization/dashboard/"
     elif user.role == "employee":
         redirect_url = "/api/v1/mobile-login-success/"
@@ -428,7 +428,7 @@ class PasswordChangeView(viewsets.ViewSet):
 @permission_classes([IsAuthenticated])
 def mfa_setup(request):
     user = request.user
-    if not (user.role == 'systemadmin' or user.is_superuser):
+    if not (user.role == 'system_admin' or user.is_superuser):
         return Response({'error': 'Only system administrators can enable MFA'}, status=403)
 
     raw_secret = user.generate_mfa_secret()
@@ -754,25 +754,34 @@ class InviteView(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         invitation = serializer.save()
         
-        # Send invitation email
+        # Send invitation email with temporary credentials
         try:
-            invitation_url = f"{settings.FRONTEND_URL}/auth/accept-invite?token={invitation.token}" if hasattr(settings, 'FRONTEND_URL') else f"http://localhost:3000/auth/accept-invite?token={invitation.token}"
+            login_url = f"{settings.FRONTEND_URL}/auth/first-login" if hasattr(settings, 'FRONTEND_URL') else f"http://localhost:3000/auth/first-login"
             
-            subject = f"You're invited to join {employer.name} on Obeeoma"
-            message = f"""
+            subject = f"🎉 Welcome to {employer.name} on Obeeoma!"
+            
+            # Plain text version
+            text_message = f"""
 Hello,
 
 You have been invited to join {employer.name} on the Obeeoma platform by {request.user.username}.
 
 {invitation.message if invitation.message else ''}
 
-To accept this invitation and create your account, please click the link below:
+To get started, please use the following ONE-TIME credentials for your first login:
 
-{invitation_url}
+Username: {invitation.temporary_username}
+Password: {invitation.temp_password_plain}
 
-Your invitation token: {invitation.token}
+Login URL: {login_url}
 
-This invitation will expire on {invitation.expires_at.strftime('%B %d, %Y at %I:%M %p')}.
+IMPORTANT: These credentials are for ONE-TIME USE ONLY. After your first login, you will be required to:
+1. Provide your first and last name
+2. Create a new permanent password
+
+Your invitation will expire on {invitation.expires_at.strftime('%B %d, %Y at %I:%M %p')}.
+
+For security reasons, please do not share these credentials with anyone.
 
 If you have any questions, please contact your organization administrator.
 
@@ -780,12 +789,181 @@ Best regards,
 The Obeeoma Team
 """
             
+            # HTML version - Obeeoma brand colors
+            html_message = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.5;
+            color: #1f2937;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f9f4;
+        }}
+        .container {{
+            max-width: 560px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(11, 110, 69, 0.12);
+        }}
+        .header {{
+            background: linear-gradient(135deg, #0B6E45 0%, #00A859 100%);
+            color: white;
+            padding: 32px 24px;
+            text-align: center;
+        }}
+        .header h1 {{
+            margin: 0 0 8px;
+            font-size: 24px;
+            font-weight: 700;
+        }}
+        .header p {{
+            margin: 0;
+            font-size: 14px;
+            opacity: 0.95;
+        }}
+        .logo {{
+            margin-bottom: 12px;
+            font-size: 14px;
+            letter-spacing: 1px;
+            opacity: 0.9;
+        }}
+        .content {{
+            padding: 32px 24px;
+        }}
+        .intro {{
+            font-size: 15px;
+            color: #374151;
+            margin-bottom: 24px;
+            text-align: center;
+            line-height: 1.6;
+        }}
+        .credentials {{
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            border: 2px solid #3CB371;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 24px 0;
+        }}
+        .credentials h3 {{
+            margin: 0 0 16px;
+            font-size: 16px;
+            color: #0B6E45;
+            text-align: center;
+            font-weight: 700;
+        }}
+        .cred-row {{
+            display: flex;
+            align-items: center;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border: 1px solid #d1fae5;
+        }}
+        .cred-row:last-child {{
+            margin-bottom: 0;
+        }}
+        .cred-label {{
+            font-size: 12px;
+            color: #0B6E45;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            width: 90px;
+        }}
+        .cred-value {{
+            font-size: 16px;
+            font-weight: 700;
+            color: #111827;
+            font-family: 'Courier New', monospace;
+            flex: 1;
+        }}
+
+        .info-box {{
+            background: #f0f9f4;
+            border-left: 3px solid #3CB371;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-size: 13px;
+            color: #374151;
+        }}
+        .info-box strong {{
+            color: #0B6E45;
+        }}
+        .footer {{
+            background: #f0f9f4;
+            padding: 20px 24px;
+            text-align: center;
+            font-size: 13px;
+            color: #6b7280;
+            border-top: 1px solid #d1fae5;
+        }}
+        .footer p {{
+            margin: 4px 0;
+        }}
+        .footer strong {{
+            color: #0B6E45;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">OBEEOMA • A HAPPY HEART</div>
+            <h1>🎉 Welcome to {employer.name}!</h1>
+            <p>Join our team on Obeeoma</p>
+        </div>
+        
+        <div class="content">
+            <div class="intro">
+                <strong>{invitation.invited_by.email if invitation.invited_by else 'Your administrator'}</strong> has invited you to join <strong>{employer.name}</strong> on the Obeeoma platform for mental health and employee wellbeing.
+            </div>
+            
+            <div class="credentials">
+                <h3>🔑 Your One-Time Login Credentials</h3>
+                <div class="cred-row">
+                    <span class="cred-label">Username</span>
+                    <span class="cred-value">{invitation.temporary_username}</span>
+                </div>
+                <div class="cred-row">
+                    <span class="cred-label">Password</span>
+                    <span class="cred-value">{invitation.temp_password_plain}</span>
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <strong>Next Steps:</strong> After login, you'll choose your permanent username and password.
+            </div>
+            
+            <div class="info-box">
+                ⚠️ <strong>Important:</strong> These credentials are for one-time use only and expire on <strong>{invitation.expires_at.strftime('%b %d, %Y')}</strong>.
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Need help? Contact your organization administrator.</p>
+            <p><strong>The Obeeoma Team</strong></p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+            
             # Try to send via Gmail API first, fallback to SMTP
             email_sent = False
             try:
                 # Only try Gmail API if credentials are configured
                 if settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET:
-                    email_sent = send_gmail_api_email(invitation.email, subject, message)
+                    email_sent = send_gmail_api_email(invitation.email, subject, html_message)
                     logger.info(f"Email sent via Gmail API to {invitation.email}")
             except Exception as gmail_error:
                 logger.warning(f"Gmail API failed: {str(gmail_error)}")
@@ -793,13 +971,15 @@ The Obeeoma Team
             # Fallback to SMTP if Gmail API didn't work
             if not email_sent:
                 try:
-                    send_mail(
+                    # Send multipart email with both plain text and HTML
+                    email = EmailMultiAlternatives(
                         subject,
-                        message,
+                        text_message,  # Plain text version
                         settings.DEFAULT_FROM_EMAIL,
-                        [invitation.email],
-                        fail_silently=False,
+                        [invitation.email]
                     )
+                    email.attach_alternative(html_message, "text/html")  # HTML version
+                    email.send(fail_silently=False)
                     email_sent = True
                     logger.info(f"Email sent via SMTP to {invitation.email}")
                 except Exception as smtp_error:
@@ -820,57 +1000,138 @@ The Obeeoma Team
 
 
 @extend_schema(tags=['Employee Invitations'])
-class InvitationAcceptanceView(APIView):
+class EmployeeFirstLoginView(APIView):
     """
-    Handle employee invitation acceptance and account creation
+    Handle first login with temporary credentials
+    """
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        request=EmployeeFirstLoginSerializer,
+        responses={
+            200: {
+                "description": "First login successful",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "message": "First login successful. Please complete your account setup.",
+                            "token": "abc123xyz",
+                            "email": "employee@company.com",
+                            "employer": "Company Name"
+                        }
+                    }
+                }
+            },
+            400: {"description": "Invalid credentials"}
+        },
+        description="""
+        First login endpoint for employees using temporary credentials from invitation email.
+        
+        After successful authentication with temporary credentials:
+        - The credentials are marked as used (cannot be reused)
+        - A token is returned for completing account setup
+        - User must then call the account completion endpoint
+        """
+    )
+    def post(self, request):
+        """Authenticate with temporary credentials"""
+        serializer = EmployeeFirstLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        invitation = serializer.validated_data['invitation']
+        
+        # Mark credentials as used
+        invitation.credentials_used = True
+        invitation.save()
+        
+        return Response({
+            'message': 'First login successful. Please complete your account setup.',
+            'token': invitation.token,
+            'email': invitation.email,
+            'employer': invitation.employer.name,
+            'invited_by': invitation.invited_by.email if invitation.invited_by else 'Unknown'
+        }, status=status.HTTP_200_OK)
+
+
+@extend_schema(tags=['Employee Invitations'])
+class CompleteAccountSetupView(APIView):
+    """
+    Complete account setup after first login with temporary credentials
     """
     permission_classes = [AllowAny]  # Allow unauthenticated access for signup
     
     @extend_schema(
         request=EmployeeInvitationAcceptSerializer,
         responses={
-            200: {
-                "description": "Invitation validated successfully",
+            201: {
+                "description": "Account setup completed successfully",
                 "content": {
                     "application/json": {
                         "example": {
-                            "valid": True,
-                            "invitation": {
+                            "message": "Account created successfully. You can now login with your new credentials.",
+                            "user": {
+                                "id": 1,
                                 "email": "employee@company.com",
-                                "employer": "Company Name",
-                                "invited_by": "admin@company.com",
-                                "expires_at": "2025-11-06T19:13:03.648Z"
-                            }
+                                "username": "john_doe",
+                                "role": "employee"
+                            },
+                            "employee_profile": {
+                                "id": 1,
+                                "employer": "Company Name"
+                            },
+                            "access": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+                            "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc..."
                         }
                     }
                 }
             },
-            400: {"description": "Invalid or expired token"}
-        }
+            400: {"description": "Invalid data or token not from first login"}
+        },
+        description="""
+        Complete account setup after successful first login with temporary credentials.
+        
+        This endpoint requires:
+        - token: From first login response
+        - username: Your chosen permanent username
+        - password: Your new permanent password
+        - confirm_password: Password confirmation
+        
+        The system will:
+        - Create your permanent user account
+        - Set your new credentials
+        - Create your employee profile
+        - Return authentication tokens for immediate login
+        
+        **Prerequisites:** Must have successfully completed first login with temporary credentials.
+        """
     )
     def post(self, request):
         """
-        Validate invitation token and return invitation details
+        Complete account setup with permanent credentials
         """
         serializer = EmployeeInvitationAcceptSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        token = serializer.validated_data['token']
-        invitation = EmployeeInvitation.objects.get(
-            token=token,
-            accepted=False,
-            expires_at__gt=timezone.now()
-        )
+        user = serializer.save()
+        
+        # Generate tokens for immediate login
+        refresh = RefreshToken.for_user(user)
         
         return Response({
-            'valid': True,
-            'invitation': {
-                'email': invitation.email,
-                'employer': invitation.employer.name,
-                'invited_by': invitation.invited_by.email if invitation.invited_by else 'Unknown',
-                'expires_at': invitation.expires_at
-            }
-        })
+            'message': 'Account created successfully. You can now login with your new credentials.',
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'username': user.username,
+                'role': user.role
+            },
+            'employee_profile': {
+                'id': user.employee_profile.id,
+                'employer': user.employee_profile.employer.name
+            },
+            'access': str(refresh.access_token),
+            'refresh': str(refresh)
+        }, status=status.HTTP_201_CREATED)
     
     @extend_schema(
         request=EmployeeUserCreateSerializer,

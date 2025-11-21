@@ -441,31 +441,87 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
         )
         return user
 
+class EmployeeFirstLoginSerializer(serializers.Serializer):
+    """Serializer for first login with temporary credentials"""
+    temporary_username = serializers.CharField(
+        required=True,
+        help_text="Temporary username from invitation email"
+    )
+    temporary_password = serializers.CharField(
+        required=True,
+        write_only=True,
+        help_text="Temporary password from invitation email"
+    )
+    
+    def validate(self, attrs):
+        from django.contrib.auth.hashers import check_password
+        
+        temp_username = attrs.get('temporary_username')
+        temp_password = attrs.get('temporary_password')
+        
+        # Find invitation with this temporary username
+        try:
+            invitation = EmployeeInvitation.objects.get(
+                temporary_username=temp_username,
+                accepted=False,
+                credentials_used=False,
+                expires_at__gt=timezone.now()
+            )
+        except EmployeeInvitation.DoesNotExist:
+            raise serializers.ValidationError("Invalid credentials or invitation expired/used")
+        
+        # Verify temporary password
+        if not check_password(temp_password, invitation.temporary_password):
+            raise serializers.ValidationError("Invalid credentials")
+        
+        attrs['invitation'] = invitation
+        return attrs
+
+
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
+    """Serializer for completing account setup after first login"""
     token = serializers.CharField(
         required=True,
-        help_text="Invitation token from the email link"
+        help_text="Invitation token from first login"
+    )
+    username = serializers.CharField(
+        required=True,
+        min_length=3,
+        max_length=150,
+        help_text="Choose your permanent username"
     )
     password = serializers.CharField(
         required=True,
         write_only=True,
         min_length=8,
-        help_text="Password for the new account"
+        help_text="Create your permanent password"
     )
-    first_name = serializers.CharField(
+    confirm_password = serializers.CharField(
         required=True,
-        help_text="User's first name"
+        write_only=True,
+        help_text="Confirm your password"
     )
-    last_name = serializers.CharField(
-        required=True,
-        help_text="User's last name"
-    )
+    
+    def validate_username(self, value):
+        # Check if username already exists
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("This username is already taken. Please choose another.")
+        return value
+    
+    def validate(self, attrs):
+        if attrs['password'] != attrs['confirm_password']:
+            raise serializers.ValidationError({"confirm_password": "Passwords don't match"})
+        
+        # Validate password strength
+        validate_password(attrs['password'])
+        return attrs
     
     def validate_token(self, value):
         try:
             invitation = EmployeeInvitation.objects.get(
                 token=value,
                 accepted=False,
+                credentials_used=True,  # Must have used temp credentials first
                 expires_at__gt=timezone.now()
             )
             return value
@@ -474,34 +530,36 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         token = validated_data['token']
+        username = validated_data['username']
         password = validated_data['password']
-        first_name = validated_data['first_name']
-        last_name = validated_data['last_name']
         
         # Get the invitation
         invitation = EmployeeInvitation.objects.get(
             token=token,
             accepted=False,
+            credentials_used=True,
             expires_at__gt=timezone.now()
         )
         
-        # Create user account
+        # Create user account with new permanent credentials
         user = User.objects.create_user(
-            username=invitation.email,  # Use email as username
+            username=username,  # Use chosen username
             email=invitation.email,
             password=password,
-            first_name=first_name,
-            last_name=last_name,
+            role='employee',
             is_active=True
         )
         
         # Create employee profile
         employee_profile = Employee.objects.create(
             user=user,
-            employer=invitation.employer
+            employer=invitation.employer,
+            email=invitation.email,
+            first_name='',  # Empty for now, can be updated later
+            last_name=''    # Empty for now, can be updated later
         )
         
-        # Mark invitation as accepted
+        # Mark invitation as fully accepted
         invitation.accepted = True
         invitation.accepted_at = timezone.now()
         invitation.save()
@@ -523,24 +581,45 @@ class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
         required=False,
         help_text="Invitation expiration date (defaults to 7 days from now)"
     )
+    temporary_username = serializers.CharField(read_only=True)
+    temporary_password_plain = serializers.CharField(read_only=True, source='temp_password_plain')
     
     class Meta:
         model = EmployeeInvitation
-        fields = ['id', 'email', 'message', 'expires_at', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'email', 'message', 'expires_at', 'created_at', 'temporary_username', 'temporary_password_plain']
+        read_only_fields = ['id', 'created_at', 'temporary_username', 'temporary_password_plain']
 
     def create(self, validated_data):
+        from django.contrib.auth.hashers import make_password
+        import secrets
+        import string
+        
         employer = self.context['employer']
         inviter = self.context['user']
         token = token_urlsafe(32)
         
-        # expires_at will be automatically set by the model if not provided
-        return EmployeeInvitation.objects.create(
+        # Generate temporary username (email prefix + random digits)
+        email_prefix = validated_data['email'].split('@')[0]
+        random_suffix = ''.join(secrets.choice(string.digits) for _ in range(4))
+        temp_username = f"{email_prefix}{random_suffix}"
+        
+        # Generate temporary password (12 characters: letters, digits, special chars)
+        temp_password = ''.join(secrets.choice(string.ascii_letters + string.digits + '!@#$%') for _ in range(12))
+        
+        # Create invitation with hashed temporary password
+        invitation = EmployeeInvitation.objects.create(
             employer=employer,
             invited_by=inviter,
             token=token,
+            temporary_username=temp_username,
+            temporary_password=make_password(temp_password),  # Store hashed
             **validated_data
         )
+        
+        # Store plain password temporarily for email (not saved to DB)
+        invitation.temp_password_plain = temp_password
+        
+        return invitation
 
 # --- Employee Profile ---
 
