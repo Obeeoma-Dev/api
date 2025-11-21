@@ -22,7 +22,6 @@ from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.hashers import check_password
 
 User = get_user_model()
-
 # SIGNUP SERIALIZER
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
@@ -66,6 +65,58 @@ class SignupSerializer(serializers.ModelSerializer):
         user.save()
 
         return user
+
+    
+    # SERIALIZER FOR CREATING AN ORGANIZATION
+class ContactPersonSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContactPerson
+        fields = ['fullname', 'role', 'email']
+
+
+class OrganizationCreateSerializer(serializers.ModelSerializer):
+    contactPerson = ContactPersonSerializer()
+    confirmPassword = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = Organization
+        fields = [
+            'organizationName',
+            'organisationSize',
+            'phoneNumber',
+            'companyEmail',
+            'Location',
+            'password',
+            'confirmPassword',
+            'contactPerson',
+        ]
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def validate(self, data):
+        if data['password'] != data['confirmPassword']:
+            raise serializers.ValidationError({"confirmPassword": "Passwords do not match."})
+        validate_password(data['password'])
+        return data
+
+    def create(self, validated_data):
+        contact_data = validated_data.pop('contactPerson')
+        validated_data.pop('confirmPassword')
+        user = User.objects.create(
+            username=validated_data['companyEmail'],
+            email=validated_data['companyEmail'],
+            role='employer'
+        )
+        user.set_password(validated_data['password'])
+        user.save()
+
+        contact_person = ContactPerson.objects.create(**contact_data)
+        validated_data['password'] = make_password(validated_data['password'])
+        validated_data['owner'] = user
+        validated_data['contactPerson'] = contact_person
+
+        organization = Organization.objects.create(**validated_data)
+        return organization 
+      
 
     
 # SERIALIZER FOR CREATING AN ORGANIZATION
@@ -145,7 +196,24 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
             print("Failed to send email:", e)
 
         return organization
+    
+# serilaizer for organisation detials
+class OrganizationDetailSerializer(serializers.ModelSerializer):
+    employee_count = serializers.SerializerMethodField()
 
+    class Meta:
+        model = Organization
+        fields = [
+            'organizationName',
+            'organisationSize',
+            'phoneNumber',
+            'companyEmail',
+            'Location',
+            'employee_count'
+        ]
+
+    def get_employee_count(self, obj):
+        return obj.employees.count()
 
 # Login Serializer
 
@@ -257,6 +325,26 @@ class PasswordChangeSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         return validated_data
+    
+# Resetpasswordcomplete serializer
+
+class ResetPasswordCompleteSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    new_password = serializers.CharField(write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        if attrs['new_password'] != attrs['confirm_password']:
+            raise serializers.ValidationError("Passwords do not match.")
+
+        try:
+            user = User.objects.get(email=attrs['email'])
+        except User.DoesNotExist:
+            raise serializers.ValidationError("User not found.")
+
+        attrs['user'] = user
+        return attrs
+
 
     
 # SERIAILZER FOR VERIFYING OTP
@@ -319,9 +407,6 @@ class EmployerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Employer
         fields = '__all__'
-
-
-
 
 
 class EmployeeSerializer(serializers.ModelSerializer):

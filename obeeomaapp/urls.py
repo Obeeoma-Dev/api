@@ -39,6 +39,7 @@ from obeeomaapp.views import (
 
 
 
+
 app_name = "obeeomaapp"
 
 # --- Swagger schema view ---       
@@ -127,12 +128,19 @@ urlpatterns = [
     path("auth/reset-password/confirm/", PasswordResetConfirmView.as_view({'post': 'create'}), name="password-reset-confirm"),
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
     path('auth/verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
+    path('auth/reset-password/complete/', ResetPasswordCompleteView.as_view({'post': 'create'}), name='password-reset-complete'),
+
     path('auth/mfa/setup/', views.mfa_setup, name='mfa-setup'),
     path('auth/mfa/confirm/', views.mfa_confirm, name='mfa-confirm'),
     path('auth/mfa/verify/', views.mfa_verify, name='mfa-verify'),
 
     # Hotline Active Endpoint
     path('auth/hotline/active/', ActiveHotlineView.as_view(), name="active-hotline"),
+
+    # Organisation detials endpoint
+    path('auth/organizations/<int:org_id>/details/', OrganizationDetailView.as_view(), name='organization-details'),
+
+
     
     # COMPLETE ONBOARDING ENDPOINT
     # path('auth/api/onboarding/complete/', CompleteOnboardingView.as_view(), name='complete-onboarding'),

@@ -103,6 +103,7 @@ class IsCompanyAdmin(BasePermission):
 
 
 # SIGNUP VIEW
+
 @extend_schema(tags=['Authentication'])
 class SignupView(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -119,6 +120,19 @@ class OrganizationSignupView(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationCreateSerializer
     permission_classes = [permissions.AllowAny]
+    
+
+# view for organization details
+class OrganizationDetailView(APIView):
+    def get(self, request, org_id):
+        try:
+            org = Organization.objects.get(id=org_id)
+        except Organization.DoesNotExist:
+            return Response({"error": "Organization not found"}, status=404)
+
+        serializer = OrganizationDetailSerializer(org)
+        return Response(serializer.data)
+
 
 # VIEWS FOR VERIFYING THE OTP
 class VerifyOTPView(APIView):
@@ -399,9 +413,10 @@ class PasswordResetConfirmView(viewsets.ViewSet):
             return Response({"error": "Invalid verification code"}, status=status.HTTP_400_BAD_REQUEST)
 
 # View for changing or updating password
+# View for changing or updating password
 @extend_schema(tags=['Authentication'])
 class PasswordChangeView(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     serializer_class = PasswordChangeSerializer
 
     def create(self, request):
@@ -512,7 +527,26 @@ def mfa_verify(request):
 
     return Response(_build_login_success_payload(user))
 
+# Resetpassword completeview
+@extend_schema(tags=['Authentication'])
+class ResetPasswordCompleteView(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+    serializer_class = ResetPasswordCompleteSerializer
 
+    def create(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.validated_data['user']
+        new_password = serializer.validated_data['new_password']
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response(
+            {"message": "Password has been reset successfully."},
+            status=status.HTTP_200_OK
+        )
 
 # Employee Invitation Serializers
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):

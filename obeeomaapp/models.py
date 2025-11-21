@@ -21,6 +21,14 @@ class User(AbstractUser):
     )
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
+     # Added this logic to get the number of employees under a particular organisation
+    organization = models.ForeignKey(
+        'Organization',
+        on_delete=models.SET_NULL,
+        related_name='employees',
+        null=True,
+        blank=True
+    )
     onboarding_completed = models.BooleanField(default=False)
     is_suspended = models.BooleanField(default=False)
 
@@ -93,7 +101,7 @@ class ContactPerson(models.Model):
 # --- Organization Model ---
 class Organization(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='organizations', null=True, blank=True)
-    organizationName = models.CharField(max_length=255)
+    organizationName = models.CharField(max_length=255, unique=True)
     organisationSize = models.CharField(max_length=50)
     phoneNumber = models.CharField(max_length=20)
     companyEmail = models.EmailField(unique=True)
