@@ -15,8 +15,8 @@ from cryptography.fernet import Fernet
 #User and Authentication Models
 class User(AbstractUser):
     ROLE_CHOICES = (
-        ('systemadmin', 'Systemadmin'),
-        ('organisation', 'Organisation'),
+        ('system_admin', 'Systems Admin'),
+        ('employer', 'Employer'),
         ('employee', 'Employee'),
     )
 
@@ -175,6 +175,12 @@ class EmployeeInvitation(models.Model):
     token = models.CharField(max_length=64, unique=True)
     invited_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     message = models.TextField(blank=True)
+    
+    # One-time credentials for first login
+    temporary_username = models.CharField(max_length=150, blank=True, null=True)
+    temporary_password = models.CharField(max_length=128, blank=True, null=True)  # Store hashed
+    credentials_used = models.BooleanField(default=False)
+    
     expires_at = models.DateTimeField(blank=True, null=True)
     accepted = models.BooleanField(default=False)
     accepted_at = models.DateTimeField(blank=True, null=True)

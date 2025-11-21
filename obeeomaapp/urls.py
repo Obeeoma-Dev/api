@@ -28,11 +28,13 @@ from obeeomaapp.views import (
     EngagementTrackerView, FeedbackView, ChatSessionView, 
     ChatMessageView, RecommendationLogView, InvitationAcceptView, 
     InvitationVerifyView, home, OrganizationSignupView,
-    InvitationAcceptanceView, InviteView,                     
-    VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet,
-    SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet,DynamicQuestionViewSet,AssessmentQuestionViewSet,
-    ActiveHotlineView,OrganizationDetailView,UserAchievementViewSet ,AssessmentResponseViewSet ,ResetPasswordCompleteView
-
+    CompleteAccountSetupView, InviteView, EmployeeFirstLoginView,
+    VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
+    SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
+    # CompleteOnboardingView,
+    DynamicQuestionViewSet, UserAchievementViewSet,
+    AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView
+    # CompleteOnboardingView
 )
 
 
@@ -139,6 +141,9 @@ urlpatterns = [
     path('auth/organizations/<int:org_id>/details/', OrganizationDetailView.as_view(), name='organization-details'),
 
 
+    
+    # COMPLETE ONBOARDING ENDPOINT
+    # path('auth/api/onboarding/complete/', CompleteOnboardingView.as_view(), name='complete-onboarding'),
 
     # Dashboard
     path("dashboard/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),
@@ -181,9 +186,10 @@ urlpatterns = [
 
 
 
-    # Invitation acceptance (public) - Updated to use InvitationAcceptanceView
+    # Employee invitation flow
+    path('auth/first-login/', EmployeeFirstLoginView.as_view(), name='first-login'),
+    path('auth/complete-account-setup/', CompleteAccountSetupView.as_view(), name='complete-account-setup'),
     path('auth/verify-invite/', InvitationVerifyView.as_view(), name='verify-invite'),
-    path('auth/accept-invite/', InvitationAcceptanceView.as_view(), name='accept-invite'),
 
     # Include router URLs
     path("", include(router.urls)),
