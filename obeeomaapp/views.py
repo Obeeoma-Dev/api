@@ -3025,7 +3025,7 @@ class AdminOrReadOnly(BasePermission):
 
 
 class ArticleViewSet(viewsets.ModelViewSet):  # Full CRUD support
-    queryset = Article.objects.filter(is_published=True)
+    queryset = Article.objects.filter(is_public=True)
     serializer_class = ArticleSerializer
     permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -3300,30 +3300,39 @@ class JournalEntryViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
 
+
 class ProgressViewSet(viewsets.ViewSet):
+    """
+    Track and update user progress across activities and moods.
+    """
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
+        """Return the current user's progress record (create if missing)."""
         progress, _ = Progress.objects.get_or_create(user=request.user)
         serializer = ProgressSerializer(progress)
         return Response(serializer.data)
 
     @action(detail=False, methods=['post'])
     def update_activity(self, request):
-        """Increment progress when user completes an activity"""
+        """
+        Increment progress counters when user completes an activity.
+        Accepted values: assessment, journal, chat, video, article.
+        """
         activity = request.data.get("activity")
         progress, _ = Progress.objects.get_or_create(user=request.user)
 
-        if activity == "assessment":
-            progress.assessments_completed += 1
-        elif activity == "journal":
-            progress.journals_written += 1
-        elif activity == "chat":
-            progress.chats_with_sana += 1
-        elif activity == "video":
-            progress.videos_watched += 1
-        elif activity == "article":
-            progress.articles_read += 1
+        activity_map = {
+            "assessment": "assessments_completed",
+            "journal": "journals_written",
+            "chat": "chats_with_sana",
+            "video": "videos_watched",
+            "article": "articles_read",
+        }
+
+        if activity in activity_map:
+            field = activity_map[activity]
+            setattr(progress, field, getattr(progress, field) + 1)
 
         progress.last_updated = timezone.now()
         progress.save()
@@ -3331,25 +3340,40 @@ class ProgressViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'])
     def update_mood(self, request):
-        """Update mood (detected by Sana or user input)"""
+        """
+        Update the user's mood (detected by Sana or user input).
+        """
         mood = request.data.get("mood")
         progress, _ = Progress.objects.get_or_create(user=request.user)
-        progress.mood = mood
-        progress.last_updated = timezone.now()
-        progress.save()
+
+        if mood:
+            progress.mood = mood
+            progress.last_updated = timezone.now()
+            progress.save()
+
         return Response(ProgressSerializer(progress).data)
 @extend_schema(tags=['CBT Exercises'])
-class CBTExerciseViewSet(viewsets.ModelViewSet): 
-    queryset = CBTExercise.objects.all()
+class CBTExerciseViewSet(viewsets.ModelViewSet):
     serializer_class = CBTExerciseSerializer
 
+    def get_queryset(self):
+        """
+        Admins see all exercises.
+        Normal users see only public + active exercises.
+        """
+        qs = CBTExercise.objects.all()
+        user = self.request.user
+        if user.is_staff:  # admin
+            return qs
+        return qs.filter(is_public=True, is_active=True)
+
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'delete', 'deactivate']:
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'deactivate']:
             return [IsAdminUser()]
         return [IsAuthenticated()]
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
-    def delete(self, request, pk=None):
+    def deactivate(self, request, pk=None):
         """Admin can deactivate an exercise instead of deleting it."""
         exercise = self.get_object()
         exercise.is_active = False
@@ -3379,20 +3403,22 @@ class CBTExerciseViewSet(viewsets.ModelViewSet):
         exercise.views_count += 1
         exercise.save()
         return Response({"status": "View recorded", "views_count": exercise.views_count})
+
     def perform_create(self, serializer):
         exercise = serializer.save()
         # Send notification to all users
         self.notify_users(exercise)
 
     def notify_users(self, exercise):
-    # Example: send a signal, email, or push notification
-        from django.core.mail import send_mail
-        users = settings.AUTH_USER_MODEL.objects.filter(is_active=True)
+        """Send email notification to all active users when a new exercise is added."""
+        User = get_user_model()
+        users = User.objects.filter(is_active=True)
         for user in users:
-            send_mail(
-                subject="New CBT Exercise Added",
-                message=f"A new CBT exercise '{exercise.title}' is now available.",
-                from_email="noreply@yourapp.com",
-                recipient_list=[user.email],
-                fail_silently=True,
-            )
+            if user.email:  # only send if user has an email
+                send_mail(
+                    subject="New CBT Exercise Added",
+                    message=f"A new CBT exercise '{exercise.title}' is now available.",
+                    from_email="noreply@yourapp.com",
+                    recipient_list=[user.email],
+                    fail_silently=True,
+                )

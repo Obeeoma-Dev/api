@@ -1173,12 +1173,18 @@ class Video(models.Model):
 #     def __str__(self):
 #         return self.title
 
-#-- Article Model. --
+#-- Article Model. --from django.db import models
+from django.utils import timezone
+
 class Article(models.Model):
     title = models.CharField(max_length=200)    
     content = models.TextField()     
-    category = models.ForeignKey(EducationalResource, on_delete=models.CASCADE, related_name='articles')
-    featured_image = models.ImageField(upload_to='articles/', blank=True, null=True)
+    category = models.ForeignKey(
+        "EducationalResource",
+        on_delete=models.CASCADE,
+        related_name="articles"
+    )
+    featured_image = models.ImageField(upload_to="articles/", blank=True, null=True)
     reading_time = models.IntegerField(default=5, help_text="Minutes to read")
     views = models.IntegerField(default=0)
     is_public = models.BooleanField(default=True)
@@ -1186,20 +1192,14 @@ class Article(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)  
 
-    
     class Meta:
-        
-        verbose_name_plural = " Articles"
-        ordering = ['-published_date']
-        verbose_name = " Article"
-    
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = slugify(self.title)
-        super().save(*args, **kwargs)
-    
+        verbose_name = "Article"
+        verbose_name_plural = "Articles"
+        ordering = ["-published_date"]
+
     def __str__(self):
         return self.title
+
 
 #-- Meditation Technique Model. --
 class MeditationTechnique(models.Model):
@@ -1246,7 +1246,7 @@ class SavedResource(models.Model):
         verbose_name = "Saved Resource"
         unique_together = [
             ['user', 'video'],
-            ['user', 'audio'],
+            ['user', 'cbt_exercise'],
             ['user', 'article'],
             ['user', 'meditation'] 
         ]
@@ -1599,10 +1599,10 @@ class CBTExercise(models.Model):
     description = models.TextField(blank=True)
     exercise_type = models.CharField(max_length=40, choices=EXERCISE_TYPE_CHOICES)
     estimated_minutes = models.PositiveIntegerField(default=10)
-    category = models.ForeignKey(EducationalResource, on_delete=models.CASCADE, related_name='cbt_exercises')
+    category = models.ForeignKey("EducationalResource", on_delete=models.CASCADE, related_name='cbt_exercises')
     # Visibility and review flags
     is_active = models.BooleanField(default=True)              # whether exercise is available
-    is_public = models.BooleanField(default=False)             # whether visible to all users
+    is_public = models.BooleanField(default=True)             # whether visible to all users
     is_professionally_reviewed = models.BooleanField(default=False)
     reviewed_by = models.CharField(max_length=100, blank=True)
     review_date = models.DateField(blank=True, null=True)

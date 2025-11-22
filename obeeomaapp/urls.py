@@ -32,7 +32,7 @@ from obeeomaapp.views import (
     VideoViewSet,  ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
     # CompleteOnboardingView,
-    DynamicQuestionViewSet, UserAchievementViewSet,
+    DynamicQuestionViewSet, UserAchievementViewSet,ProgressViewSet,
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView,
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView, JournalEntryViewSet, CBTExerciseViewSet,
     # CompleteOnboardingView
@@ -62,7 +62,8 @@ router.register(r'organization-signup', OrganizationSignupView, basename='organi
 
 router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
-router.register(r'progress', ProgressViewSet)
+router.register(r'progress', ProgressViewSet, basename='progress')
+
 router.register(r'achievements', UserAchievementViewSet, basename='achievements')
 router.register(r'journals', JournalEntryViewSet, basename='journals')
 router.register(r'cbt/exercises', CBTExerciseViewSet, basename='cbt-exercises')
@@ -91,7 +92,7 @@ router.register(r'dashboard/tests-by-type', TestsByTypeView, basename='tests-by-
 router.register(r'dashboard/tests-by-department', TestsByDepartmentView, basename='tests-by-department')
 
 router.register(r'videos', VideoViewSet, basename='educational-video')
-router.register(r'audios', AudioViewSet, basename='calming-audio')
+
 router.register(r'articles', ArticleViewSet, basename='mental-health-article')
 router.register(r'meditations', MeditationTechniqueViewSet, basename='meditation-technique')
 router.register(r'saved', SavedResourceViewSet, basename='saved-resource')

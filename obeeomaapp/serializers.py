@@ -1188,7 +1188,7 @@ class ReportsAnalyticsSerializer(serializers.Serializer):
 
 from rest_framework import serializers
 from .models import (
-    Video, EducationalResource, Audio, Article, 
+    Video, EducationalResource, CBTExercise, Article, 
     MeditationTechnique, SavedResource, UserActivity,
     OnboardingState, DynamicQuestion, Notification
 )
@@ -1228,7 +1228,7 @@ class EducationalResourceSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.IntegerField())
     def get_article_count(self, obj) -> int:
-        return obj.articles.filter(is_published=True).count()
+       return obj.articles.filter(is_public=True).count()
 
     @extend_schema_field(serializers.IntegerField())
     def get_meditation_count(self, obj) -> int:
@@ -1463,8 +1463,7 @@ class AssessmentQuestionsResponseSerializer(serializers.Serializer):
     difficulty_options = serializers.ListField()
 
 # serializers.py
-from rest_framework import serializers
-from .models import UserAchievement
+
 
 class UserAchievementSerializer(serializers.ModelSerializer):
     title = serializers.CharField(source='achievement.title')
@@ -1490,34 +1489,17 @@ class CrisisHotlineSerializer(serializers.ModelSerializer):
     class Meta:
         model = CrisisHotline
         fields = ['id', 'country', 'region', 'hotline_name', 'phone_number', 'is_active']
-
-
-
-
-
 class JournalEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = JournalEntry
         fields = ['id', 'entry_type', 'title', 'content', 'audio_file', 'created_at']
-
-from rest_framework import serializers
-from .models import Progress
 
 class ProgressSerializer(serializers.ModelSerializer):
     overall_score = serializers.SerializerMethodField()
 
     class Meta:
         model = Progress
-        fields = [
-            'assessments_completed',
-            'journals_written',
-            'chats_with_sana',
-            'videos_watched',
-            'articles_read',
-            'mood',
-            'last_updated',
-            'overall_score'
-        ]
+        fields = '__all__'
 
     def get_overall_score(self, obj):
         return obj.overall_score()
