@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework import permissions
 from . import views
+from .views import OrganizationViewSet, AdminUserManagementViewSet
 
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
@@ -105,6 +106,11 @@ router.register(r'admin/reports-analytics', ReportsAnalyticsView, basename='repo
 router.register(r'admin/system-settings', SystemSettingsView, basename='system-settings')
 router.register(r'admin/feature-flags', FeaturesUsageView, basename='feature-flags')
 router.register(r'dynamic-questions', DynamicQuestionViewSet, basename='dynamic-question')
+
+# ADMIN USER MANAGEMENT ROUTERS
+router.register(r'admin/organizations', OrganizationViewSet, basename='admin-organizations')
+router.register(r'admin/users', AdminUserManagementViewSet, basename='admin-users')
+
 
 # Assessment Questionnaires (PHQ-9 & GAD-7)
 router.register(r'assessments/questions', AssessmentQuestionViewSet, basename='assessment-question')

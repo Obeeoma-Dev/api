@@ -21,6 +21,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.hashers import check_password
 
+
 User = get_user_model()
 # # SIGNUP SERIALIZER
 # class SignupSerializer(serializers.ModelSerializer):
@@ -1528,3 +1529,63 @@ class CrisisHotlineSerializer(serializers.ModelSerializer):
     class Meta:
         model = CrisisHotline
         fields = ['id', 'country', 'region', 'hotline_name', 'phone_number', 'is_active']
+
+# ADMIN USER MANAGEMENT SERIALIZER
+class OrganizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = ['id', 'name', 'size', 'phone', 'email', 'location', 'created_at']
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'password',
+            'role', 'organization', 'onboarding_completed',
+            'is_suspended', 'avatar', 'is_active'
+        ]
+        read_only_fields = ['is_active']  # deactivation handled by action
+
+    def validate(self, attrs):
+        role = attrs.get('role', getattr(self.instance, 'role', None))
+
+        # If creating/updating an employer, ensure organization exists
+        if role == 'employer':
+            org = attrs.get('organization') or getattr(self.instance, 'organization', None)
+            if not org:
+                raise serializers.ValidationError("Employer must belong to an organization.")
+
+        # If role is employee, avatar must be present when creating or when trying to activate
+        avatar = attrs.get('avatar', getattr(self.instance, 'avatar', None))
+        if role == 'employee' and not avatar and not getattr(self.instance, 'avatar', None):
+            # If creating a new employee, require avatar
+            if not self.instance:
+                raise serializers.ValidationError("Employee must have an avatar.")
+            # If updating and the employee is being (re)activated, enforce avatar
+            if attrs.get('is_active') is True:
+                raise serializers.ValidationError("Employee must have an avatar before activation.")
+        return attrs
+
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        user = User(**validated_data)
+        # Employees are created with onboarding_completed=False by default
+        user.onboarding_completed = validated_data.get('onboarding_completed', False)
+        user.set_password(password or User.objects.make_random_password())
+        user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if password:
+            instance.set_password(password)
+
+        instance.save()
+        return instance
