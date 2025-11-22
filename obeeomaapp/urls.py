@@ -33,8 +33,8 @@ from obeeomaapp.views import (
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
     # CompleteOnboardingView,
     DynamicQuestionViewSet, UserAchievementViewSet,
-    AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView
-    # CompleteOnboardingView
+    AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView
+    
 )
 
 
@@ -142,9 +142,7 @@ urlpatterns = [
 
 
     
-    # COMPLETE ONBOARDING ENDPOINT
-    # path('auth/api/onboarding/complete/', CompleteOnboardingView.as_view(), name='complete-onboarding'),
-
+   
     # Dashboard
     path("dashboard/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),
     path("dashboard/trends/", TrendsView.as_view({'get': 'list'}), name="trends"),
