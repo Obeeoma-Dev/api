@@ -29,12 +29,13 @@ from obeeomaapp.views import (
     ChatMessageView, RecommendationLogView, InvitationAcceptView, 
     InvitationVerifyView, home, OrganizationSignupView,
     CompleteAccountSetupView, InviteView, EmployeeFirstLoginView,
-    VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
+    VideoViewSet,  ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
     # CompleteOnboardingView,
     DynamicQuestionViewSet, UserAchievementViewSet,
-    AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView
-    
+    AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView,
+    AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView, JournalEntryViewSet, CBTExerciseViewSet,
+    # CompleteOnboardingView
 )
 
 
@@ -63,7 +64,8 @@ router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'progress', ProgressViewSet)
 router.register(r'achievements', UserAchievementViewSet, basename='achievements')
-
+router.register(r'journals', JournalEntryViewSet, basename='journals')
+router.register(r'cbt/exercises', CBTExerciseViewSet, basename='cbt-exercises')
 # Dashboard routers (Employer Dashboard)
 
 router.register(r'employee/profile', EmployeeProfileView, basename='employee-profile')
