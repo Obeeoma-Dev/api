@@ -52,6 +52,7 @@ from .models import AssessmentQuestion
 from .serializers import AssessmentQuestionSerializer
 from .serializers import DynamicQuestionSerializer
 import random
+from django.db import transaction
 from rest_framework import viewsets, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -83,7 +84,12 @@ from django.template.loader import render_to_string
 from django.contrib.auth import authenticate, login as django_login
 from .serializers import AdminUserSerializer, OrganizationSerializer
 from .permissions import IsSystemAdmin
-
+import hmac
+import hashlib
+from django.views.decorators.csrf import csrf_exempt  #  Make sure this is present
+from django.http import HttpResponse
+from django.conf import settings
+from rest_framework.decorators import api_view, permission_classes
 import logging
 from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import (
@@ -96,6 +102,64 @@ logging.getLogger(__name__)
 
 # Get User model
 User = get_user_model()
+
+# Helper function (Moved from a 'services' file into views.py)
+def verify_flutterwave_transaction(tx_ref, expected_amount, currency):
+    """Verifies a transaction using the Flutterwave API."""
+    url = f"https://api.flutterwave.com/v3/transactions/{tx_ref}/verify"
+    headers = {
+        "Authorization": f"Bearer {settings.FLW_SEC_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+
+        if data['status'] == 'success' and data['data']['status'] == 'successful':
+            # Security Check: Compare amount and currency to prevent tampering
+            if data['data']['amount'] >= expected_amount and data['data']['currency'] == currency:
+                return True, data['data'] # Verification success
+            else:
+                return False, {"detail": "Amount or currency mismatch."}
+        else:
+            return False, {"detail": "Transaction failed or not found."}
+    except requests.exceptions.RequestException as e:
+        return False, {"detail": f"Flutterwave API verification error: {e}"}
+
+
+
+def initiate_payment_fw(amount, email, payment_ref, currency="NGN"): # Renamed transaction_id to payment_ref
+    url = "https://api.flutterwave.com/v3/payments"
+    headers = {
+        "Authorization": f"Bearer {settings.FLW_SEC_KEY}" 
+    }
+    tx_ref = str(uuid.uuid4())
+    
+    data = {
+        "tx_ref": tx_ref,
+        "amount": str(amount), 
+        "currency": currency,
+        "redirect_url": f"http://127.0.0.1:8000/api/billing/confirm_payment/?sub_ref={payment_ref}",
+        # "redirect_url": f"{FRONTEND_SUCCESS_URL}?tx_ref={tx_ref}", 
+        "meta": {
+          "subscription_id": subscription_id, # Pass  internal reference
+        },
+        "customer": {
+            "email": email,
+
+        
+            "name": "user_name"
+        },
+        "customizations": {
+            "title": "Subscription Payment",
+            "description": "Payment for subscription plan",            
+            "logo": "http://www.piedpiper.com/app/themes/joystick-v27/images/logo.png"
+        
+        }
+    }
+
 
 #Permission: company admin (is_staff) 
 class IsCompanyAdmin(BasePermission):
@@ -425,7 +489,7 @@ class PasswordResetConfirmView(viewsets.ViewSet):
         except PasswordResetToken.DoesNotExist:
             return Response({"error": "Invalid verification code"}, status=status.HTTP_400_BAD_REQUEST)
 
-# View for changing or updating password
+
 # View for changing or updating password
 @extend_schema(tags=['Authentication'])
 class PasswordChangeView(viewsets.ViewSet):
@@ -2227,6 +2291,172 @@ class SubscriptionManagementView(viewsets.ModelViewSet):
         return Response(BillingHistorySerializer(billing_history, many=True).data)
 
 
+# FLUTTERWAVE WEBHOOK
+@api_view(['POST'])
+@csrf_exempt
+@permission_classes([AllowAny])
+def flutterwave_webhook_listener(request):
+    """
+    Receives and processes webhook events from Flutterwave, verifying the signature.
+    """
+    # 1. Get raw request body (CRITICAL for HMAC verification)
+    raw_body = request.body
+    
+    # 2. Get the signature sent by Flutterwave
+    flw_signature = request.headers.get('VERIF-HASH') 
+
+    # --- SECURITY CHECK ---
+    
+    if not flw_signature:
+        # No signature header present: discard immediately.
+        return HttpResponse(status=401) 
+
+    try:
+        local_secret = settings.FLW_WEBHOOK_HASH.encode('utf-8')
+        
+        # 1. Calculate the raw hash digest (bytes)
+        computed_hash_bytes = hmac.new(
+            local_secret,
+            raw_body,
+            digestmod=hashlib.sha256
+        ).digest()
+        
+        # 2. CRITICAL FIX: Encode the bytes to a Base64 string to match Flutterwave's header
+        computed_signature = base64.b64encode(computed_hash_bytes).decode('utf-8')
+        
+        # 3. Compare the computed Base64 string with the one from Flutterwave
+        if computed_signature != flw_signature:
+            print("WEBHOOK ERROR: Signature mismatch.")
+            return HttpResponse(status=401) # Unauthorized (Hash verification failed)
+
+    except Exception as e:
+        print(f"WEBHOOK HASH ERROR: {e}")
+        # Return 500 for a server error during hash computation, or 401 if you treat it as unauthorized
+        return HttpResponse(status=401) 
+    
+    # --- PROCESSING STARTS AFTER SUCCESSFUL VERIFICATION ---
+    # ... (Rest of your code remains the same)
+    
+    try:
+        # ... your transaction verification logic ...
+        return HttpResponse(status=200) 
+    
+    except Exception as e:
+        print(f"WEBHOOK PROCESSING ERROR: {e}") 
+        return HttpResponse(status=500)
+
+
+
+#  FOR FRONTEND REDIRECT VERIFICATION 
+# NOTE: This endpoint is called by your React component after the user is redirected 
+# back from Flutterwave's payment page. It requires authentication.
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_payment_and_activate_subscription(request):
+    """Endpoint called by the frontend (POST) to verify payment and activate subscription."""
+    serializer = PaymentVerificationSerializer(data=request.data)
+    tx_ref = request.data.get('tx_ref')
+    subscription_id = request.data.get('subscription_id') # Use the ID created in initiate_subscription_payment
+
+    if not tx_ref or not subscription_id:
+        return Response({"detail": "Missing transaction reference or subscription ID."}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        
+        expected_amount = 99.00
+        currency = "USD"
+        
+        # 2. Verify with Flutterwave
+        is_verified, fw_data = verify_flutterwave_transaction(tx_ref, expected_amount, currency)
+
+        if is_verified:
+            # 3. Fulfill the subscription
+            with transaction.atomic():
+                # sub.is_active = True; sub.save()
+                # Invoice.objects.create(...)
+                
+                return Response({"message": "Payment successful and subscription activated."}, status=status.HTTP_200_OK)
+        else:
+            return Response({"detail": fw_data.get('detail', 'Verification failed.')}, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({"detail": f"Server error during verification: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# 
+@action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+def initiate_subscription_payment(self, request):
+    """Initiate payment for a new subscription plan."""
+    
+    # --- 1. Validate Input Data and Look up Plan ---
+    serializer = SubscriptionInitiateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True) 
+    
+    plan_id = serializer.validated_data['plan_id']
+    selected_plan = serializer.selected_plan # Fetched by the serializer
+    
+    try:
+        # --- 2. Get User/Organization context (CRITICAL CHANGE HERE) ---
+        # The user's 'organization' field already holds the related object.
+        organization = request.user.organization
+        
+        
+        if not organization:
+          
+            return Response(
+                {"organization": "User must be linked to an organization to initiate payment."},
+                status=status.HTTP_403_FORBIDDEN # 403 is
+            )
+    
+        expected_amount = selected_plan.price 
+        currency = selected_plan.currency    
+        
+        # Determine seats and initial dates (Simplified calculation)
+        seats = selected_plan.seats # Using 'seats' field from your SubscriptionPlan model
+        start_date = timezone.now().date()
+        end_date = start_date + timedelta(days=30) 
+        renewal_date = end_date
+        
+        with transaction.atomic():
+            
+            # Generate the unique reference ID for the payment gateway
+            pending_sub_id = f"SUB-{uuid.uuid4().hex[:8]}" 
+            
+            # Create the PENDING Subscription record in the database
+            pending_sub = Subscription.objects.create(
+                employer=organization, 
+                plan=plan_id, 
+                plan_details=selected_plan,
+                amount=expected_amount,
+                seats=seats,
+                start_date=start_date,
+                end_date=end_date,
+                renewal_date=renewal_date,
+                is_active=False, 
+                subscription_reference=pending_sub_id, 
+            )
+            
+            # 4. Call Flutterwave to get the payment link
+            payment_result = initiate_payment_fw(
+                amount=expected_amount,
+                email=request.user.email,
+                subscription_id=pending_sub.subscription_reference,
+                currency=currency
+            )
+
+        if payment_result.get('status') == 'success':
+            return Response({
+                'status': 'success',
+                'payment_url': payment_result['data']['link'], 
+                'subscription_id': pending_sub.subscription_reference
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response(payment_result, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# Wellness Reports View   
 @extend_schema(tags=['Employer Dashboard'])
 class WellnessReportsView(viewsets.ViewSet):
     """Wellness reports and analytics"""

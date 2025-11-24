@@ -25,6 +25,8 @@ from rest_framework import serializers
 from .models import UserAchievement
 import uuid
 import requests
+from django.core.exceptions import ObjectDoesNotExist
+from django.utils.translation import gettext as _
 
 
 User = get_user_model()
@@ -1046,7 +1048,34 @@ class PaymentVerificationSerializer(serializers.Serializer):
     )
     subscription_id = serializers.IntegerField(
         help_text="The ID of the subscription object created during payment initiation."
+
     )
+# SUBSCRIPTION INITIATE SERIALIZER
+class SubscriptionInitiateSerializer(serializers.Serializer):
+    """
+    Validates input data and fetches the associated SubscriptionPlan object.
+    """
+    plan_id = serializers.CharField(
+        max_length=50, 
+        required=True,
+        help_text="The ID (e.g., 'enterprise') of the subscription plan."
+    )
+
+    def validate_plan_id(self, value):
+        """
+        Ensures the plan_id corresponds to an existing and active SubscriptionPlan.
+        """
+        try:
+            # The 'plan_id' from the request matches the 'id' field of the SubscriptionPlan model.
+            selected_plan = SubscriptionPlan.objects.get(id=value, is_active=True)
+            
+            # Attach the found plan object to the serializer instance for easy access in the view
+            self.selected_plan = selected_plan 
+            
+            return value
+        
+        except ObjectDoesNotExist:
+            raise serializers.ValidationError(_("The selected subscription plan is invalid or not currently available."))
 
 
 class WellnessReportsSerializer(serializers.Serializer):

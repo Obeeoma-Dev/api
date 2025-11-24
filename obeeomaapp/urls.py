@@ -34,8 +34,7 @@ from obeeomaapp.views import (
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
      CompleteOnboardingView,
     DynamicQuestionViewSet, UserAchievementViewSet,
-    AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView
-    
+    AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView,
 )
 
 
@@ -151,10 +150,10 @@ urlpatterns = [
 
 
   
-    # path('billing/initiate_payment/', views.initiate_subscription_payment, name='initiate-subscription-payment'),
-    path('billing/verify_payment/', views.verify_payment_and_activate_subscription, name='verify-payment-activate'),
+    # # path('billing/initiate_payment/', views.initiate_subscription_payment, name='initiate-subscription-payment'),
+     path('billing/verify_payment/', views.verify_payment_and_activate_subscription, name='verify-payment-activate'),
 
-    path('billing/flutterwave-webhook/', views.flutterwave_webhook_listener, name='flutterwave-webhook'),
+     path('billing/flutterwave-webhook/', views.flutterwave_webhook_listener, name='flutterwave-webhook'),
     
    
     # Dashboard
