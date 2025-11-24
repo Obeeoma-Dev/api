@@ -225,13 +225,13 @@ class LoginView(APIView):
                 "mfa_required": True,
                 "temp_token": temp_token
             })
-        if not user.onboarding_completed:
-    # Return onboarding-required response
-         return Response({
-        "onboarding_required": True,
-        "temp_access_token": RefreshToken.for_user(user).access_token,  
-        "message": "Onboarding required before using the system."
-    }, status=200)
+    #   # Onboarding required response
+    #     if not user.onboarding_completed:
+    #         return Response({
+    #             "onboarding_required": True,
+    #             "temp_access_token": str(RefreshToken.for_user(user).access_token),  # ✔ FIXED HERE
+    #             "message": "Onboarding required before using the system."
+    #         }, status=200)
 
         # Login normally
         django_login(request, user)
