@@ -22,6 +22,19 @@ from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.hashers import check_password
 
 User = get_user_model()
+
+class PaymentVerificationSerializer(serializers.Serializer):
+   
+    tx_ref = serializers.CharField(
+        max_length=255, 
+        help_text="Flutterwave transaction reference (tx_ref) for verification."
+    )
+    subscription_id = serializers.IntegerField(
+        help_text="The ID of the subscription object created during payment initiation."
+    )
+    
+
+
 # SIGNUP SERIALIZER
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])

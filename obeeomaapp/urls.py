@@ -106,6 +106,8 @@ router.register(r'admin/system-settings', SystemSettingsView, basename='system-s
 router.register(r'admin/feature-flags', FeaturesUsageView, basename='feature-flags')
 router.register(r'dynamic-questions', DynamicQuestionViewSet, basename='dynamic-question')
 
+router.register(r'dashboard/billing/verify-payment', BillingView, basename='verify-payment')
+
 # Assessment Questionnaires (PHQ-9 & GAD-7)
 router.register(r'assessments/questions', AssessmentQuestionViewSet, basename='assessment-question')
 router.register(r'assessments/responses', AssessmentResponseViewSet, basename='assessment-response')
@@ -141,6 +143,12 @@ urlpatterns = [
     path('auth/organizations/<int:org_id>/details/', OrganizationDetailView.as_view(), name='organization-details'),
 
 
+
+  
+    # path('billing/initiate_payment/', views.initiate_subscription_payment, name='initiate-subscription-payment'),
+    path('billing/verify_payment/', views.verify_payment_and_activate_subscription, name='verify-payment-activate'),
+
+    path('billing/flutterwave-webhook/', views.flutterwave_webhook_listener, name='flutterwave-webhook'),
     
    
     # Dashboard
