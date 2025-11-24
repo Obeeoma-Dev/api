@@ -23,6 +23,8 @@ from django.contrib.auth.hashers import check_password
 
 from rest_framework import serializers
 from .models import UserAchievement
+import uuid
+import requests
 
 
 User = get_user_model()
@@ -1033,6 +1035,18 @@ class SubscriptionManagementSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subscription
         fields = ['id', 'plan', 'plan_details', 'amount', 'seats', 'used_seats', 'available_seats', 'start_date', 'renewal_date', 'is_active', 'payment_method']
+
+
+# PAYMENT VERIFICATION SERIALIZER
+class PaymentVerificationSerializer(serializers.Serializer):
+   
+    tx_ref = serializers.CharField(
+        max_length=255, 
+        help_text="Flutterwave transaction reference (tx_ref) for verification."
+    )
+    subscription_id = serializers.IntegerField(
+        help_text="The ID of the subscription object created during payment initiation."
+    )
 
 
 class WellnessReportsSerializer(serializers.Serializer):
