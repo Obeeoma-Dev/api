@@ -21,6 +21,9 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.hashers import check_password
 
+from rest_framework import serializers
+from .models import UserAchievement
+
 
 User = get_user_model()
 # # SIGNUP SERIALIZER
@@ -1501,9 +1504,6 @@ class AssessmentQuestionsResponseSerializer(serializers.Serializer):
     difficulty_question = serializers.CharField()
     difficulty_options = serializers.ListField()
 
-# serializers.py
-from rest_framework import serializers
-from .models import UserAchievement
 
 class UserAchievementSerializer(serializers.ModelSerializer):
     title = serializers.CharField(source='achievement.title')

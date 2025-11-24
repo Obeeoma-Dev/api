@@ -1081,8 +1081,7 @@ class Report(models.Model):
 class EducationalResource(models.Model):
     TYPE_CHOICES = [
         ('pdf', 'PDF'),
-        ('CBTExercise', 'CBT Exercise'),
-        # ('audio', 'Audio'),
+        ('audio', 'Audio'),
         ('video', 'Video'),
         ('article', 'Article'),
         ('meditation technique', 'Meditation Technique'),
@@ -1092,7 +1091,7 @@ class EducationalResource(models.Model):
     description = models.TextField(blank=True, null=True)
     resource_type = models.CharField(max_length=20, choices=TYPE_CHOICES, null=True, blank=True)
     file = models.FileField(upload_to='educational_files/', null=True, blank=True)
-    # thumbnail = models.ImageField(upload_to='thumbnails/', blank=True, null=True)
+    thumbnail = models.ImageField(upload_to='thumbnails/', blank=True, null=True)
     file_size = models.CharField(max_length=20, blank=True, null=True)
     uploaded_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='uploaded_resources')
     uploaded_at = models.DateTimeField(auto_now_add=True)  # Remove default
@@ -1111,8 +1110,8 @@ class EducationalResource(models.Model):
 #-- Video Model. --
 class Video(models.Model):
     title = models.CharField(max_length=200)
-    # description = models.TextField(help_text="")
-    # youtube_url = models.URLField(help_text="YouTube video URL")
+    description = models.TextField(help_text="What will users learn?")
+    youtube_url = models.URLField(help_text="YouTube video URL")
     category = models.ForeignKey(EducationalResource,on_delete=models.SET_NULL,null=True,blank=True,related_name='videos')
     # thumbnail = models.URLField(blank=True, null=True)
     duration = models.CharField(max_length=20, blank=True, help_text="e.g., 10:30")
@@ -1134,10 +1133,10 @@ class Video(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)  
     target_mood = models.CharField(max_length=50, choices=MOOD_CHOICES, default='general')
-    # is_professionally_reviewed = models.BooleanField(default=False)
+    is_professionally_reviewed = models.BooleanField(default=False)
     reviewed_by = models.CharField(max_length=100, blank=True)
     review_date = models.DateField(blank=True, null=True)
-    # crisis_support_text = models.TextField(blank=True)
+    crisis_support_text = models.TextField(blank=True)
     
     views_count = models.IntegerField(default=0)
     helpful_count = models.IntegerField(default=0)
@@ -1150,56 +1149,59 @@ class Video(models.Model):
     def __str__(self):
         return self.title
 
-# #-- Audio Model. --
-# class Audio(models.Model):
-#     title = models.CharField(max_length=200)
-#     description = models.TextField(help_text="What does this audio help with?")
-#     audio_file = models.FileField(upload_to='audios/', blank=True, null=True)
-#     # audio_url = models.URLField(blank=True, null=True, help_text="External audio URL")
-#     category = models.ForeignKey(EducationalResource, on_delete=models.SET_NULL, null=True, blank=True, related_name='audios')
+#-- Audio Model. --
+class Audio(models.Model):
+    title = models.CharField(max_length=200)
+    description = models.TextField(help_text="What does this audio help with?")
+    audio_file = models.FileField(upload_to='audios/', blank=True, null=True)
+    audio_url = models.URLField(blank=True, null=True, help_text="External audio URL")
+    category = models.ForeignKey(EducationalResource, on_delete=models.SET_NULL, null=True, blank=True, related_name='audios')
 
-#     duration = models.CharField(max_length=20, blank=True)
-#     plays = models.IntegerField(default=0)
-#     is_active = models.BooleanField(default=True)
-#     created_at = models.DateTimeField(auto_now_add=True)
-#     updated_at = models.DateTimeField(auto_now=True)  
+    duration = models.CharField(max_length=20, blank=True)
+    plays = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)  
 
     
-#     class Meta:
-#         ordering = ['-created_at']
-#         verbose_name = " Audio"
-#         verbose_name_plural = " Audios"
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = " Audio"
+        verbose_name_plural = " Audios"
     
-#     def __str__(self):
-#         return self.title
+    def __str__(self):
+        return self.title
 
-#-- Article Model. --from django.db import models
-from django.utils import timezone
-
+#-- Article Model. --
 class Article(models.Model):
-    title = models.CharField(max_length=200)    
-    content = models.TextField()     
-    category = models.ForeignKey(
-        "EducationalResource",
-        on_delete=models.CASCADE,
-        related_name="articles"
-    )
-    featured_image = models.ImageField(upload_to="articles/", blank=True, null=True)
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(unique=True, max_length=250, blank=True)
+    content = models.TextField()
+    excerpt = models.TextField(max_length=500, blank=True, help_text="Short summary")
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    category = models.ForeignKey(EducationalResource, on_delete=models.CASCADE, related_name='articles')
+    featured_image = models.ImageField(upload_to='articles/', blank=True, null=True)
     reading_time = models.IntegerField(default=5, help_text="Minutes to read")
     views = models.IntegerField(default=0)
-    is_public = models.BooleanField(default=True)
+    is_published = models.BooleanField(default=True)
     published_date = models.DateTimeField(auto_now_add=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)  
 
+    
     class Meta:
-        verbose_name = "Article"
-        verbose_name_plural = "Articles"
-        ordering = ["-published_date"]
-
+        
+        verbose_name_plural = " Articles"
+        ordering = ['-published_date']
+        verbose_name = " Article"
+    
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.title)
+        super().save(*args, **kwargs)
+    
     def __str__(self):
         return self.title
-
 
 #-- Meditation Technique Model. --
 class MeditationTechnique(models.Model):
@@ -1234,8 +1236,7 @@ class MeditationTechnique(models.Model):
 class SavedResource(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='saved_resources')
     video = models.ForeignKey(Video, on_delete=models.CASCADE, null=True, blank=True)
-    # audio = models.ForeignKey(Audio, on_delete=models.CASCADE, null=True, blank=True)
-    cbt_exercise = models.ForeignKey('CBTExercise', on_delete=models.CASCADE, null=True, blank=True)
+    audio = models.ForeignKey(Audio, on_delete=models.CASCADE, null=True, blank=True)
     article = models.ForeignKey(Article, on_delete=models.CASCADE, null=True, blank=True)
     meditation = models.ForeignKey(MeditationTechnique, on_delete=models.CASCADE, null=True, blank=True)
     saved_at = models.DateTimeField(auto_now_add=True)  # Already correct
@@ -1246,7 +1247,7 @@ class SavedResource(models.Model):
         verbose_name = "Saved Resource"
         unique_together = [
             ['user', 'video'],
-            ['user', 'cbt_exercise'],
+            ['user', 'audio'],
             ['user', 'article'],
             ['user', 'meditation'] 
         ]
@@ -1259,8 +1260,7 @@ class UserActivity(models.Model):
     """Track user engagement with resources"""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activities')
     video = models.ForeignKey(Video, on_delete=models.CASCADE, null=True, blank=True)
-    # audio = models.ForeignKey(Audio, on_delete=models.CASCADE, null=True, blank=True)
-    cbt_exercise = models.ForeignKey('CBTExercise', on_delete=models.CASCADE, null=True, blank=True)
+    audio = models.ForeignKey(Audio, on_delete=models.CASCADE, null=True, blank=True)
     article = models.ForeignKey(Article, on_delete=models.CASCADE, null=True, blank=True)
     meditation = models.ForeignKey(MeditationTechnique, on_delete=models.CASCADE, null=True, blank=True)
     completed = models.BooleanField(default=True)
@@ -1283,8 +1283,7 @@ class UserLearningProgress(models.Model):
     
     # What resource they're tracking
     video = models.ForeignKey(Video, on_delete=models.CASCADE, null=True, blank=True)
-    # audio = models.ForeignKey(Audio, on_delete=models.CASCADE, null=True, blank=True)
-    cbt_exercise = models.ForeignKey('CBTExercise', on_delete=models.CASCADE, null=True, blank=True)
+    audio = models.ForeignKey(Audio, on_delete=models.CASCADE, null=True, blank=True)
     article = models.ForeignKey(Article, on_delete=models.CASCADE, null=True, blank=True)
     meditation_technique = models.ForeignKey(MeditationTechnique, on_delete=models.CASCADE, null=True, blank=True)
     
@@ -1493,7 +1492,6 @@ class AssessmentResponse(models.Model):
         
         super().save(*args, **kwargs)
 
-# models.py
 
 
 class Achievement(models.Model):
@@ -1512,6 +1510,9 @@ class Achievement(models.Model):
 
     def __str__(self):
         return self.title
+
+from django.conf import settings
+from django.db import models
 
 class UserAchievement(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -1533,86 +1534,3 @@ class UserAchievement(models.Model):
             self.achieved = True
             self.achieved_date = timezone.now().date()
         self.save()
-
-
-
-
-
-class JournalEntry(models.Model):
-    ENTRY_TYPE_CHOICES = [
-        ('note', 'Note'),
-        ('audio', 'Audio'),
-    ]
-
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="journal_entries")
-    entry_type = models.CharField(max_length=10, choices=ENTRY_TYPE_CHOICES, default='note')
-    title = models.CharField(max_length=200)
-    content = models.TextField(blank=True, null=True)  # for written notes
-    audio_file = models.FileField(upload_to="journal_audio/", blank=True, null=True)  # for recordings
-    created_at = models.DateTimeField(default=timezone.now)
-
-    def __str__(self):
-        return f"{self.user} - {self.title} ({self.entry_type})"
-
-    class Meta:
-        ordering = ['-created_at']
-
-
-class Progress(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="progress")
-
-    assessments_completed = models.PositiveIntegerField(default=0)
-    journals_written = models.PositiveIntegerField(default=0)
-    chats_with_sana = models.PositiveIntegerField(default=0)
-    videos_watched = models.PositiveIntegerField(default=0)
-    articles_read = models.PositiveIntegerField(default=0)
-
-    mood = models.CharField(max_length=50, blank=True, null=True)  # e.g. "happy", "sad", "anxious"
-    last_updated = models.DateTimeField(default=timezone.now)
-
-    def overall_score(self):
-        """Simple aggregate score — can be weighted later"""
-        return (
-            self.assessments_completed +
-            self.journals_written +
-            self.chats_with_sana +
-            self.videos_watched +
-            self.articles_read
-        )
-
-    def __str__(self):
-        return f"{self.user} Progress"
-
-class CBTExercise(models.Model):
-    """Defines a CBT exercise template (e.g., Thought Record, Gratitude Journal)."""
-
-    EXERCISE_TYPE_CHOICES = [
-        ("thought_record", "Thought Record"),
-        ("behavioral_activation", "Behavioral Activation"),
-        ("cognitive_restructuring", "Cognitive Restructuring"),
-        ("exposure", "Exposure"),
-        ("gratitude", "Gratitude"),
-        ("mindfulness", "Mindfulness"),
-    ]
-
-    title = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
-    exercise_type = models.CharField(max_length=40, choices=EXERCISE_TYPE_CHOICES)
-    estimated_minutes = models.PositiveIntegerField(default=10)
-    category = models.ForeignKey("EducationalResource", on_delete=models.CASCADE, related_name='cbt_exercises')
-    # Visibility and review flags
-    is_active = models.BooleanField(default=True)              # whether exercise is available
-    is_public = models.BooleanField(default=True)             # whether visible to all users
-    is_professionally_reviewed = models.BooleanField(default=False)
-    reviewed_by = models.CharField(max_length=100, blank=True)
-    review_date = models.DateField(blank=True, null=True)
-
-    # Engagement metrics
-    views_count = models.IntegerField(default=0)
-    helpful_count = models.IntegerField(default=0)
-    saved_count = models.IntegerField(default=0)
-
-    created_at = models.DateTimeField(default=timezone.now)
-
-    def __str__(self):
-        return self.title

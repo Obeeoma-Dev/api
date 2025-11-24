@@ -2928,7 +2928,7 @@ class AdminOrReadOnly(BasePermission):
 class VideoViewSet(viewsets.ModelViewSet):  # Full CRUD support
     queryset = Video.objects.filter(is_active=True)
     serializer_class = VideoSerializer
-    permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
+    permission_classes = [AdminOrReadOnly]  #  Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
     search_fields = ['title', 'description']
@@ -2996,7 +2996,7 @@ class AdminOrReadOnly(BasePermission):
 class AudioViewSet(viewsets.ModelViewSet):  # Full CRUD support
     queryset = Audio.objects.filter(is_active=True)
     serializer_class = AudioSerializer
-    permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
+    permission_classes = [AdminOrReadOnly]  #  Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
     search_fields = ['title', 'description']
@@ -3057,7 +3057,7 @@ class AdminOrReadOnly(BasePermission):
 class ArticleViewSet(viewsets.ModelViewSet):  # Full CRUD support
     queryset = Article.objects.filter(is_published=True)
     serializer_class = ArticleSerializer
-    permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
+    permission_classes = [AdminOrReadOnly]  #  Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
     search_fields = ['title', 'content', 'excerpt']
