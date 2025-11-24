@@ -1492,7 +1492,6 @@ class AssessmentResponse(models.Model):
         
         super().save(*args, **kwargs)
 
-# models.py
 
 
 class Achievement(models.Model):

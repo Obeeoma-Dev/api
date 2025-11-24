@@ -21,63 +21,54 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.hashers import check_password
 
+from rest_framework import serializers
+from .models import UserAchievement
+
+
 User = get_user_model()
+# # SIGNUP SERIALIZER
+# class SignupSerializer(serializers.ModelSerializer):
+#     password = serializers.CharField(write_only=True, validators=[validate_password])
+#     confirm_password = serializers.CharField(write_only=True)
+#     role = serializers.ChoiceField(choices=User.ROLE_CHOICES, default="employee")
 
-class PaymentVerificationSerializer(serializers.Serializer):
-   
-    tx_ref = serializers.CharField(
-        max_length=255, 
-        help_text="Flutterwave transaction reference (tx_ref) for verification."
-    )
-    subscription_id = serializers.IntegerField(
-        help_text="The ID of the subscription object created during payment initiation."
-    )
-    
+#     class Meta:
+#         model = User
+#         fields = ('username', 'email', 'password', 'confirm_password', 'role')
 
+#     def validate(self, attrs):
+#         username = attrs.get('username')
+#         email = attrs.get('email')
+#         password = attrs.get('password')
+#         confirm_password = attrs.get('confirm_password')
 
-# SIGNUP SERIALIZER
-class SignupSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, validators=[validate_password])
-    confirm_password = serializers.CharField(write_only=True)
-    role = serializers.ChoiceField(choices=User.ROLE_CHOICES, default="employee")
+#         if password != confirm_password:
+#             raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
 
-    class Meta:
-        model = User
-        fields = ('username', 'email', 'password', 'confirm_password', 'role')
+#         if User.objects.filter(username__iexact=username).exists():
+#             raise serializers.ValidationError({"username": "This username is already taken."})
+#         if User.objects.filter(email__iexact=email).exists():
+#             raise serializers.ValidationError({"email": "This email is already registered."})
 
-    def validate(self, attrs):
-        username = attrs.get('username')
-        email = attrs.get('email')
-        password = attrs.get('password')
-        confirm_password = attrs.get('confirm_password')
+#         for user in User.objects.all():
+#             if check_password(password, user.password):
+#                 raise serializers.ValidationError({"password": "This password is already in use. Please choose a different one."})
 
-        if password != confirm_password:
-            raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
+#         return attrs
 
-        if User.objects.filter(username__iexact=username).exists():
-            raise serializers.ValidationError({"username": "This username is already taken."})
-        if User.objects.filter(email__iexact=email).exists():
-            raise serializers.ValidationError({"email": "This email is already registered."})
+#     def create(self, validated_data):
+#         validated_data.pop('confirm_password')
+#         role = validated_data.pop('role', 'employee')
 
-        for user in User.objects.all():
-            if check_password(password, user.password):
-                raise serializers.ValidationError({"password": "This password is already in use. Please choose a different one."})
+#         user = User(
+#             username=validated_data['username'],
+#             email=validated_data['email'],
+#             role=role
+#         )
+#         user.set_password(validated_data['password'])
+#         user.save()
 
-        return attrs
-
-    def create(self, validated_data):
-        validated_data.pop('confirm_password')
-        role = validated_data.pop('role', 'employee')
-
-        user = User(
-            username=validated_data['username'],
-            email=validated_data['email'],
-            role=role
-        )
-        user.set_password(validated_data['password'])
-        user.save()
-
-        return user
+#         return user
 
     
     # SERIALIZER FOR CREATING AN ORGANIZATION
@@ -305,7 +296,32 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         })
         return data
 
-    
+#  EmployeeOnboardingSerializer
+class EmployeeOnboardingSerializer(serializers.Serializer):
+    username = serializers.CharField(required=True)
+    password = serializers.CharField(write_only=True, required=True)
+    confirm_password = serializers.CharField(write_only=True, required=True)
+    avatar = serializers.ImageField(required=True)
+
+    def validate_username(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("Username already taken.")
+        return value
+
+    def validate(self, attrs):
+        if attrs["password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        return attrs
+
+    def update(self, user, validated_data):
+        user.username = validated_data["username"]
+        user.set_password(validated_data["password"])
+        user.avatar = validated_data["avatar"]
+        user.onboarding_completed = True
+        user.save()
+        return user
+
+
 # Logout Serializer
 class LogoutSerializer(serializers.Serializer):
      refresh = serializers.CharField()
@@ -1488,9 +1504,6 @@ class AssessmentQuestionsResponseSerializer(serializers.Serializer):
     difficulty_question = serializers.CharField()
     difficulty_options = serializers.ListField()
 
-# serializers.py
-from rest_framework import serializers
-from .models import UserAchievement
 
 class UserAchievementSerializer(serializers.ModelSerializer):
     title = serializers.CharField(source='achievement.title')
@@ -1516,3 +1529,63 @@ class CrisisHotlineSerializer(serializers.ModelSerializer):
     class Meta:
         model = CrisisHotline
         fields = ['id', 'country', 'region', 'hotline_name', 'phone_number', 'is_active']
+
+# ADMIN USER MANAGEMENT SERIALIZER
+class OrganizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = ['id', 'name', 'size', 'phone', 'email', 'location', 'created_at']
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'password',
+            'role', 'organization', 'onboarding_completed',
+            'is_suspended', 'avatar', 'is_active'
+        ]
+        read_only_fields = ['is_active']  # deactivation handled by action
+
+    def validate(self, attrs):
+        role = attrs.get('role', getattr(self.instance, 'role', None))
+
+        # If creating/updating an employer, ensure organization exists
+        if role == 'employer':
+            org = attrs.get('organization') or getattr(self.instance, 'organization', None)
+            if not org:
+                raise serializers.ValidationError("Employer must belong to an organization.")
+
+        # If role is employee, avatar must be present when creating or when trying to activate
+        avatar = attrs.get('avatar', getattr(self.instance, 'avatar', None))
+        if role == 'employee' and not avatar and not getattr(self.instance, 'avatar', None):
+            # If creating a new employee, require avatar
+            if not self.instance:
+                raise serializers.ValidationError("Employee must have an avatar.")
+            # If updating and the employee is being (re)activated, enforce avatar
+            if attrs.get('is_active') is True:
+                raise serializers.ValidationError("Employee must have an avatar before activation.")
+        return attrs
+
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        user = User(**validated_data)
+        # Employees are created with onboarding_completed=False by default
+        user.onboarding_completed = validated_data.get('onboarding_completed', False)
+        user.set_password(password or User.objects.make_random_password())
+        user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if password:
+            instance.set_password(password)
+
+        instance.save()
+        return instance

@@ -84,6 +84,8 @@ from .serializers import OTPVerificationSerializer
 from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string
 from django.contrib.auth import authenticate, login as django_login
+from .serializers import AdminUserSerializer, OrganizationSerializer
+from .permissions import IsSystemAdmin
 
 import logging
 from django_filters.rest_framework import DjangoFilterBackend
@@ -145,13 +147,13 @@ class IsCompanyAdmin(BasePermission):
         return bool(request.user and request.user.is_authenticated and request.user.is_staff)
 
 
-# SIGNUP VIEW
+# # SIGNUP VIEW
 
-@extend_schema(tags=['Authentication'])
-class SignupView(viewsets.ModelViewSet):
-    queryset = User.objects.all()
-    serializer_class = SignupSerializer
-    permission_classes = [permissions.AllowAny]
+# @extend_schema(tags=['Authentication'])
+# class SignupView(viewsets.ModelViewSet):
+#     queryset = User.objects.all()
+#     serializer_class = SignupSerializer
+#     permission_classes = [permissions.AllowAny]
 
 # VIEWS FOR CREATING AN ORGANIZATION
 @extend_schema(
@@ -266,6 +268,13 @@ class LoginView(APIView):
                 "mfa_required": True,
                 "temp_token": temp_token
             })
+        if not user.onboarding_completed:
+    # Return onboarding-required response
+         return Response({
+        "onboarding_required": True,
+        "temp_access_token": RefreshToken.for_user(user).access_token,  
+        "message": "Onboarding required before using the system."
+    }, status=200)
 
         # Login normally
         django_login(request, user)
@@ -344,6 +353,32 @@ def verify_payment_and_activate_subscription(request):
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
+
+#  CompleteOnboardingView
+class CompleteOnboardingView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        request=EmployeeOnboardingSerializer,
+        responses={200: OpenApiTypes.OBJECT},
+        tags=['Onboarding'],
+        description="Complete first-time user onboarding."
+    )
+    def post(self, request):
+        user = request.user
+
+        if user.onboarding_completed:
+            return Response({"detail": "Onboarding already completed."}, status=400)
+
+        serializer = EmployeeOnboardingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.update(user, serializer.validated_data)
+
+        # Now allow permanent login
+        return Response({
+            "message": "Onboarding completed successfully.",
+            "login_allowed": True
+        })
 
 # LOGOUT VIEW
 @extend_schema(
@@ -1036,7 +1071,7 @@ The Obeeoma Team
     <div class="container">
         <div class="header">
             <div class="logo">OBEEOMA • A HAPPY HEART</div>
-            <h1>🎉 Welcome to {employer.name}!</h1>
+            <h1> Welcome to {employer.name}!</h1>
             <p>Join our team on Obeeoma</p>
         </div>
         
@@ -1046,7 +1081,7 @@ The Obeeoma Team
             </div>
             
             <div class="credentials">
-                <h3>🔑 Your One-Time Login Credentials</h3>
+                <h3> Your One-Time Login Credentials</h3>
                 <div class="cred-row">
                     <span class="cred-label">Username</span>
                     <span class="cred-value">{invitation.temporary_username}</span>
@@ -1062,7 +1097,7 @@ The Obeeoma Team
             </div>
             
             <div class="info-box">
-                ⚠️ <strong>Important:</strong> These credentials are for one-time use only and expire on <strong>{invitation.expires_at.strftime('%b %d, %Y')}</strong>.
+                 <strong>Important:</strong> These credentials are for one-time use only and expire on <strong>{invitation.expires_at.strftime('%b %d, %Y')}</strong>.
             </div>
         </div>
         
@@ -3096,7 +3131,7 @@ class AdminOrReadOnly(BasePermission):
 class VideoViewSet(viewsets.ModelViewSet):  # Full CRUD support
     queryset = Video.objects.filter(is_active=True)
     serializer_class = VideoSerializer
-    permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
+    permission_classes = [AdminOrReadOnly]  #  Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
     search_fields = ['title', 'description']
@@ -3164,7 +3199,7 @@ class AdminOrReadOnly(BasePermission):
 class AudioViewSet(viewsets.ModelViewSet):  # Full CRUD support
     queryset = Audio.objects.filter(is_active=True)
     serializer_class = AudioSerializer
-    permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
+    permission_classes = [AdminOrReadOnly]  #  Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
     search_fields = ['title', 'description']
@@ -3225,7 +3260,7 @@ class AdminOrReadOnly(BasePermission):
 class ArticleViewSet(viewsets.ModelViewSet):  # Full CRUD support
     queryset = Article.objects.filter(is_published=True)
     serializer_class = ArticleSerializer
-    permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
+    permission_classes = [AdminOrReadOnly]  #  Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
     search_fields = ['title', 'content', 'excerpt']
@@ -3488,3 +3523,82 @@ class UserAchievementViewSet(viewsets.ReadOnlyModelViewSet):
             'completed': completed,
             'progress': serializer.data
         })
+
+
+# VIEWS FOR ADMIN USER MANAGEMENT
+class OrganizationViewSet(viewsets.ModelViewSet):
+    queryset = Organization.objects.all()
+    serializer_class = OrganizationSerializer
+    permission_classes = [IsSystemAdmin]
+
+
+class AdminUserManagementViewSet(viewsets.ModelViewSet):
+    """
+    System Admin full control over users.
+    """
+    queryset = User.objects.all()
+    serializer_class = AdminUserSerializer
+    permission_classes = [IsSystemAdmin]
+
+    # Temporary suspension
+    @action(detail=True, methods=['post'])
+    def suspend(self, request, pk=None):
+        user = self.get_object()
+        if user.role == 'system_admin':
+            return Response({'detail': 'Cannot suspend a system admin.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.is_suspended = True
+        user.save(update_fields=['is_suspended'])
+        return Response({'status': 'user suspended'})
+
+    # Activate (clear suspension + ensure not deactivated)
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        user = self.get_object()
+        # Ensure employee has avatar before activation
+        if user.role == 'employee' and not user.avatar:
+            return Response({'detail': 'Employee must have an avatar before activation.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.is_suspended = False
+        user.is_active = True
+        user.save(update_fields=['is_suspended', 'is_active'])
+        return Response({'status': 'user activated'})
+
+    # Deactivate (soft disable) — admin action to remove access
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        user = self.get_object()
+        if user.role == 'system_admin':
+            return Response({'detail': 'Cannot deactivate a system admin.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.is_active = False
+        user.is_suspended = False
+        user.save(update_fields=['is_active', 'is_suspended'])
+        return Response({'status': 'user deactivated'})
+
+    # Reactivate after deactivation (admin only)
+    @action(detail=True, methods=['post'])
+    def reactivate(self, request, pk=None):
+        user = self.get_object()
+        if user.role == 'system_admin':
+            return Response({'detail': 'System admin already active.'}, status=status.HTTP_400_BAD_REQUEST)
+        if user.role == 'employee' and not user.avatar:
+            return Response({'detail': 'Employee must have an avatar before reactivation.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.is_active = True
+        user.save(update_fields=['is_active'])
+        return Response({'status': 'user reactivated'})
+
+    # Mark onboarding complete for an employee (admin may set this if needed)
+    @action(detail=True, methods=['post'])
+    def complete_onboarding(self, request, pk=None):
+        user = self.get_object()
+        if user.role != 'employee':
+            return Response({'detail': 'Only employees can have onboarding completed.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.onboarding_completed = True
+        user.save(update_fields=['onboarding_completed'])
+        return Response({'status': 'onboarding completed'})
+
+    # Override destroy to prevent accidental deletion of system_admin accounts
+    def destroy(self, request, *args, **kwargs):
+        user = self.get_object()
+        if user.role == 'system_admin':
+            return Response({'detail': 'Cannot delete a system admin account.'}, status=status.HTTP_400_BAD_REQUEST)
+        return super().destroy(request, *args, **kwargs)
+

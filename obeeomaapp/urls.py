@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework import permissions
 from . import views
+from .views import OrganizationViewSet, AdminUserManagementViewSet
 
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
@@ -18,7 +19,7 @@ from obeeomaapp.views import (
     AIManagementView, ClientEngagementView,
     ReportsAnalyticsView, SystemSettingsView, FeaturesUsageView,
     MyBadgesView, MyStreaksView, ProgressViewSet, 
-    EmailConfigCheckView, SignupView, LoginView, LogoutView, 
+    EmailConfigCheckView, LoginView, LogoutView, 
     PasswordResetView, PasswordResetConfirmView, PasswordChangeView,
     OverviewView, TrendsView, EmployeeEngagementView, BillingView,
     UsersView, ReportsView, CrisisInsightsView,
@@ -31,7 +32,7 @@ from obeeomaapp.views import (
     CompleteAccountSetupView, InviteView, EmployeeFirstLoginView,
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
-    # CompleteOnboardingView,
+     CompleteOnboardingView,
     DynamicQuestionViewSet, UserAchievementViewSet,
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView
     
@@ -105,6 +106,10 @@ router.register(r'admin/reports-analytics', ReportsAnalyticsView, basename='repo
 router.register(r'admin/system-settings', SystemSettingsView, basename='system-settings')
 router.register(r'admin/feature-flags', FeaturesUsageView, basename='feature-flags')
 router.register(r'dynamic-questions', DynamicQuestionViewSet, basename='dynamic-question')
+# ADMIN USER MANAGEMENT ROUTERS
+router.register(r'admin/organizations', OrganizationViewSet, basename='admin-organizations')
+router.register(r'admin/users', AdminUserManagementViewSet, basename='admin-users')
+
 
 router.register(r'dashboard/billing/verify-payment', BillingView, basename='verify-payment')
 
@@ -123,7 +128,7 @@ urlpatterns = [
         "debug/email-config/", EmailConfigCheckView.as_view(), name="email-config-check"
     ),
     # Authentication
-    path("auth/signup/", SignupView.as_view({"post": "create"}), name="signup"),
+    # path("auth/signup/", SignupView.as_view({"post": "create"}), name="signup"),
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/logout/", LogoutView.as_view(), name="logout"),
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
@@ -131,7 +136,6 @@ urlpatterns = [
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
     path('auth/verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
     path('auth/reset-password/complete/', ResetPasswordCompleteView.as_view({'post': 'create'}), name='password-reset-complete'),
-
     path('auth/mfa/setup/', views.mfa_setup, name='mfa-setup'),
     path('auth/mfa/confirm/', views.mfa_confirm, name='mfa-confirm'),
     path('auth/mfa/verify/', views.mfa_verify, name='mfa-verify'),
@@ -142,6 +146,8 @@ urlpatterns = [
     # Organisation detials endpoint
     path('auth/organizations/<int:org_id>/details/', OrganizationDetailView.as_view(), name='organization-details'),
 
+    # Complete Onboarding Endpoint
+    path('auth/complete-onboarding/', CompleteOnboardingView.as_view(), name='complete-onboarding'),
 
 
   
@@ -186,9 +192,6 @@ urlpatterns = [
     path('sana/sessions/<int:session_id>/messages/', ChatMessageView.as_view({'get': 'list', 'post': 'create'}), name='chat-messages'),
     path('employee/recommendations/', RecommendationLogView.as_view({'get': 'list', 'post': 'create'}), name='recommendation-log'),
 
-    # # ONBOARDING ENDPOINT
-    # path('onboarding/', OnboardingView.as_view(), name='onboarding'),
-   
 
 
 
