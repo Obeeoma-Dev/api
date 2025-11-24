@@ -130,7 +130,7 @@ def verify_flutterwave_transaction(tx_ref, expected_amount, currency):
 
 
 
-def initiate_payment_fw(amount, email, payment_ref, currency="NGN"): # Renamed transaction_id to payment_ref
+def initiate_payment_fw(amount, email, subscription_id, currency="NGN"): # Renamed transaction_id to payment_ref
     url = "https://api.flutterwave.com/v3/payments"
     headers = {
         "Authorization": f"Bearer {settings.FLW_SEC_KEY}" 
@@ -141,7 +141,7 @@ def initiate_payment_fw(amount, email, payment_ref, currency="NGN"): # Renamed t
         "tx_ref": tx_ref,
         "amount": str(amount), 
         "currency": currency,
-        "redirect_url": f"http://127.0.0.1:8000/api/billing/confirm_payment/?sub_ref={payment_ref}",
+        "redirect_url": f"http://127.0.0.1:8000/api/billing/confirm_payment/?sub_ref={subscription_id}",
         # "redirect_url": f"{FRONTEND_SUCCESS_URL}?tx_ref={tx_ref}", 
         "meta": {
           "subscription_id": subscription_id, # Pass  internal reference
