@@ -111,6 +111,8 @@ router.register(r'admin/organizations', OrganizationViewSet, basename='admin-org
 router.register(r'admin/users', AdminUserManagementViewSet, basename='admin-users')
 
 
+router.register(r'dashboard/billing/verify-payment', BillingView, basename='verify-payment')
+
 # Assessment Questionnaires (PHQ-9 & GAD-7)
 router.register(r'assessments/questions', AssessmentQuestionViewSet, basename='assessment-question')
 router.register(r'assessments/responses', AssessmentResponseViewSet, basename='assessment-response')
@@ -147,6 +149,12 @@ urlpatterns = [
     # Complete Onboarding Endpoint
     path('auth/complete-onboarding/', CompleteOnboardingView.as_view(), name='complete-onboarding'),
 
+
+  
+    # path('billing/initiate_payment/', views.initiate_subscription_payment, name='initiate-subscription-payment'),
+    path('billing/verify_payment/', views.verify_payment_and_activate_subscription, name='verify-payment-activate'),
+
+    path('billing/flutterwave-webhook/', views.flutterwave_webhook_listener, name='flutterwave-webhook'),
     
    
     # Dashboard
