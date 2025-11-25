@@ -1515,8 +1515,8 @@ class Achievement(models.Model):
     def __str__(self):
         return self.title
 
-from django.conf import settings
-from django.db import models
+# from django.conf import settings
+# from django.db import models
 
 class UserAchievement(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -1582,3 +1582,10 @@ class Media(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.media_type})"
+class Settings(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    dark_mode = models.BooleanField(default=False)
+    notifications_enabled = models.BooleanField(default=True)
+    email_updates = models.BooleanField(default=True)
+    def __str__(self):
+        return f"{self.user.username}'s Settings"

@@ -3866,7 +3866,18 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
         if user.role == 'system_admin':
             return Response({'detail': 'Cannot delete a system admin account.'}, status=status.HTTP_400_BAD_REQUEST)
         return super().destroy(request, *args, **kwargs)
+@extend_schema(tags=['User - Settings'])
+class SettingsViewSet(viewsets.ModelViewSet):
+    serializer_class = SettingsSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        # Only return settings for the logged-in user
+        return Settings.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        # Ensure settings are tied to the current user
+        serializer.save(user=self.request.user)
 
 # media upload view for systems admin
 class MediaViewSet(viewsets.ModelViewSet):

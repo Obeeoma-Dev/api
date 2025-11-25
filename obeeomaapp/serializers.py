@@ -23,7 +23,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.hashers import check_password
 
-from rest_framework import serializers
+
 from .models import UserAchievement
 import uuid
 import requests
@@ -1636,7 +1636,11 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
-
+class SettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Settings
+        fields = ['id', 'user', 'dark_mode', 'notifications_enabled', 'email_updates']
+        read_only_fields = ['user']    
 
 # Media upload serializer for systems admin.
 class MediaSerializer(serializers.ModelSerializer):
