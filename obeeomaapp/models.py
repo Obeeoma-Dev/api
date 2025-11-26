@@ -108,6 +108,10 @@ class Organization(models.Model):
     Location = models.CharField(max_length=255)
     password = models.CharField(max_length=128)
     contactPerson = models.OneToOneField(ContactPerson, on_delete=models.CASCADE, related_name='organization', null=True, blank=True)
+    # ADDED THESE DATE FIELDS
+    created_at = models.DateTimeField(auto_now_add=True)  
+    updated_at = models.DateTimeField(auto_now=True)       
+
     def __str__(self):
         return self.organizationName
 
@@ -140,6 +144,7 @@ class  Employer(models.Model):
 # Employees Models. 
 class Employee(models.Model):
     STATUS_CHOICES = [
+        ('pending', 'Pending'),
         ('active', 'Active'),
         ('inactive', 'Inactive'),
         ('suspended', 'Suspended'),

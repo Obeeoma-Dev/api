@@ -141,6 +141,7 @@ class ContactPersonSerializer(serializers.ModelSerializer):
 class OrganizationCreateSerializer(serializers.ModelSerializer):
     contactPerson = ContactPersonSerializer()
     confirmPassword = serializers.CharField(write_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = Organization
@@ -540,7 +541,7 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['email', 'first_name', 'last_name', 'password', 'password_confirm']
+        fields = ['email', 'user_name', 'password', 'password_confirm']
     
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirm']:
@@ -553,8 +554,8 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
             username=validated_data['email'],  # Use email as username
             email=validated_data['email'],
             password=validated_data['password'],
-            first_name=validated_data['first_name'],
-            last_name=validated_data['last_name'],
+            user_name=validated_data['user_name'],
+    
             is_active=True
         )
         return user
@@ -672,9 +673,7 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         employee_profile = Employee.objects.create(
             user=user,
             employer=invitation.employer,
-            email=invitation.email,
-            first_name='',  # Empty for now, can be updated later
-            last_name=''    # Empty for now, can be updated later
+            email=invitation.email
         )
         
         # Mark invitation as fully accepted

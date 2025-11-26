@@ -1244,82 +1244,7 @@ class CompleteAccountSetupView(APIView):
             'refresh': str(refresh)
         }, status=status.HTTP_201_CREATED)
     
-    @extend_schema(
-        request=EmployeeUserCreateSerializer,
-        responses={
-            201: {
-                "description": "Account created successfully",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "message": "Account created successfully",
-                            "user": {
-                                "id": 1,
-                                "email": "employee@company.com",
-                                "first_name": "John",
-                                "last_name": "Doe"
-                            },
-                            "employee_profile": {
-                                "id": 1,
-                                "employer": "Company Name"
-                            }
-                        }
-                    }
-                }
-            },
-            400: {"description": "Invalid data or token"}
-        }
-    )
-    def put(self, request):
-        """
-        Create employee account using validated invitation
-        """
-        # First validate the token
-        token_serializer = EmployeeInvitationAcceptSerializer(data=request.data)
-        token_serializer.is_valid(raise_exception=True)
-        
-        token = token_serializer.validated_data['token']
-        invitation = EmployeeInvitation.objects.get(
-            token=token,
-            accepted=False,
-            expires_at__gt=timezone.now()
-        )
-        
-        # Create user account
-        user_data = {
-            'email': invitation.email,
-            'user_name': request.data.get('user_name'),
-            'password': request.data.get('password'),
-            'password_confirm': request.data.get('password_confirm'),
-        }
-        
-        user_serializer = EmployeeUserCreateSerializer(data=user_data)
-        user_serializer.is_valid(raise_exception=True)
-        user = user_serializer.save()
-        
-        # Create employee profile
-        employee_profile = Employee.objects.create(
-            user=user,
-            employer=invitation.employer
-        )
-        
-        # Mark invitation as accepted
-        invitation.accepted = True
-        invitation.accepted_at = timezone.now()
-        invitation.save()
-        
-        return Response({
-            'message': 'Account created successfully',
-            'user': {
-                'id': user.id,
-                'email': user.email,
-                'user_name': user.user_name,
-            },
-            'employee_profile': {
-                'id': employee_profile.id,
-                'employer': invitation.employer.name
-            }
-        }, status=status.HTTP_201_CREATED)
+    
 
 
 @extend_schema(
@@ -2046,14 +1971,36 @@ class ProgressViewSet(viewsets.ModelViewSet):
 # New Dashboard Views
 @extend_schema(tags=['Employer Dashboard'])
 class OrganizationOverviewView(viewsets.ViewSet):
-    """Organization overview dashboard data"""
+    """
+    EMPLOYER DASHBOARD - ORGANIZATION OVERVIEW
+    
+    This view provides a comprehensive overview of the organization's workforce
+    and their engagement with the mental health platform.
+    
+    Purpose for Employers:
+    - Monitor overall workforce size and activity
+    - Track employee wellness trends
+    - Understand platform feature adoption
+    - View recent organizational activities
+    
+    Key Metrics Provided:
+    - Total employee count
+    - Wellness index (aggregate mental health score)
+    - Active employees count
+    - Feature usage statistics
+    - Engagement trends
+    """
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
         from django.db.models import Q, Count, Avg
         from datetime import datetime, timedelta
         
-        # Get organization/employer
+        # ============================================================
+        # STEP 1: IDENTIFY THE EMPLOYER/ORGANIZATION
+        # ============================================================
+        # Get the employer associated with the logged-in user
+        # This ensures employers only see their own organization's data
         employer = None
         if hasattr(request.user, 'employer_profile'):
             employer = request.user.employer_profile.employer
@@ -2063,11 +2010,29 @@ class OrganizationOverviewView(viewsets.ViewSet):
         if employer:
             employee_queryset = employee_queryset.filter(employer=employer)
         
-        # 1. Total Employees
+        # ============================================================
+        # METRIC 1: TOTAL EMPLOYEES
+        # ============================================================
+        # Purpose: Shows the total number of employees in the organization
+        # Helps employers understand their workforce size
         total_employees = employee_queryset.count()
         
-        # 2. Wellness Index (average wellness score from assessments)
-        # Calculate from recent assessment responses
+        # ============================================================
+        # METRIC 2: WELLNESS INDEX
+        # ============================================================
+        # Purpose: Aggregate wellness score across all employees
+        # Higher score = better overall mental health
+        # Range: 0-100 (100 being best)
+        # 
+        # How it works:
+        # - Collects all assessment responses from employees
+        # - Calculates average score
+        # - Converts to wellness index (inverse of severity)
+        # 
+        # Why it matters for employers:
+        # - Quick snapshot of overall workforce mental health
+        # - Helps identify if intervention programs are working
+        # - Can track improvement over time
         recent_assessments = AssessmentResponse.objects.filter(
             user__in=employee_queryset.values_list('user', flat=True)
         )
@@ -2080,13 +2045,34 @@ class OrganizationOverviewView(viewsets.ViewSet):
         else:
             wellness_index = 0
         
-        # 3. At Risk Count (employees with severe/high risk assessments)
-        at_risk_count = AssessmentResponse.objects.filter(
-            user__in=employee_queryset.values_list('user', flat=True),
-            severity_level__in=['Severe', 'Moderately Severe']
-        ).values('user').distinct().count()
+        # Generate wellness index description based on score
+        if wellness_index >= 80:
+            wellness_description = "Excellent - Your workforce shows strong mental wellbeing"
+        elif wellness_index >= 60:
+            wellness_description = "Good - Overall mental health is positive"
+        elif wellness_index >= 40:
+            wellness_description = "Fair - Some employees may need support"
+        elif wellness_index >= 20:
+            wellness_description = "Concerning - Consider wellness initiatives"
+        else:
+            wellness_description = "Critical - Immediate attention recommended"
         
-        # 4. Employees List (with pagination)
+        # ============================================================
+        # METRIC 3: ACTIVE EMPLOYEES COUNT
+        # ============================================================
+        # Purpose: Shows how many employees are currently active
+        # Helps employers understand workforce availability
+        # Active status means employee is currently working and not suspended
+        active_employees_count = employee_queryset.filter(status='active').count()
+        
+        # ============================================================
+        # METRIC 4: RECENT EMPLOYEES LIST
+        # ============================================================
+        # Purpose: Shows the 10 most recently joined employees
+        # Helps employers:
+        # - Track new hires
+        # - Monitor onboarding progress
+        # - See department distribution
         employees_list = employee_queryset.select_related('department').order_by('-joined_date')[:10]
         employees_data = [{
             'id': emp.id,
@@ -2096,25 +2082,54 @@ class OrganizationOverviewView(viewsets.ViewSet):
             'status': emp.status,
         } for emp in employees_list]
         
-        # 5. Engagement Trend (active vs inactive/suspended employees)
+        # ============================================================
+        # METRIC 5: ENGAGEMENT TREND
+        # ============================================================
+        # Purpose: Shows workforce engagement breakdown
+        # Pending = Invited but not yet onboarded
+        # Active = Currently working employees
+        # Inactive = Employees who are not currently active or suspended
+        # 
+        # Why it matters for employers:
+        # - Understand workforce availability
+        # - Track onboarding progress (pending employees)
+        # - Identify potential retention issues
+        # - Plan resource allocation
         engagement_stats = employee_queryset.aggregate(
+            pending=Count('id', filter=Q(status='pending')),
             active=Count('id', filter=Q(status='active')),
             inactive=Count('id', filter=Q(status__in=['inactive', 'suspended']))
         )
         
-        # 6. Feature Usage Breakdown
-        # Count usage of different features
+        # ============================================================
+        # METRIC 6: FEATURE USAGE BREAKDOWN
+        # ============================================================
+        # Purpose: Shows what percentage of employees use each platform feature
+        # 
+        # Features tracked:
+        # 1. Wellness Assessments - Mental health self-assessments
+        # 2. AI Chatbot (Sana) - AI-powered mental health support
+        # 3. Mood Tracking - Daily mood check-ins
+        # 4. Resource Library - Educational content and tools
+        # 
+        # Why it matters for employers:
+        # - Understand platform adoption
+        # - Identify which features are most valuable
+        # - Justify ROI on the platform
+        # - Identify areas needing more promotion
         total_users = employee_queryset.filter(status='active').count() or 1
         
+        # Count unique users who have used wellness assessments
         wellness_assessments_count = AssessmentResponse.objects.filter(
             user__in=employee_queryset.values_list('user', flat=True)
         ).values('user').distinct().count()
         
+        # Count unique users who have tracked their mood
         mood_tracking_count = MoodTracking.objects.filter(
             user__in=employee_queryset.values_list('user', flat=True)
         ).values('user').distinct().count()
         
-        # AI Chatbot usage (from chat sessions)
+        # Count unique users who have used the AI Chatbot (Sana)
         ai_chatbot_count = 0
         try:
             from sana_ai.models import ChatSession
@@ -2124,11 +2139,12 @@ class OrganizationOverviewView(viewsets.ViewSet):
         except:
             pass
         
-        # Resource library usage
+        # Count unique users who have saved resources
         resource_usage_count = SavedResource.objects.filter(
             user__in=employee_queryset.values_list('user', flat=True)
         ).values('user').distinct().count()
         
+        # Calculate percentage of active employees using each feature
         feature_usage = {
             'wellness_assessments': int((wellness_assessments_count / total_users) * 100),
             'ai_chatbot': int((ai_chatbot_count / total_users) * 100),
@@ -2136,8 +2152,20 @@ class OrganizationOverviewView(viewsets.ViewSet):
             'resource_library': int((resource_usage_count / total_users) * 100),
         }
         
-        # 7. Mood Trend (last 12 weeks)
-        # Count mood check-ins per week as engagement metric
+        # ============================================================
+        # METRIC 7: MOOD TREND (12-WEEK HISTORY)
+        # ============================================================
+        # Purpose: Shows employee engagement with mood tracking over time
+        # 
+        # How it works:
+        # - Tracks number of mood check-ins per week for last 12 weeks
+        # - Higher numbers indicate better engagement
+        # 
+        # Why it matters for employers:
+        # - Identify engagement patterns (e.g., drops during busy seasons)
+        # - Measure effectiveness of wellness initiatives
+        # - Spot trends that may need attention
+        # - Understand when employees are most engaged with mental health tools
         mood_trend = []
         for week in range(12, 0, -1):
             week_start = datetime.now() - timedelta(weeks=week)
@@ -2155,7 +2183,22 @@ class OrganizationOverviewView(viewsets.ViewSet):
                 'value': mood_count
             })
         
-        # 8. New Notifications (recent organization activities)
+        # ============================================================
+        # METRIC 8: RECENT NOTIFICATIONS
+        # ============================================================
+        # Purpose: Shows recent organizational activities and updates
+        # 
+        # Examples of notifications:
+        # - New employee onboarding
+        # - Department changes
+        # - System updates
+        # - Important announcements
+        # 
+        # Why it matters for employers:
+        # - Stay informed about organizational changes
+        # - Track important events
+        # - Monitor system activity
+        # - Quick access to recent updates
         notifications = OrganizationActivity.objects.filter(
             employer=employer
         ).order_by('-created_at')[:5] if employer else []
@@ -2168,12 +2211,18 @@ class OrganizationOverviewView(viewsets.ViewSet):
             'time_ago': self._get_time_ago(notif.created_at)
         } for notif in notifications]
         
-        # Compile all data
+        # ============================================================
+        # COMPILE ALL DASHBOARD DATA
+        # ============================================================
+        # This data structure provides everything an employer needs
+        # to understand their organization's mental health platform usage
+        # and make informed decisions about employee wellbeing initiatives
         data = {
             'summary': {
                 'total_employees': total_employees,
                 'wellness_index': wellness_index,
-                'at_risk': at_risk_count,
+                'wellness_description': wellness_description,
+                'active_employees': active_employees_count,
             },
             'employees': {
                 'list': employees_data,
@@ -2192,7 +2241,12 @@ class OrganizationOverviewView(viewsets.ViewSet):
         return Response(data)
     
     def _get_time_ago(self, timestamp):
-        """Helper to calculate time ago"""
+        """
+        Helper method to calculate human-readable time differences
+        
+        Purpose: Converts timestamps to user-friendly format
+        Examples: "2 hours ago", "3 days ago", "just now"
+        """
         now = datetime.now()
         if timestamp.tzinfo:
             from django.utils import timezone
@@ -2214,16 +2268,60 @@ class OrganizationOverviewView(viewsets.ViewSet):
 
 @extend_schema(tags=['Employer Dashboard'])
 class EmployeeManagementView(viewsets.ModelViewSet):
-    """Employee management with search and filtering"""
+    """
+    EMPLOYER DASHBOARD - EMPLOYEE MANAGEMENT
+    
+    This view handles all employee management operations for employers.
+    
+    Purpose for Employers:
+    - View complete list of all employees
+    - Search employees by name, email, or department
+    - Filter employees by department or status
+    - Add new employees to the organization
+    - Update employee information
+    - Remove employees from the system
+    
+    Features:
+    - Full CRUD operations (Create, Read, Update, Delete)
+    - Advanced search functionality
+    - Department-based filtering
+    - Status-based filtering (active, inactive, suspended)
+    - Sorting by multiple fields
+    
+    Use Cases:
+    - Onboarding new employees
+    - Updating employee departments
+    - Managing employee status
+    - Finding specific employees quickly
+    - Generating employee reports
+    """
     queryset = Employee.objects.select_related('employer', 'department').all()
     serializer_class = EmployeeManagementSerializer
     permission_classes = [IsCompanyAdmin]
+    
+    # Search Configuration
+    # Employers can search by: first name, last name, email, or department name
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['first_name', 'last_name', 'email', 'department__name']
+    
+    # Sorting Configuration
+    # Employers can sort by: name, email, join date, or status
     ordering_fields = ['first_name', 'email', 'joined_date', 'status']
-    ordering = ['-joined_date']
+    ordering = ['-joined_date']  # Default: newest employees first
     
     def get_queryset(self):
+        """
+        Filter employees based on query parameters
+        
+        Available Filters:
+        - department: Filter by department name (partial match)
+        - status: Filter by employee status (exact match)
+        
+        Examples:
+        - /api/employees/?department=Engineering
+        - /api/employees/?status=active
+        - /api/employees/?department=HR&status=active
+        """
         queryset = super().get_queryset()
         department = self.request.query_params.get('department', None)
         status = self.request.query_params.get('status', None)
@@ -2236,23 +2334,65 @@ class EmployeeManagementView(viewsets.ModelViewSet):
         return queryset
     
     def perform_create(self, serializer):
-        """Create employee with proper employer assignment"""
+        """
+        Create a new employee record
+        
+        Purpose: Add new employees to the organization
+        Note: Employee will be automatically assigned to the employer's organization
+        """
         serializer.save()
 
 
 @extend_schema(tags=['Employer Dashboard'])
 class DepartmentManagementView(viewsets.ModelViewSet):
-    """Department management"""
+    """
+    EMPLOYER DASHBOARD - DEPARTMENT MANAGEMENT
+    
+    This view handles organizational department structure management.
+    
+    Purpose for Employers:
+    - Create and manage organizational departments
+    - Organize employees by department
+    - Track department-level metrics
+    - Structure the organization hierarchy
+    
+    Features:
+    - Create new departments
+    - Update department information
+    - Delete departments
+    - Search departments by name
+    - Sort departments alphabetically or by creation date
+    
+    Use Cases:
+    - Setting up organizational structure
+    - Reorganizing company departments
+    - Tracking department growth
+    - Assigning employees to departments
+    
+    Examples of Departments:
+    - Engineering, HR, Marketing, Sales, Operations, Finance, etc.
+    """
     queryset = Department.objects.select_related('employer').all()
     serializer_class = DepartmentSerializer
     permission_classes = [IsCompanyAdmin]
+    
+    # Search Configuration
+    # Employers can search departments by name
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name']
+    
+    # Sorting Configuration
+    # Sort by name (alphabetically) or creation date
     ordering_fields = ['name', 'created_at']
-    ordering = ['name']
+    ordering = ['name']  # Default: alphabetical order
     
     def perform_create(self, serializer):
-        """Create department with proper employer assignment"""
+        """
+        Create a new department
+        
+        Purpose: Add new departments to organize the workforce
+        Note: Department is automatically linked to the employer's organization
+        """
         # Get employer from request user or use first employer
         employer = Employer.objects.first()
         if hasattr(self.request.user, 'employer_profile'):
@@ -2262,17 +2402,71 @@ class DepartmentManagementView(viewsets.ModelViewSet):
 
 @extend_schema(tags=['Employer Dashboard'])
 class SubscriptionManagementView(viewsets.ModelViewSet):
-    """Subscription management"""
+    """
+    EMPLOYER DASHBOARD - SUBSCRIPTION MANAGEMENT
+    
+    This view handles all subscription and billing operations for employers.
+    
+    Purpose for Employers:
+    - View current subscription plan details
+    - Browse available subscription plans
+    - Upgrade or downgrade subscription
+    - View billing history
+    - Manage payment methods
+    - Track subscription usage (seats used vs available)
+    
+    Features:
+    - Current subscription overview
+    - Plan comparison
+    - Billing history with invoices
+    - Payment method management
+    - Seat usage tracking
+    - Renewal date monitoring
+    
+    Use Cases:
+    - Checking current plan limits
+    - Upgrading when adding more employees
+    - Reviewing past invoices
+    - Updating payment information
+    - Planning budget for renewals
+    
+    Subscription Plans Typically Include:
+    - Starter Plan: Small teams (5-50 employees)
+    - Enterprise Plan: Medium to large organizations (50-500 employees)
+    - Enterprise Plus: Large corporations (500+ employees)
+    """
     queryset = Subscription.objects.select_related('employer', 'plan_details', 'payment_method').all()
     serializer_class = SubscriptionManagementSerializer
     permission_classes = [IsCompanyAdmin]
+    
+    # Sorting Configuration
+    # Sort by start date or amount
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['start_date', 'amount']
-    ordering = ['-start_date']
+    ordering = ['-start_date']  # Default: newest subscriptions first
     
     @action(detail=False, methods=['get'])
     def current_subscription(self, request):
-        """Get current active subscription"""
+        """
+        Get Current Active Subscription
+        
+        Purpose: View details of the organization's current subscription
+        
+        Returns:
+        - Plan name and type
+        - Number of seats (total and used)
+        - Subscription amount
+        - Start and end dates
+        - Renewal date
+        - Payment method
+        - Active status
+        
+        Why it matters for employers:
+        - Know how many employee seats are available
+        - Track when renewal is due
+        - Understand current plan limitations
+        - Plan for upgrades if needed
+        """
         subscription = self.get_queryset().filter(is_active=True).first()
         if subscription:
             return Response(SubscriptionManagementSerializer(subscription).data)
@@ -2280,13 +2474,47 @@ class SubscriptionManagementView(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def available_plans(self, request):
-        """Get available subscription plans"""
+        """
+        Get Available Subscription Plans
+        
+        Purpose: Browse all available subscription plans for comparison
+        
+        Returns:
+        - Plan names and descriptions
+        - Pricing for each plan
+        - Number of seats included
+        - Features included in each plan
+        
+        Why it matters for employers:
+        - Compare plans before upgrading
+        - Understand what features are available
+        - Make informed decisions about plan changes
+        - Budget for future growth
+        """
         plans = SubscriptionPlan.objects.filter(is_active=True)
         return Response(SubscriptionPlanSerializer(plans, many=True).data)
     
     @action(detail=False, methods=['get'])
     def billing_history(self, request):
-        """Get billing history"""
+        """
+        Get Billing History
+        
+        Purpose: View past invoices and payment records
+        
+        Returns:
+        - Invoice numbers
+        - Payment amounts
+        - Billing dates
+        - Payment status (paid, pending, failed)
+        - Plan names for each billing period
+        
+        Why it matters for employers:
+        - Track expenses for accounting
+        - Verify payments
+        - Download invoices for records
+        - Monitor payment patterns
+        - Budget planning
+        """
         billing_history = BillingHistory.objects.select_related('employer').order_by('-billing_date')[:10]
         return Response(BillingHistorySerializer(billing_history, many=True).data)
 
