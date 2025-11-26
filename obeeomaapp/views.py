@@ -3530,7 +3530,6 @@ class ArticleViewSet(viewsets.ModelViewSet):  # Full CRUD support
     filterset_fields = ['category']
     search_fields = ['title', 'content', 'excerpt']
     ordering_fields = ['published_date', 'views', 'reading_time']
-    lookup_field = 'slug'
 
     @action(detail=True, methods=['post'])
     def read(self, request, slug=None):

@@ -109,8 +109,8 @@ class Organization(models.Model):
     password = models.CharField(max_length=128)
     contactPerson = models.OneToOneField(ContactPerson, on_delete=models.CASCADE, related_name='organization', null=True, blank=True)
     # ADDED THESE DATE FIELDS
-    created_at = models.DateTimeField(auto_now_add=True)  
-    updated_at = models.DateTimeField(auto_now=True)       
+    created_at = models.DateTimeField(auto_now_add=True, blank=True, null=True)  
+    updated_at = models.DateTimeField(auto_now=True, blank=True, null=True)       
 
     def __str__(self):
         return self.organizationName
@@ -281,9 +281,10 @@ class SelfHelpResource(models.Model):
 
 # Chatbot Interactions model.
 class ChatbotInteraction(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="chatbot_logs")
-    message = models.TextField()
-    response = models.TextField()
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,related_name="chatbot_logs",default=1)
+
+    message = models.TextField(blank=True, null=True)
+    response = models.TextField(default='', blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
     escalated = models.BooleanField(default=False)
 
@@ -1517,7 +1518,8 @@ class Achievement(models.Model):
 
 class UserAchievement(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    achievement = models.ForeignKey("Achievement", on_delete=models.CASCADE)
+    achievement = models.ForeignKey("Achievement", on_delete=models.CASCADE, related_name="user_achievements", blank=True, null=True)
+
     progress_count = models.PositiveIntegerField(default=0)
     achieved = models.BooleanField(default=False)
     achieved_date = models.DateField(null=True, blank=True)
@@ -1541,14 +1543,16 @@ class Media(models.Model):
     ARTICLE = 'article'
     AUDIO = 'audio'
     VIDEO = 'video'
+    CBTEXERCISE = 'cbt_exercise'
 
     MEDIA_TYPE_CHOICES = [
         (ARTICLE, 'Article'),
         (AUDIO, 'Audio'),
         (VIDEO, 'Video'),
+        (CBTEXERCISE, 'CBT Exercise'),
     ]
 
-    media_type = models.CharField(max_length=10, choices=MEDIA_TYPE_CHOICES)
+    media_type = models.CharField(max_length=20, choices=MEDIA_TYPE_CHOICES)
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     # Article body (used when media_type == ARTICLE)
