@@ -2025,6 +2025,18 @@ class OrganizationOverviewView(viewsets.ViewSet):
         else:
             wellness_index = 0
         
+        # Generate wellness index description based on score
+        if wellness_index >= 80:
+            wellness_description = "Excellent - Your workforce shows strong mental wellbeing"
+        elif wellness_index >= 60:
+            wellness_description = "Good - Overall mental health is positive"
+        elif wellness_index >= 40:
+            wellness_description = "Fair - Some employees may need support"
+        elif wellness_index >= 20:
+            wellness_description = "Concerning - Consider wellness initiatives"
+        else:
+            wellness_description = "Critical - Immediate attention recommended"
+        
         # ============================================================
         # METRIC 3: ACTIVE EMPLOYEES COUNT
         # ============================================================
@@ -2054,14 +2066,17 @@ class OrganizationOverviewView(viewsets.ViewSet):
         # METRIC 5: ENGAGEMENT TREND
         # ============================================================
         # Purpose: Shows workforce engagement breakdown
+        # Pending = Invited but not yet onboarded
         # Active = Currently working employees
         # Inactive = Employees who are not currently active or suspended
         # 
         # Why it matters for employers:
         # - Understand workforce availability
+        # - Track onboarding progress (pending employees)
         # - Identify potential retention issues
         # - Plan resource allocation
         engagement_stats = employee_queryset.aggregate(
+            pending=Count('id', filter=Q(status='pending')),
             active=Count('id', filter=Q(status='active')),
             inactive=Count('id', filter=Q(status__in=['inactive', 'suspended']))
         )
@@ -2186,6 +2201,7 @@ class OrganizationOverviewView(viewsets.ViewSet):
             'summary': {
                 'total_employees': total_employees,
                 'wellness_index': wellness_index,
+                'wellness_description': wellness_description,
                 'active_employees': active_employees_count,
             },
             'employees': {
@@ -3250,76 +3266,76 @@ class AdminOrReadOnly(BasePermission):
         return request.user and request.user.is_staff  # Only admins can write
 
 
-class AudioViewSet(viewsets.ModelViewSet):  # Full CRUD support
-    queryset = Audio.objects.filter(is_active=True)
-    serializer_class = AudioSerializer
-    permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['category']
-    search_fields = ['title', 'description']
-    ordering_fields = ['created_at', 'plays', 'title']
-    lookup_field = 'pk'
+# class AudioViewSet(viewsets.ModelViewSet):  # Full CRUD support
+#     queryset = Audio.objects.filter(is_active=True)
+#     serializer_class = AudioSerializer
+#     permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
+#     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+#     filterset_fields = ['category']
+#     search_fields = ['title', 'description']
+#     ordering_fields = ['created_at', 'plays', 'title']
+#     lookup_field = 'pk'
 
-    @action(detail=True, methods=['post'])
-    def play(self, request, pk=None):
-        """Record that user played this audio"""
-        try:
-            audio = self.get_object()
-        except Exception:
-            raise NotFound("No audio matches the given query.")
+#     @action(detail=True, methods=['post'])
+#     def play(self, request, pk=None):
+#         """Record that user played this audio"""
+#         try:
+#             audio = self.get_object()
+#         except Exception:
+#             raise NotFound("No audio matches the given query.")
 
-        audio.plays += 1
-        audio.save()
+#         audio.plays += 1
+#         audio.save()
 
-        if request.user.is_authenticated:
-            UserActivity.objects.create(user=request.user, audio=audio)
+#         if request.user.is_authenticated:
+#             UserActivity.objects.create(user=request.user, audio=audio)
 
-        # Notify employees (should be outside Response)
-        for employee in Employee.objects.all():
-            Notification.objects.create(
-                employee=employee,
-                message=f"New audio published: {audio.title}",
-                content_type="audio",
-                object_id=audio.id
-            )
+#         # Notify employees (should be outside Response)
+#         for employee in Employee.objects.all():
+#             Notification.objects.create(
+#                 employee=employee,
+#                 message=f"New audio published: {audio.title}",
+#                 content_type="audio",
+#                 object_id=audio.id
+#             )
 
-        return Response({'message': 'Play recorded', 'total_plays': audio.plays})
+#         return Response({'message': 'Play recorded', 'total_plays': audio.plays})
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def save(self, request, pk=None):
-        """Save audio to user's library"""
-        try:
-            audio = self.get_object()
-        except Exception:
-            raise NotFound("No audio matches the given query.")
+#     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+#     def save(self, request, pk=None):
+#         """Save audio to user's library"""
+#         try:
+#             audio = self.get_object()
+#         except Exception:
+#             raise NotFound("No audio matches the given query.")
 
-        saved, created = SavedResource.objects.get_or_create(user=request.user, audio=audio)
+#         saved, created = SavedResource.objects.get_or_create(user=request.user, audio=audio)
 
-        if created:
-            return Response({'message': 'Audio saved to your library'})
-        else:
-            saved.delete()
-            return Response({'message': 'Audio removed from library'})
+#         if created:
+#             return Response({'message': 'Audio saved to your library'})
+#         else:
+#             saved.delete()
+#             return Response({'message': 'Audio removed from library'})
 
-class AdminOrReadOnly(BasePermission):
-    """
-    Read-only for everyone, write access only for admins.
-    """
-    def has_permission(self, request, view):
-        if request.method in SAFE_METHODS:  # GET, HEAD, OPTIONS
-            return True
-        return request.user and request.user.is_staff  # Only admins can write
+# class AdminOrReadOnly(BasePermission):
+#     """
+#     Read-only for everyone, write access only for admins.
+#     """
+#     def has_permission(self, request, view):
+#         if request.method in SAFE_METHODS:  # GET, HEAD, OPTIONS
+#             return True
+#         return request.user and request.user.is_staff  # Only admins can write
 
 
 class ArticleViewSet(viewsets.ModelViewSet):  # Full CRUD support
-    queryset = Article.objects.filter(is_published=True)
+    queryset = Article.objects.filter(is_public=True)
     serializer_class = ArticleSerializer
     permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
     search_fields = ['title', 'content', 'excerpt']
     ordering_fields = ['published_date', 'views', 'reading_time']
-    lookup_field = 'slug'
+    # lookup_field = 'slug'
 
     @action(detail=True, methods=['post'])
     def read(self, request, slug=None):
@@ -3460,8 +3476,10 @@ class SavedResourceViewSet(viewsets.ReadOnlyModelViewSet):
         
         if resource_type == 'videos':
             saved = saved.filter(video__isnull=False)
-        elif resource_type == 'audios':
-            saved = saved.filter(audio__isnull=False)
+        # elif resource_type == 'audios':
+        #     saved = saved.filter(audio__isnull=False)
+        elif resource_type == 'cbt_exercises':
+            saved = saved.filter(cbt_exercise__isnull=False)
         elif resource_type == 'articles':
             saved = saved.filter(article__isnull=False)
         elif resource_type == 'meditations':
@@ -3485,7 +3503,8 @@ class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):
         stats = {
             'total_activities': activities.count(),
             'videos_watched': activities.filter(video__isnull=False).count(),
-            'audios_played': activities.filter(audio__isnull=False).count(),
+            # 'audios_played': activities.filter(audio__isnull=False).count(),
+            'cbt_exercises_completed': activities.filter(cbt_exercise__isnull=False, completed=True).count(),
             'articles_read': activities.filter(article__isnull=False).count(),
             'meditations_practiced': activities.filter(meditation__isnull=False, completed=True).count(),
         }
@@ -3536,13 +3555,7 @@ class DynamicQuestionViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 # views.py
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from django.shortcuts import get_object_or_404
-from .models import UserAchievement, Achievement
-from .serializers import UserAchievementSerializer
+
 
 class UserAchievementViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UserAchievementSerializer
@@ -3577,3 +3590,138 @@ class UserAchievementViewSet(viewsets.ReadOnlyModelViewSet):
             'completed': completed,
             'progress': serializer.data
         })
+
+
+class JournalEntryViewSet(viewsets.ModelViewSet):
+    serializer_class = JournalEntrySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return JournalEntry.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+
+class ProgressViewSet(viewsets.ViewSet):
+    """
+    Track and update user progress across activities and moods.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        """Return the current user's progress record (create if missing)."""
+        progress, _ = Progress.objects.get_or_create(user=request.user)
+        serializer = ProgressSerializer(progress)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'])
+    def update_activity(self, request):
+        """
+        Increment progress counters when user completes an activity.
+        Accepted values: assessment, journal, chat, video, article.
+        """
+        activity = request.data.get("activity")
+        progress, _ = Progress.objects.get_or_create(user=request.user)
+
+        activity_map = {
+            "assessment": "assessments_completed",
+            "journal": "journals_written",
+            "chat": "chats_with_sana",
+            "video": "videos_watched",
+            "article": "articles_read",
+        }
+
+        if activity in activity_map:
+            field = activity_map[activity]
+            setattr(progress, field, getattr(progress, field) + 1)
+
+        progress.last_updated = timezone.now()
+        progress.save()
+        return Response(ProgressSerializer(progress).data)
+
+    @action(detail=False, methods=['post'])
+    def update_mood(self, request):
+        """
+        Update the user's mood (detected by Sana or user input).
+        """
+        mood = request.data.get("mood")
+        progress, _ = Progress.objects.get_or_create(user=request.user)
+
+        if mood:
+            progress.mood = mood
+            progress.last_updated = timezone.now()
+            progress.save()
+
+        return Response(ProgressSerializer(progress).data)
+@extend_schema(tags=['CBT Exercises'])
+class CBTExerciseViewSet(viewsets.ModelViewSet):
+    serializer_class = CBTExerciseSerializer
+
+    def get_queryset(self):
+        """
+        Admins see all exercises.
+        Normal users see only public + active exercises.
+        """
+        qs = CBTExercise.objects.all()
+        user = self.request.user
+        if user.is_staff:  # admin
+            return qs
+        return qs.filter(is_public=True, is_active=True)
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'deactivate']:
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    def deactivate(self, request, pk=None):
+        """Admin can deactivate an exercise instead of deleting it."""
+        exercise = self.get_object()
+        exercise.is_active = False
+        exercise.save()
+        return Response({"status": "Exercise deactivated"})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def mark_helpful(self, request, pk=None):
+        """User marks exercise as helpful."""
+        exercise = self.get_object()
+        exercise.helpful_count += 1
+        exercise.save()
+        return Response({"status": "Marked as helpful", "helpful_count": exercise.helpful_count})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def save_exercise(self, request, pk=None):
+        """User saves/bookmarks exercise."""
+        exercise = self.get_object()
+        exercise.saved_count += 1
+        exercise.save()
+        return Response({"status": "Exercise saved", "saved_count": exercise.saved_count})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def increment_view(self, request, pk=None):
+        """Increment view count when user opens exercise."""
+        exercise = self.get_object()
+        exercise.views_count += 1
+        exercise.save()
+        return Response({"status": "View recorded", "views_count": exercise.views_count})
+
+    def perform_create(self, serializer):
+        exercise = serializer.save()
+        # Send notification to all users
+        self.notify_users(exercise)
+
+    def notify_users(self, exercise):
+        """Send email notification to all active users when a new exercise is added."""
+        User = get_user_model()
+        users = User.objects.filter(is_active=True)
+        for user in users:
+            if user.email:  # only send if user has an email
+                send_mail(
+                    subject="New CBT Exercise Added",
+                    message=f"A new CBT exercise '{exercise.title}' is now available.",
+                    from_email="noreply@yourapp.com",
+                    recipient_list=[user.email],
+                    fail_silently=True,
+                )

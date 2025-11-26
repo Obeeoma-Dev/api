@@ -1188,7 +1188,7 @@ class ReportsAnalyticsSerializer(serializers.Serializer):
 
 from rest_framework import serializers
 from .models import (
-    Video, EducationalResource, Audio, Article, 
+    Video, EducationalResource, CBTExercise, Article, 
     MeditationTechnique, SavedResource, UserActivity,
     OnboardingState, DynamicQuestion, Notification
 )
@@ -1223,17 +1223,16 @@ class EducationalResourceSerializer(serializers.ModelSerializer):
         return obj.videos.filter(is_active=True).count()
 
     @extend_schema_field(serializers.IntegerField())
-    def get_audio_count(self, obj) -> int:
-        return obj.audios.filter(is_active=True).count()
+    def get_cbt_exercise_count(self, obj) -> int:
+        return obj.cbt_exercises.filter(is_active=True).count()
 
     @extend_schema_field(serializers.IntegerField())
     def get_article_count(self, obj) -> int:
-        return obj.articles.filter(is_published=True).count()
+       return obj.articles.filter(is_public=True).count()
 
     @extend_schema_field(serializers.IntegerField())
     def get_meditation_count(self, obj) -> int:
         return obj.meditations.filter(is_active=True).count()
-
 # Video Serializer
 class VideoSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
@@ -1241,12 +1240,8 @@ class VideoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Video
-        fields = [
-            'id', 'title', 'description', 'youtube_url',
-            'is_professionally_reviewed', 'reviewed_by', 'review_date',
-            'category_name', 'duration', 'views', 'is_saved',
-            'target_mood', 'updated_at', 'created_at'
-        ]
+        fields = '__all__'
+        read_only_fields = ['views', 'helpful_count']
         extra_kwargs = {
             'category': {'required': False, 'allow_null': True}
         }
@@ -1260,52 +1255,44 @@ class VideoSerializer(serializers.ModelSerializer):
         return False
 
 # Audio Serializer
-class AudioSerializer(serializers.ModelSerializer):
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    is_saved = serializers.SerializerMethodField()
-    audio_url_full = serializers.SerializerMethodField()
+# class AudioSerializer(serializers.ModelSerializer):
+#     category_name = serializers.CharField(source='category.name', read_only=True)
+#     is_saved = serializers.SerializerMethodField()
+#     audio_url_full = serializers.SerializerMethodField()
 
-    class Meta:
-        model = Audio
-        fields = [
-            'id', 'title', 'description',  'audio_url',
-            'audio_url_full',  'category_name', 'duration',
-            'plays', 'is_saved', 'created_at'
-        ]
-        extra_kwargs = {
-            'category': {'required': False, 'allow_null': True}
-        }
-        read_only_fields = ['plays']
+#     class Meta:
+#         model = Audio
+#         fields = '__all__'
+#         extra_kwargs = {
+#             'category': {'required': False, 'allow_null': True}
+#         }
+#         read_only_fields = ['plays']
 
-    @extend_schema_field(serializers.BooleanField())
-    def get_is_saved(self, obj) -> bool:
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return SavedResource.objects.filter(user=request.user, audio=obj).exists()
-        return False
+#     @extend_schema_field(serializers.BooleanField())
+#     def get_is_saved(self, obj) -> bool:
+#         request = self.context.get('request')
+#         if request and request.user.is_authenticated:
+#             return SavedResource.objects.filter(user=request.user, audio=obj).exists()
+#         return False
 
-    @extend_schema_field(serializers.URLField())
-    def get_audio_url_full(self, obj) -> str:
-        if obj.audio_file:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.audio_file.url)
-        return obj.audio_url
+#     @extend_schema_field(serializers.URLField())
+#     def get_audio_url_full(self, obj) -> str:
+#         if obj.audio_file:
+#             request = self.context.get('request')
+#             if request:
+#                 return request.build_absolute_uri(obj.audio_file.url)
+#         return obj.audio_url
 
 # Article Serializer
 class ArticleSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
-    author_name = serializers.CharField(source='author.username', read_only=True, allow_null=True)
+    author_name = serializers.CharField(source='Title.username', read_only=True, allow_null=True)
     is_saved = serializers.SerializerMethodField()
 
     class Meta:
         model = Article
-        fields = [
-            'id', 'title', 'slug', 'content', 'excerpt', 'author_name',
-            'category', 'category_name', 'featured_image', 'reading_time',
-            'views', 'is_saved', 'published_date'
-        ]
-        read_only_fields = ['slug', 'views']
+        fields = '__all__'
+        read_only_fields = ['views']
 
     @extend_schema_field(serializers.BooleanField())
     def get_is_saved(self, obj) -> bool:
@@ -1344,7 +1331,7 @@ class SavedResourceSerializer(serializers.ModelSerializer):
     class Meta:
         model = SavedResource
         fields = [
-            'id', 'video', 'audio', 'article', 'meditation',
+            'id', 'video', 'cbt_exercise', 'article', 'meditation',
             'resource_type', 'resource_title', 'saved_at'
         ]
 
@@ -1353,7 +1340,7 @@ class SavedResourceSerializer(serializers.ModelSerializer):
         if obj.video:
             return 'video'
         elif obj.audio:
-            return 'audio'
+            return 'cbt_exercise'
         elif obj.article:
             return 'article'
         elif obj.meditation:
@@ -1364,8 +1351,8 @@ class SavedResourceSerializer(serializers.ModelSerializer):
     def get_resource_title(self, obj) -> str:
         if obj.video:
             return obj.video.title
-        elif obj.audio:
-            return obj.audio.title
+        elif obj.cbt_exercise:
+            return obj.cbt_exercise.title
         elif obj.article:
             return obj.article.title
         elif obj.meditation:
@@ -1377,7 +1364,7 @@ class UserActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = UserActivity
         fields = [
-            'id', 'video', 'audio', 'article', 'meditation',
+            'id', 'video', 'cbt_exercise', 'article', 'meditation',
             'completed', 'progress_percentage', 'notes', 'accessed_at'
         ]
 
@@ -1476,8 +1463,7 @@ class AssessmentQuestionsResponseSerializer(serializers.Serializer):
     difficulty_options = serializers.ListField()
 
 # serializers.py
-from rest_framework import serializers
-from .models import UserAchievement
+
 
 class UserAchievementSerializer(serializers.ModelSerializer):
     title = serializers.CharField(source='achievement.title')
@@ -1503,3 +1489,23 @@ class CrisisHotlineSerializer(serializers.ModelSerializer):
     class Meta:
         model = CrisisHotline
         fields = ['id', 'country', 'region', 'hotline_name', 'phone_number', 'is_active']
+class JournalEntrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = JournalEntry
+        fields = ['id', 'entry_type', 'title', 'content', 'audio_file', 'created_at']
+
+class ProgressSerializer(serializers.ModelSerializer):
+    overall_score = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Progress
+        fields = '__all__'
+
+    def get_overall_score(self, obj):
+        return obj.overall_score()
+
+
+class CBTExerciseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CBTExercise
+        fields = '__all__'
