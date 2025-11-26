@@ -564,6 +564,10 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
 
 class EmployeeFirstLoginSerializer(serializers.Serializer):
     """Serializer for first login with temporary credentials"""
+    token = serializers.CharField(
+        required=True,
+        help_text="Invitation token from email"
+    )
     temporary_username = serializers.CharField(
         required=True,
         help_text="Temporary username from invitation email"
@@ -577,12 +581,14 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
     def validate(self, attrs):
         from django.contrib.auth.hashers import check_password
         
+        token = attrs.get('token')
         temp_username = attrs.get('temporary_username')
         temp_password = attrs.get('temporary_password')
         
-        # Find invitation with this temporary username
+        # Find invitation with this token and temporary username
         try:
             invitation = EmployeeInvitation.objects.get(
+                token=token,
                 temporary_username=temp_username,
                 accepted=False,
                 credentials_used=False,
@@ -601,9 +607,9 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
 
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
     """Serializer for completing account setup after first login"""
-    token = serializers.CharField(
+    email = serializers.EmailField(
         required=True,
-        help_text="Invitation token from first login"
+        help_text="Your email address from the invitation"
     )
     username = serializers.CharField(
         required=True,
@@ -635,32 +641,29 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         
         # Validate password strength
         validate_password(attrs['password'])
-        return attrs
-    
-    def validate_token(self, value):
+        
+        # Find invitation that has been used for first login
+        email = attrs.get('email')
         try:
             invitation = EmployeeInvitation.objects.get(
-                token=value,
+                email=email,
                 accepted=False,
                 credentials_used=True,  # Must have used temp credentials first
                 expires_at__gt=timezone.now()
             )
-            return value
+            attrs['invitation'] = invitation
         except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError("Invalid or expired invitation token")
+            raise serializers.ValidationError({"email": "No valid invitation found for this email. Please complete first login first."})
+        
+        return attrs
 
     def create(self, validated_data):
-        token = validated_data['token']
+        invitation = validated_data['invitation']
         username = validated_data['username']
         password = validated_data['password']
         
-        # Get the invitation
-        invitation = EmployeeInvitation.objects.get(
-            token=token,
-            accepted=False,
-            credentials_used=True,
-            expires_at__gt=timezone.now()
-        )
+        # Get the invitation (already validated)
+        # invitation is already in validated_data from validate() method
         
         # Create user account with new permanent credentials
         user = User.objects.create_user(
