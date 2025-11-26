@@ -1081,7 +1081,13 @@ The Obeeoma Team
             try:
                 # Only try Gmail API if credentials are configured
                 if settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET:
-                    email_sent = send_gmail_api_email(invitation.email, subject, html_message)
+                    # Pass both plain text and HTML versions
+                    email_sent = send_gmail_api_email(
+                        invitation.email, 
+                        subject, 
+                        text_message,  # Plain text body
+                        html_body=html_message  # HTML body
+                    )
                     logger.info(f"Email sent via Gmail API to {invitation.email}")
             except Exception as gmail_error:
                 logger.warning(f"Gmail API failed: {str(gmail_error)}")
