@@ -1317,12 +1317,7 @@ class VideoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Video
-        fields = [
-            'id', 'title', 'description', 'youtube_url',
-            'is_professionally_reviewed', 'reviewed_by', 'review_date',
-            'category_name', 'duration', 'views', 'is_saved',
-            'target_mood', 'updated_at', 'created_at'
-        ]
+        fields = '__all__'
         extra_kwargs = {
             'category': {'required': False, 'allow_null': True}
         }
@@ -1371,17 +1366,13 @@ class AudioSerializer(serializers.ModelSerializer):
 # Article Serializer
 class ArticleSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
-    author_name = serializers.CharField(source='author.username', read_only=True, allow_null=True)
+    author_name = serializers.CharField(source='Title.username', read_only=True, allow_null=True)
     is_saved = serializers.SerializerMethodField()
 
     class Meta:
         model = Article
-        fields = [
-            'id', 'title', 'slug', 'content', 'excerpt', 'author_name',
-            'category', 'category_name', 'featured_image', 'reading_time',
-            'views', 'is_saved', 'published_date'
-        ]
-        read_only_fields = ['slug', 'views']
+        fields = '_all_'
+        read_only_fields = ['views']
 
     @extend_schema_field(serializers.BooleanField())
     def get_is_saved(self, obj) -> bool:
@@ -1389,8 +1380,8 @@ class ArticleSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             return SavedResource.objects.filter(user=request.user, article=obj).exists()
         return False
-
 # Meditation Technique Serializer
+
 class MeditationTechniqueSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     difficulty_display = serializers.CharField(source='get_difficulty_display', read_only=True)
@@ -1412,7 +1403,9 @@ class MeditationTechniqueSerializer(serializers.ModelSerializer):
             return SavedResource.objects.filter(user=request.user, meditation=obj).exists()
         return False
 
+
 # Saved Resource Serializer
+
 class SavedResourceSerializer(serializers.ModelSerializer):
     resource_type = serializers.SerializerMethodField()
     resource_title = serializers.SerializerMethodField()
@@ -1420,7 +1413,7 @@ class SavedResourceSerializer(serializers.ModelSerializer):
     class Meta:
         model = SavedResource
         fields = [
-            'id', 'video', 'audio', 'article', 'meditation',
+            'id', 'video', 'cbt_exercise', 'article', 'meditation',
             'resource_type', 'resource_title', 'saved_at'
         ]
 
@@ -1428,6 +1421,8 @@ class SavedResourceSerializer(serializers.ModelSerializer):
     def get_resource_type(self, obj) -> str:
         if obj.video:
             return 'video'
+        elif obj.cbt_exercise:
+            return 'cbt_exercise'
         elif obj.audio:
             return 'audio'
         elif obj.article:
@@ -1440,6 +1435,8 @@ class SavedResourceSerializer(serializers.ModelSerializer):
     def get_resource_title(self, obj) -> str:
         if obj.video:
             return obj.video.title
+        elif obj.cbt_exercise:
+            return obj.cbt_exercise.title
         elif obj.audio:
             return obj.audio.title
         elif obj.article:
@@ -1447,13 +1444,12 @@ class SavedResourceSerializer(serializers.ModelSerializer):
         elif obj.meditation:
             return obj.meditation.title
         return 'Unknown'
-
 # User Activity Serializer
 class UserActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = UserActivity
         fields = [
-            'id', 'video', 'audio', 'article', 'meditation',
+            'id', 'video', 'cbt_exercise', 'article', 'meditation', 'audio',
             'completed', 'progress_percentage', 'notes', 'accessed_at'
         ]
 
@@ -1689,3 +1685,18 @@ class MediaSerializer(serializers.ModelSerializer):
         if validated_data.get('is_published') and not instance.published_at:
             validated_data['published_at'] = timezone.now()
         return super().update(instance, validated_data)
+    def save(self, **kwargs):
+        user = self.context['request'].user
+        user.set_password(self.validated_data['new_password'])
+        user.save()
+        return user
+class CBTExerciseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CBTExercise
+        fields = '__all__'
+        ready_only_fields = ['user', 'created_at', 'updated_at']
+class JournalEntrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = JournalEntry
+        fields = '__all__'    
+        read_only_fields = ['user', 'created_at', 'updated_at']     

@@ -10,6 +10,19 @@ class IsSystemAdmin(permissions.BasePermission):
             request.user and request.user.is_authenticated and
             (request.user.is_superuser or request.user.role == 'system_admin')
         )
+from rest_framework.permissions import BasePermission, SAFE_METHODS
+
+class IsAdminOrReadOnly(BasePermission):
+    """
+    Allow anyone to read data (GET, HEAD, OPTIONS),
+    but only admins can modify data (POST, PUT, PATCH, DELETE).
+    """
+
+    def has_permission(self, request, view):
+        # SAFE_METHODS = ('GET', 'HEAD', 'OPTIONS')
+        if request.method in SAFE_METHODS:
+            return True
+        return bool(request.user and request.user.is_staff)
 
 # permissions for system admin to upload media files.
 class IsSystemAdminOrReadOnly(permissions.BasePermission):

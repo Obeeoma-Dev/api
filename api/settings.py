@@ -6,12 +6,10 @@ from datetime import timedelta
 from cryptography.fernet import Fernet
 
 
+
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-FLW_SEC_KEY = os.getenv('FLW_SEC_KEY')
-FLW_WEBHOOK_HASH = os.getenv('FLW_WEBHOOK_HASH')
 
 # Security
 SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret-key")
