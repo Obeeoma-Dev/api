@@ -561,10 +561,6 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
 
 class EmployeeFirstLoginSerializer(serializers.Serializer):
     """Serializer for first login with temporary credentials"""
-    token = serializers.CharField(
-        required=True,
-        help_text="Invitation token from email"
-    )
     temporary_username = serializers.CharField(
         required=True,
         help_text="Temporary username from invitation email"
@@ -578,14 +574,12 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
     def validate(self, attrs):
         from django.contrib.auth.hashers import check_password
         
-        token = attrs.get('token')
         temp_username = attrs.get('temporary_username')
         temp_password = attrs.get('temporary_password')
         
-        # Find invitation with this token and temporary username
+        # Find invitation with this temporary username
         try:
             invitation = EmployeeInvitation.objects.get(
-                token=token,
                 temporary_username=temp_username,
                 accepted=False,
                 credentials_used=False,
@@ -604,10 +598,6 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
 
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
     """Serializer for completing account setup after first login"""
-    email = serializers.EmailField(
-        required=True,
-        help_text="Your email address from the invitation"
-    )
     username = serializers.CharField(
         required=True,
         min_length=3,
@@ -639,18 +629,26 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         # Validate password strength
         validate_password(attrs['password'])
         
-        # Find invitation that has been used for first login
-        email = attrs.get('email')
+        # Find invitation that has been used for first login but not yet accepted
+        # We need to get it from the request context since we don't have email
+        request = self.context.get('request')
+        if not request:
+            raise serializers.ValidationError("Request context is required")
+        
+        # Try to find the most recent invitation that has credentials_used=True but not accepted
         try:
-            invitation = EmployeeInvitation.objects.get(
-                email=email,
+            invitation = EmployeeInvitation.objects.filter(
                 accepted=False,
                 credentials_used=True,  # Must have used temp credentials first
                 expires_at__gt=timezone.now()
-            )
+            ).order_by('-created_at').first()
+            
+            if not invitation:
+                raise EmployeeInvitation.DoesNotExist
+                
             attrs['invitation'] = invitation
         except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError({"email": "No valid invitation found for this email. Please complete first login first."})
+            raise serializers.ValidationError("No valid invitation found. Please complete first login first.")
         
         return attrs
 

@@ -1126,7 +1126,6 @@ class EmployeeFirstLoginView(APIView):
                     "application/json": {
                         "example": {
                             "message": "First login successful. Please complete your account setup.",
-                            "token": "abc123xyz",
                             "email": "employee@company.com",
                             "employer": "Company Name"
                         }
@@ -1138,10 +1137,14 @@ class EmployeeFirstLoginView(APIView):
         description="""
         First login endpoint for employees using temporary credentials from invitation email.
         
-        After successful authentication with temporary credentials:
+        This endpoint requires:
+        - temporary_username: Temporary username from email
+        - temporary_password: Temporary password from email
+        
+        After successful authentication:
         - The credentials are marked as used (cannot be reused)
-        - A token is returned for completing account setup
-        - User must then call the account completion endpoint
+        - User receives their email address
+        - User can proceed to complete account setup using their email
         """
     )
     def post(self, request):
@@ -1157,7 +1160,6 @@ class EmployeeFirstLoginView(APIView):
         
         return Response({
             'message': 'First login successful. Please complete your account setup.',
-            'token': invitation.token,
             'email': invitation.email,
             'employer': invitation.employer.name,
             'invited_by': invitation.invited_by.email if invitation.invited_by else 'Unknown'
@@ -1202,7 +1204,6 @@ class CompleteAccountSetupView(APIView):
         Complete account setup after successful first login with temporary credentials.
         
         This endpoint requires:
-        - token: From first login response
         - username: Your chosen permanent username
         - password: Your new permanent password
         - confirm_password: Password confirmation
@@ -1214,13 +1215,14 @@ class CompleteAccountSetupView(APIView):
         - Return authentication tokens for immediate login
         
         **Prerequisites:** Must have successfully completed first login with temporary credentials.
+        **Note:** The system automatically finds your invitation based on the most recent first login.
         """
     )
     def post(self, request):
         """
         Complete account setup with permanent credentials
         """
-        serializer = EmployeeInvitationAcceptSerializer(data=request.data)
+        serializer = EmployeeInvitationAcceptSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         
         user = serializer.save()
