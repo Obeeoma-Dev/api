@@ -52,6 +52,7 @@ from .models import AssessmentQuestion
 from .serializers import AssessmentQuestionSerializer
 from .serializers import DynamicQuestionSerializer
 import random
+from django.db import transaction
 from rest_framework import viewsets, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -81,7 +82,14 @@ from .serializers import OTPVerificationSerializer
 from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string
 from django.contrib.auth import authenticate, login as django_login
-
+from .serializers import AdminUserSerializer, OrganizationSerializer
+from .permissions import IsSystemAdmin
+import hmac
+import hashlib
+from django.views.decorators.csrf import csrf_exempt  #  Make sure this is present
+from django.http import HttpResponse
+from django.conf import settings
+from rest_framework.decorators import api_view, permission_classes
 import logging
 from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import (
@@ -95,6 +103,64 @@ logging.getLogger(__name__)
 # Get User model
 User = get_user_model()
 
+# Helper function (Moved from a 'services' file into views.py)
+def verify_flutterwave_transaction(tx_ref, expected_amount, currency):
+    """Verifies a transaction using the Flutterwave API."""
+    url = f"https://api.flutterwave.com/v3/transactions/{tx_ref}/verify"
+    headers = {
+        "Authorization": f"Bearer {settings.FLW_SEC_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+
+        if data['status'] == 'success' and data['data']['status'] == 'successful':
+            # Security Check: Compare amount and currency to prevent tampering
+            if data['data']['amount'] >= expected_amount and data['data']['currency'] == currency:
+                return True, data['data'] # Verification success
+            else:
+                return False, {"detail": "Amount or currency mismatch."}
+        else:
+            return False, {"detail": "Transaction failed or not found."}
+    except requests.exceptions.RequestException as e:
+        return False, {"detail": f"Flutterwave API verification error: {e}"}
+
+
+
+def initiate_payment_fw(amount, email, subscription_id, currency="NGN"): # Renamed transaction_id to payment_ref
+    url = "https://api.flutterwave.com/v3/payments"
+    headers = {
+        "Authorization": f"Bearer {settings.FLW_SEC_KEY}" 
+    }
+    tx_ref = str(uuid.uuid4())
+    
+    data = {
+        "tx_ref": tx_ref,
+        "amount": str(amount), 
+        "currency": currency,
+        "redirect_url": f"http://127.0.0.1:8000/api/billing/confirm_payment/?sub_ref={subscription_id}",
+        # "redirect_url": f"{FRONTEND_SUCCESS_URL}?tx_ref={tx_ref}", 
+        "meta": {
+          "subscription_id": subscription_id, # Pass  internal reference
+        },
+        "customer": {
+            "email": email,
+
+        
+            "name": "user_name"
+        },
+        "customizations": {
+            "title": "Subscription Payment",
+            "description": "Payment for subscription plan",            
+            "logo": "http://www.piedpiper.com/app/themes/joystick-v27/images/logo.png"
+        
+        }
+    }
+
+
 #Permission: company admin (is_staff) 
 class IsCompanyAdmin(BasePermission):
     """Allows access only to users with is_staff=True."""
@@ -102,13 +168,13 @@ class IsCompanyAdmin(BasePermission):
         return bool(request.user and request.user.is_authenticated and request.user.is_staff)
 
 
-# SIGNUP VIEW
+# # SIGNUP VIEW
 
-@extend_schema(tags=['Authentication'])
-class SignupView(viewsets.ModelViewSet):
-    queryset = User.objects.all()
-    serializer_class = SignupSerializer
-    permission_classes = [permissions.AllowAny]
+# @extend_schema(tags=['Authentication'])
+# class SignupView(viewsets.ModelViewSet):
+#     queryset = User.objects.all()
+#     serializer_class = SignupSerializer
+#     permission_classes = [permissions.AllowAny]
 
 # VIEWS FOR CREATING AN ORGANIZATION
 @extend_schema(
@@ -223,6 +289,14 @@ class LoginView(APIView):
                 "mfa_required": True,
                 "temp_token": temp_token
             })
+      
+        # Onboarding required ONLY for employees
+        if user.role == "employee" and not user.onboarding_completed:
+               return Response({
+        "onboarding_required": True,
+        "temp_access_token": str(RefreshToken.for_user(user).access_token),
+        "message": "Onboarding required before using the system."
+    }, status=200)     
 
         # Login normally
         django_login(request, user)
@@ -239,10 +313,31 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
+#  CompleteOnboardingView
+class CompleteOnboardingView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        request=EmployeeOnboardingSerializer,
+        responses={200: OpenApiTypes.OBJECT},
+        tags=['Onboarding'],
+        description="Complete first-time user onboarding."
+    )
+    def post(self, request):
+        user = request.user
 
+        if user.onboarding_completed:
+            return Response({"detail": "Onboarding already completed."}, status=400)
 
-   
+        serializer = EmployeeOnboardingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.update(user, serializer.validated_data)
+
+        # Now allow permanent login
+        return Response({
+            "message": "Onboarding completed successfully.",
+            "login_allowed": True
+        })
 
 # LOGOUT VIEW
 @extend_schema(
@@ -394,7 +489,7 @@ class PasswordResetConfirmView(viewsets.ViewSet):
         except PasswordResetToken.DoesNotExist:
             return Response({"error": "Invalid verification code"}, status=status.HTTP_400_BAD_REQUEST)
 
-# View for changing or updating password
+
 # View for changing or updating password
 @extend_schema(tags=['Authentication'])
 class PasswordChangeView(viewsets.ViewSet):
@@ -934,7 +1029,7 @@ The Obeeoma Team
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">OBEEOMA • A HAPPY MIND</div>
+            <div class="logo">OBEEOMA • A HAPPY HEART</div>
             <h1> Welcome to {employer.name}!</h1>
             <p>Join our team on Obeeoma</p>
         </div>
@@ -2499,6 +2594,172 @@ class SubscriptionManagementView(viewsets.ModelViewSet):
         return Response(BillingHistorySerializer(billing_history, many=True).data)
 
 
+# FLUTTERWAVE WEBHOOK
+@api_view(['POST'])
+@csrf_exempt
+@permission_classes([AllowAny])
+def flutterwave_webhook_listener(request):
+    """
+    Receives and processes webhook events from Flutterwave, verifying the signature.
+    """
+    # 1. Get raw request body (CRITICAL for HMAC verification)
+    raw_body = request.body
+    
+    # 2. Get the signature sent by Flutterwave
+    flw_signature = request.headers.get('VERIF-HASH') 
+
+    # --- SECURITY CHECK ---
+    
+    if not flw_signature:
+        # No signature header present: discard immediately.
+        return HttpResponse(status=401) 
+
+    try:
+        local_secret = settings.FLW_WEBHOOK_HASH.encode('utf-8')
+        
+        # 1. Calculate the raw hash digest (bytes)
+        computed_hash_bytes = hmac.new(
+            local_secret,
+            raw_body,
+            digestmod=hashlib.sha256
+        ).digest()
+        
+        # 2. CRITICAL FIX: Encode the bytes to a Base64 string to match Flutterwave's header
+        computed_signature = base64.b64encode(computed_hash_bytes).decode('utf-8')
+        
+        # 3. Compare the computed Base64 string with the one from Flutterwave
+        if computed_signature != flw_signature:
+            print("WEBHOOK ERROR: Signature mismatch.")
+            return HttpResponse(status=401) # Unauthorized (Hash verification failed)
+
+    except Exception as e:
+        print(f"WEBHOOK HASH ERROR: {e}")
+        # Return 500 for a server error during hash computation, or 401 if you treat it as unauthorized
+        return HttpResponse(status=401) 
+    
+    # --- PROCESSING STARTS AFTER SUCCESSFUL VERIFICATION ---
+    # ... (Rest of your code remains the same)
+    
+    try:
+        # ... your transaction verification logic ...
+        return HttpResponse(status=200) 
+    
+    except Exception as e:
+        print(f"WEBHOOK PROCESSING ERROR: {e}") 
+        return HttpResponse(status=500)
+
+
+
+#  FOR FRONTEND REDIRECT VERIFICATION 
+# NOTE: This endpoint is called by your React component after the user is redirected 
+# back from Flutterwave's payment page. It requires authentication.
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_payment_and_activate_subscription(request):
+    """Endpoint called by the frontend (POST) to verify payment and activate subscription."""
+    serializer = PaymentVerificationSerializer(data=request.data)
+    tx_ref = request.data.get('tx_ref')
+    subscription_id = request.data.get('subscription_id') # Use the ID created in initiate_subscription_payment
+
+    if not tx_ref or not subscription_id:
+        return Response({"detail": "Missing transaction reference or subscription ID."}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        
+        expected_amount = 99.00
+        currency = "USD"
+        
+        # 2. Verify with Flutterwave
+        is_verified, fw_data = verify_flutterwave_transaction(tx_ref, expected_amount, currency)
+
+        if is_verified:
+            # 3. Fulfill the subscription
+            with transaction.atomic():
+                # sub.is_active = True; sub.save()
+                # Invoice.objects.create(...)
+                
+                return Response({"message": "Payment successful and subscription activated."}, status=status.HTTP_200_OK)
+        else:
+            return Response({"detail": fw_data.get('detail', 'Verification failed.')}, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({"detail": f"Server error during verification: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# 
+@action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+def initiate_subscription_payment(self, request):
+    """Initiate payment for a new subscription plan."""
+    
+    # --- 1. Validate Input Data and Look up Plan ---
+    serializer = SubscriptionInitiateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True) 
+    
+    plan_id = serializer.validated_data['plan_id']
+    selected_plan = serializer.selected_plan # Fetched by the serializer
+    
+    try:
+        # --- 2. Get User/Organization context (CRITICAL CHANGE HERE) ---
+        # The user's 'organization' field already holds the related object.
+        organization = request.user.organization
+        
+        
+        if not organization:
+          
+            return Response(
+                {"organization": "User must be linked to an organization to initiate payment."},
+                status=status.HTTP_403_FORBIDDEN # 403 is
+            )
+    
+        expected_amount = selected_plan.price 
+        currency = selected_plan.currency    
+        
+        # Determine seats and initial dates (Simplified calculation)
+        seats = selected_plan.seats # Using 'seats' field from your SubscriptionPlan model
+        start_date = timezone.now().date()
+        end_date = start_date + timedelta(days=30) 
+        renewal_date = end_date
+        
+        with transaction.atomic():
+            
+            # Generate the unique reference ID for the payment gateway
+            pending_sub_id = f"SUB-{uuid.uuid4().hex[:8]}" 
+            
+            # Create the PENDING Subscription record in the database
+            pending_sub = Subscription.objects.create(
+                employer=organization, 
+                plan=plan_id, 
+                plan_details=selected_plan,
+                amount=expected_amount,
+                seats=seats,
+                start_date=start_date,
+                end_date=end_date,
+                renewal_date=renewal_date,
+                is_active=False, 
+                subscription_reference=pending_sub_id, 
+            )
+            
+            # 4. Call Flutterwave to get the payment link
+            payment_result = initiate_payment_fw(
+                amount=expected_amount,
+                email=request.user.email,
+                subscription_id=pending_sub.subscription_reference,
+                currency=currency
+            )
+
+        if payment_result.get('status') == 'success':
+            return Response({
+                'status': 'success',
+                'payment_url': payment_result['data']['link'], 
+                'subscription_id': pending_sub.subscription_reference
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response(payment_result, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# Wellness Reports View   
 @extend_schema(tags=['Employer Dashboard'])
 class WellnessReportsView(viewsets.ViewSet):
     """Wellness reports and analytics"""
@@ -3201,7 +3462,7 @@ class AdminOrReadOnly(BasePermission):
 class VideoViewSet(viewsets.ModelViewSet):  # Full CRUD support
     queryset = Video.objects.filter(is_active=True)
     serializer_class = VideoSerializer
-    permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
+    permission_classes = [AdminOrReadOnly]  #  Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
     search_fields = ['title', 'description']
@@ -3266,76 +3527,76 @@ class AdminOrReadOnly(BasePermission):
         return request.user and request.user.is_staff  # Only admins can write
 
 
-# class AudioViewSet(viewsets.ModelViewSet):  # Full CRUD support
-#     queryset = Audio.objects.filter(is_active=True)
-#     serializer_class = AudioSerializer
-#     permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
-#     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-#     filterset_fields = ['category']
-#     search_fields = ['title', 'description']
-#     ordering_fields = ['created_at', 'plays', 'title']
-#     lookup_field = 'pk'
+class AudioViewSet(viewsets.ModelViewSet):  # Full CRUD support
+    queryset = Audio.objects.filter(is_active=True)
+    serializer_class = AudioSerializer
+    permission_classes = [AdminOrReadOnly]  #  Restrict edits/deletes to admins
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['category']
+    search_fields = ['title', 'description']
+    ordering_fields = ['created_at', 'plays', 'title']
+    lookup_field = 'pk'
 
-#     @action(detail=True, methods=['post'])
-#     def play(self, request, pk=None):
-#         """Record that user played this audio"""
-#         try:
-#             audio = self.get_object()
-#         except Exception:
-#             raise NotFound("No audio matches the given query.")
+    @action(detail=True, methods=['post'])
+    def play(self, request, pk=None):
+        """Record that user played this audio"""
+        try:
+            audio = self.get_object()
+        except Exception:
+            raise NotFound("No audio matches the given query.")
 
-#         audio.plays += 1
-#         audio.save()
+        audio.plays += 1
+        audio.save()
 
-#         if request.user.is_authenticated:
-#             UserActivity.objects.create(user=request.user, audio=audio)
+        if request.user.is_authenticated:
+            UserActivity.objects.create(user=request.user, audio=audio)
 
-#         # Notify employees (should be outside Response)
-#         for employee in Employee.objects.all():
-#             Notification.objects.create(
-#                 employee=employee,
-#                 message=f"New audio published: {audio.title}",
-#                 content_type="audio",
-#                 object_id=audio.id
-#             )
+        # Notify employees (should be outside Response)
+        for employee in Employee.objects.all():
+            Notification.objects.create(
+                employee=employee,
+                message=f"New audio published: {audio.title}",
+                content_type="audio",
+                object_id=audio.id
+            )
 
-#         return Response({'message': 'Play recorded', 'total_plays': audio.plays})
+        return Response({'message': 'Play recorded', 'total_plays': audio.plays})
 
-#     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-#     def save(self, request, pk=None):
-#         """Save audio to user's library"""
-#         try:
-#             audio = self.get_object()
-#         except Exception:
-#             raise NotFound("No audio matches the given query.")
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def save(self, request, pk=None):
+        """Save audio to user's library"""
+        try:
+            audio = self.get_object()
+        except Exception:
+            raise NotFound("No audio matches the given query.")
 
-#         saved, created = SavedResource.objects.get_or_create(user=request.user, audio=audio)
+        saved, created = SavedResource.objects.get_or_create(user=request.user, audio=audio)
 
-#         if created:
-#             return Response({'message': 'Audio saved to your library'})
-#         else:
-#             saved.delete()
-#             return Response({'message': 'Audio removed from library'})
+        if created:
+            return Response({'message': 'Audio saved to your library'})
+        else:
+            saved.delete()
+            return Response({'message': 'Audio removed from library'})
 
-# class AdminOrReadOnly(BasePermission):
-#     """
-#     Read-only for everyone, write access only for admins.
-#     """
-#     def has_permission(self, request, view):
-#         if request.method in SAFE_METHODS:  # GET, HEAD, OPTIONS
-#             return True
-#         return request.user and request.user.is_staff  # Only admins can write
+class AdminOrReadOnly(BasePermission):
+    """
+    Read-only for everyone, write access only for admins.
+    """
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:  # GET, HEAD, OPTIONS
+            return True
+        return request.user and request.user.is_staff  # Only admins can write
 
 
 class ArticleViewSet(viewsets.ModelViewSet):  # Full CRUD support
-    queryset = Article.objects.filter(is_public=True)
+    queryset = Article.objects.filter(is_published=True)
     serializer_class = ArticleSerializer
-    permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
+    permission_classes = [AdminOrReadOnly]  #  Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
     search_fields = ['title', 'content', 'excerpt']
     ordering_fields = ['published_date', 'views', 'reading_time']
-    # lookup_field = 'slug'
+    lookup_field = 'slug'
 
     @action(detail=True, methods=['post'])
     def read(self, request, slug=None):
@@ -3476,10 +3737,8 @@ class SavedResourceViewSet(viewsets.ReadOnlyModelViewSet):
         
         if resource_type == 'videos':
             saved = saved.filter(video__isnull=False)
-        # elif resource_type == 'audios':
-        #     saved = saved.filter(audio__isnull=False)
-        elif resource_type == 'cbt_exercises':
-            saved = saved.filter(cbt_exercise__isnull=False)
+        elif resource_type == 'audios':
+            saved = saved.filter(audio__isnull=False)
         elif resource_type == 'articles':
             saved = saved.filter(article__isnull=False)
         elif resource_type == 'meditations':
@@ -3503,8 +3762,7 @@ class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):
         stats = {
             'total_activities': activities.count(),
             'videos_watched': activities.filter(video__isnull=False).count(),
-            # 'audios_played': activities.filter(audio__isnull=False).count(),
-            'cbt_exercises_completed': activities.filter(cbt_exercise__isnull=False, completed=True).count(),
+            'audios_played': activities.filter(audio__isnull=False).count(),
             'articles_read': activities.filter(article__isnull=False).count(),
             'meditations_practiced': activities.filter(meditation__isnull=False, completed=True).count(),
         }
@@ -3555,7 +3813,13 @@ class DynamicQuestionViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 # views.py
-
+from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
+from .models import UserAchievement, Achievement
+from .serializers import UserAchievementSerializer
 
 class UserAchievementViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UserAchievementSerializer
@@ -3592,136 +3856,80 @@ class UserAchievementViewSet(viewsets.ReadOnlyModelViewSet):
         })
 
 
-class JournalEntryViewSet(viewsets.ModelViewSet):
-    serializer_class = JournalEntrySerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        return JournalEntry.objects.filter(user=self.request.user)
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+# VIEWS FOR ADMIN USER MANAGEMENT
+class OrganizationViewSet(viewsets.ModelViewSet):
+    queryset = Organization.objects.all()
+    serializer_class = OrganizationSerializer
+    permission_classes = [IsSystemAdmin]
 
 
-
-class ProgressViewSet(viewsets.ViewSet):
+class AdminUserManagementViewSet(viewsets.ModelViewSet):
     """
-    Track and update user progress across activities and moods.
+    System Admin full control over users.
     """
-    permission_classes = [IsAuthenticated]
+    queryset = User.objects.all()
+    serializer_class = AdminUserSerializer
+    permission_classes = [IsSystemAdmin]
 
-    def list(self, request):
-        """Return the current user's progress record (create if missing)."""
-        progress, _ = Progress.objects.get_or_create(user=request.user)
-        serializer = ProgressSerializer(progress)
-        return Response(serializer.data)
+    # Temporary suspension
+    @action(detail=True, methods=['post'])
+    def suspend(self, request, pk=None):
+        user = self.get_object()
+        if user.role == 'system_admin':
+            return Response({'detail': 'Cannot suspend a system admin.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.is_suspended = True
+        user.save(update_fields=['is_suspended'])
+        return Response({'status': 'user suspended'})
 
-    @action(detail=False, methods=['post'])
-    def update_activity(self, request):
-        """
-        Increment progress counters when user completes an activity.
-        Accepted values: assessment, journal, chat, video, article.
-        """
-        activity = request.data.get("activity")
-        progress, _ = Progress.objects.get_or_create(user=request.user)
+    # Activate (clear suspension + ensure not deactivated)
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        user = self.get_object()
+        # Ensure employee has avatar before activation
+        if user.role == 'employee' and not user.avatar:
+            return Response({'detail': 'Employee must have an avatar before activation.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.is_suspended = False
+        user.is_active = True
+        user.save(update_fields=['is_suspended', 'is_active'])
+        return Response({'status': 'user activated'})
 
-        activity_map = {
-            "assessment": "assessments_completed",
-            "journal": "journals_written",
-            "chat": "chats_with_sana",
-            "video": "videos_watched",
-            "article": "articles_read",
-        }
-
-        if activity in activity_map:
-            field = activity_map[activity]
-            setattr(progress, field, getattr(progress, field) + 1)
-
-        progress.last_updated = timezone.now()
-        progress.save()
-        return Response(ProgressSerializer(progress).data)
-
-    @action(detail=False, methods=['post'])
-    def update_mood(self, request):
-        """
-        Update the user's mood (detected by Sana or user input).
-        """
-        mood = request.data.get("mood")
-        progress, _ = Progress.objects.get_or_create(user=request.user)
-
-        if mood:
-            progress.mood = mood
-            progress.last_updated = timezone.now()
-            progress.save()
-
-        return Response(ProgressSerializer(progress).data)
-@extend_schema(tags=['CBT Exercises'])
-class CBTExerciseViewSet(viewsets.ModelViewSet):
-    serializer_class = CBTExerciseSerializer
-
-    def get_queryset(self):
-        """
-        Admins see all exercises.
-        Normal users see only public + active exercises.
-        """
-        qs = CBTExercise.objects.all()
-        user = self.request.user
-        if user.is_staff:  # admin
-            return qs
-        return qs.filter(is_public=True, is_active=True)
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'deactivate']:
-            return [IsAdminUser()]
-        return [IsAuthenticated()]
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    # Deactivate (soft disable) — admin action to remove access
+    @action(detail=True, methods=['post'])
     def deactivate(self, request, pk=None):
-        """Admin can deactivate an exercise instead of deleting it."""
-        exercise = self.get_object()
-        exercise.is_active = False
-        exercise.save()
-        return Response({"status": "Exercise deactivated"})
+        user = self.get_object()
+        if user.role == 'system_admin':
+            return Response({'detail': 'Cannot deactivate a system admin.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.is_active = False
+        user.is_suspended = False
+        user.save(update_fields=['is_active', 'is_suspended'])
+        return Response({'status': 'user deactivated'})
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def mark_helpful(self, request, pk=None):
-        """User marks exercise as helpful."""
-        exercise = self.get_object()
-        exercise.helpful_count += 1
-        exercise.save()
-        return Response({"status": "Marked as helpful", "helpful_count": exercise.helpful_count})
+    # Reactivate after deactivation (admin only)
+    @action(detail=True, methods=['post'])
+    def reactivate(self, request, pk=None):
+        user = self.get_object()
+        if user.role == 'system_admin':
+            return Response({'detail': 'System admin already active.'}, status=status.HTTP_400_BAD_REQUEST)
+        if user.role == 'employee' and not user.avatar:
+            return Response({'detail': 'Employee must have an avatar before reactivation.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.is_active = True
+        user.save(update_fields=['is_active'])
+        return Response({'status': 'user reactivated'})
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def save_exercise(self, request, pk=None):
-        """User saves/bookmarks exercise."""
-        exercise = self.get_object()
-        exercise.saved_count += 1
-        exercise.save()
-        return Response({"status": "Exercise saved", "saved_count": exercise.saved_count})
+    # Mark onboarding complete for an employee (admin may set this if needed)
+    @action(detail=True, methods=['post'])
+    def complete_onboarding(self, request, pk=None):
+        user = self.get_object()
+        if user.role != 'employee':
+            return Response({'detail': 'Only employees can have onboarding completed.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.onboarding_completed = True
+        user.save(update_fields=['onboarding_completed'])
+        return Response({'status': 'onboarding completed'})
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def increment_view(self, request, pk=None):
-        """Increment view count when user opens exercise."""
-        exercise = self.get_object()
-        exercise.views_count += 1
-        exercise.save()
-        return Response({"status": "View recorded", "views_count": exercise.views_count})
+    # Override destroy to prevent accidental deletion of system_admin accounts
+    def destroy(self, request, *args, **kwargs):
+        user = self.get_object()
+        if user.role == 'system_admin':
+            return Response({'detail': 'Cannot delete a system admin account.'}, status=status.HTTP_400_BAD_REQUEST)
+        return super().destroy(request, *args, **kwargs)
 
-    def perform_create(self, serializer):
-        exercise = serializer.save()
-        # Send notification to all users
-        self.notify_users(exercise)
-
-    def notify_users(self, exercise):
-        """Send email notification to all active users when a new exercise is added."""
-        User = get_user_model()
-        users = User.objects.filter(is_active=True)
-        for user in users:
-            if user.email:  # only send if user has an email
-                send_mail(
-                    subject="New CBT Exercise Added",
-                    message=f"A new CBT exercise '{exercise.title}' is now available.",
-                    from_email="noreply@yourapp.com",
-                    recipient_list=[user.email],
-                    fail_silently=True,
-                )
