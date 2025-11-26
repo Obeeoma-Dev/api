@@ -68,3 +68,13 @@ class RecentActivityAdmin(admin.ModelAdmin):
     list_display = ("employer", "activity_type", "details", "timestamp", "is_important")
     list_filter = ("is_important", "timestamp")
     search_fields = ("employer__name", "activity_type", "details")"""
+
+from django.contrib import admin
+from .models import Media
+
+@admin.register(Media)
+class MediaAdmin(admin.ModelAdmin):
+    list_display = ('title', 'media_type', 'uploaded_by', 'is_published', 'published_at', 'created_at')
+    list_filter = ('media_type', 'is_published')
+    search_fields = ('title', 'description', 'body', 'tags')
+    readonly_fields = ('created_at', 'updated_at')

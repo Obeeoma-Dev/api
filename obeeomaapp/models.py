@@ -1538,3 +1538,47 @@ class UserAchievement(models.Model):
             self.achieved = True
             self.achieved_date = timezone.now().date()
         self.save()
+
+# Media models for systems admin.
+class Media(models.Model):
+    ARTICLE = 'article'
+    AUDIO = 'audio'
+    VIDEO = 'video'
+
+    MEDIA_TYPE_CHOICES = [
+        (ARTICLE, 'Article'),
+        (AUDIO, 'Audio'),
+        (VIDEO, 'Video'),
+    ]
+
+    media_type = models.CharField(max_length=10, choices=MEDIA_TYPE_CHOICES)
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    # Article body (used when media_type == ARTICLE)
+    body = models.TextField(blank=True)
+
+    # File fields (used for audio/video). Keep null/blank so an Article can skip these.
+    file = models.FileField(upload_to='media_files/%Y/%m/%d/', blank=True, null=True)
+    # Optional thumbnail for videos or articles
+    thumbnail = models.ImageField(upload_to='media_thumbs/%Y/%m/%d/', blank=True, null=True)
+
+    # Metadata
+    duration_seconds = models.PositiveIntegerField(null=True, blank=True,
+                                                   help_text="Optional duration in seconds for audio/video.")
+    tags = models.CharField(max_length=255, blank=True, help_text="Comma-separated tags")
+
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='uploads')
+    is_published = models.BooleanField(default=False)
+    published_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-published_at', '-created_at']
+        indexes = [
+            models.Index(fields=['media_type']),
+            models.Index(fields=['is_published']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} ({self.media_type})"

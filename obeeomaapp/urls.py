@@ -31,7 +31,7 @@ from obeeomaapp.views import (
     InvitationVerifyView, home, OrganizationSignupView,
     CompleteAccountSetupView, InviteView, EmployeeFirstLoginView,
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
-    SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
+    SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, MediaViewSet,
      CompleteOnboardingView,
     DynamicQuestionViewSet, UserAchievementViewSet,
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView,
@@ -119,6 +119,8 @@ router.register(r'assessments/responses', AssessmentResponseViewSet, basename='a
 # Employee Invitations
 router.register(r'invitations', InviteView, basename='invitations')
 
+# Media uploads
+router.register(r'media', MediaViewSet, basename='media')
 urlpatterns = [
     # Home
     path("", home, name="home"),
