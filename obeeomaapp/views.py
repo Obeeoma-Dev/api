@@ -888,14 +888,16 @@ You have been invited to join {employer.name} on the Obeeoma platform by {reques
 
 To get started, please use the following ONE-TIME credentials for your first login:
 
+Token: {invitation.token}
 Username: {invitation.temporary_username}
 Password: {invitation.temp_password_plain}
 
 Login URL: {login_url}
 
 IMPORTANT: These credentials are for ONE-TIME USE ONLY. After your first login, you will be required to:
-1. Provide your first and last name
-2. Create a new permanent password
+1. Enter your token
+2. Choose your permanent username
+3. Create a new permanent password
 
 Your invitation will expire on {invitation.expires_at.strftime('%B %d, %Y at %I:%M %p')}.
 
@@ -1047,7 +1049,11 @@ The Obeeoma Team
             </div>
             
             <div class="credentials">
-                <h3> Your One-Time Login Credentials</h3>
+                <h3>🔑 Your One-Time Login Credentials</h3>
+                <div class="cred-row">
+                    <span class="cred-label">Token</span>
+                    <span class="cred-value">{invitation.token}</span>
+                </div>
                 <div class="cred-row">
                     <span class="cred-label">Username</span>
                     <span class="cred-value">{invitation.temporary_username}</span>
@@ -1217,18 +1223,18 @@ class CompleteAccountSetupView(APIView):
         Complete account setup after successful first login with temporary credentials.
         
         This endpoint requires:
+        - token: Invitation token from email
         - username: Your chosen permanent username
         - password: Your new permanent password
-        - confirm_password: Password confirmation
         
         The system will:
+        - Validate your invitation token
         - Create your permanent user account
         - Set your new credentials
         - Create your employee profile
         - Return authentication tokens for immediate login
         
         **Prerequisites:** Must have successfully completed first login with temporary credentials.
-        **Note:** The system automatically finds your invitation based on the most recent first login.
         """
     )
     def post(self, request):

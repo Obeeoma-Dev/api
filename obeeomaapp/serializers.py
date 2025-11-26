@@ -603,6 +603,10 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
 
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
     """Serializer for completing account setup after first login"""
+    token = serializers.CharField(
+        required=True,
+        help_text="Invitation token from email"
+    )
     username = serializers.CharField(
         required=True,
         min_length=3,
@@ -615,11 +619,6 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         min_length=8,
         help_text="Create your permanent password"
     )
-    confirm_password = serializers.CharField(
-        required=True,
-        write_only=True,
-        help_text="Confirm your password"
-    )
     
     def validate_username(self, value):
         # Check if username already exists
@@ -628,32 +627,21 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         return value
     
     def validate(self, attrs):
-        if attrs['password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({"confirm_password": "Passwords don't match"})
-        
         # Validate password strength
         validate_password(attrs['password'])
         
-        # Find invitation that has been used for first login but not yet accepted
-        # We need to get it from the request context since we don't have email
-        request = self.context.get('request')
-        if not request:
-            raise serializers.ValidationError("Request context is required")
-        
-        # Try to find the most recent invitation that has credentials_used=True but not accepted
+        # Find invitation using the provided token
+        token = attrs.get('token')
         try:
-            invitation = EmployeeInvitation.objects.filter(
+            invitation = EmployeeInvitation.objects.get(
+                token=token,
                 accepted=False,
                 credentials_used=True,  # Must have used temp credentials first
                 expires_at__gt=timezone.now()
-            ).order_by('-created_at').first()
-            
-            if not invitation:
-                raise EmployeeInvitation.DoesNotExist
-                
+            )
             attrs['invitation'] = invitation
         except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError("No valid invitation found. Please complete first login first.")
+            raise serializers.ValidationError({"token": "Invalid or expired invitation token. Please complete first login first."})
         
         return attrs
 
