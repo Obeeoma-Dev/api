@@ -85,6 +85,7 @@ class ContactPersonSerializer(serializers.ModelSerializer):
 class OrganizationCreateSerializer(serializers.ModelSerializer):
     contactPerson = ContactPersonSerializer()
     confirmPassword = serializers.CharField(write_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = Organization
