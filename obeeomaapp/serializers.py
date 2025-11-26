@@ -1371,7 +1371,7 @@ class ArticleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Article
-        fields = '_all_'
+        fields = "__all__"
         read_only_fields = ['views']
 
     @extend_schema_field(serializers.BooleanField())
@@ -1389,11 +1389,7 @@ class MeditationTechniqueSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MeditationTechnique
-        fields = [
-            'id', 'title', 'description', 'instructions', 'duration',
-            'difficulty', 'difficulty_display', 'category', 'category_name',
-            'benefits', 'image', 'times_practiced', 'is_saved', 'created_at'
-        ]
+        fields = "__all__"
         read_only_fields = ['times_practiced']
 
     @extend_schema_field(serializers.BooleanField())
@@ -1467,9 +1463,10 @@ class DynamicQuestionSerializer(serializers.ModelSerializer):
 
 # Notification Serializer - CORRECTED: Using 'read' not 'is_read'
 class NotificationSerializer(serializers.ModelSerializer):
+    is_read = serializers.BooleanField(source='read', read_only=True)
     class Meta:
         model = Notification
-        fields = ['id', 'employee', 'message', 'sent_on', 'read']  # Use 'read' here
+        fields = ['id', 'employee', 'message', 'sent_on', 'read', 'is_read']  # Use 'read' here
         read_only_fields = ['employee', 'sent_on']
 
 
