@@ -521,8 +521,8 @@ class Feedback(models.Model):
 # Progress Tracking model.
 class Progress(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    date = models.DateField()
-    mood_score = models.IntegerField()
+    date = models.DateField(auto_now_add=True)
+    mood_score = models.IntegerField(default=0)
     notes = models.TextField(blank=True, null=True)
 
     def __str__(self):

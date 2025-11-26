@@ -2446,7 +2446,7 @@ class SubscriptionManagementView(viewsets.ModelViewSet):
     """
     queryset = Subscription.objects.select_related('employer', 'plan_details', 'payment_method').all()
     serializer_class = SubscriptionManagementSerializer
-    permission_classes = [IsCompanyAdmin]
+    """permission_classes = [IsSystemAdminororga]"""
     
     # Sorting Configuration
     # Sort by start date or amount
