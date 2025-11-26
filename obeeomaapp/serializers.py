@@ -155,6 +155,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
             'password',
             'confirmPassword',
             'contactPerson',
+            'created_at',
         ]
         extra_kwargs = {'password': {'write_only': True}}
 
