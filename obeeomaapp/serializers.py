@@ -6,6 +6,8 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from drf_spectacular.utils import extend_schema_field
 from django.utils import timezone
 from rest_framework import serializers
+from .models import Media
+from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 from .models import Organization, ContactPerson
@@ -564,10 +566,6 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
 
 class EmployeeFirstLoginSerializer(serializers.Serializer):
     """Serializer for first login with temporary credentials"""
-    token = serializers.CharField(
-        required=True,
-        help_text="Invitation token from email"
-    )
     temporary_username = serializers.CharField(
         required=True,
         help_text="Temporary username from invitation email"
@@ -581,14 +579,12 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
     def validate(self, attrs):
         from django.contrib.auth.hashers import check_password
         
-        token = attrs.get('token')
         temp_username = attrs.get('temporary_username')
         temp_password = attrs.get('temporary_password')
         
-        # Find invitation with this token and temporary username
+        # Find invitation with this temporary username
         try:
             invitation = EmployeeInvitation.objects.get(
-                token=token,
                 temporary_username=temp_username,
                 accepted=False,
                 credentials_used=False,
@@ -607,10 +603,6 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
 
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
     """Serializer for completing account setup after first login"""
-    email = serializers.EmailField(
-        required=True,
-        help_text="Your email address from the invitation"
-    )
     username = serializers.CharField(
         required=True,
         min_length=3,
@@ -642,18 +634,26 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         # Validate password strength
         validate_password(attrs['password'])
         
-        # Find invitation that has been used for first login
-        email = attrs.get('email')
+        # Find invitation that has been used for first login but not yet accepted
+        # We need to get it from the request context since we don't have email
+        request = self.context.get('request')
+        if not request:
+            raise serializers.ValidationError("Request context is required")
+        
+        # Try to find the most recent invitation that has credentials_used=True but not accepted
         try:
-            invitation = EmployeeInvitation.objects.get(
-                email=email,
+            invitation = EmployeeInvitation.objects.filter(
                 accepted=False,
                 credentials_used=True,  # Must have used temp credentials first
                 expires_at__gt=timezone.now()
-            )
+            ).order_by('-created_at').first()
+            
+            if not invitation:
+                raise EmployeeInvitation.DoesNotExist
+                
             attrs['invitation'] = invitation
         except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError({"email": "No valid invitation found for this email. Please complete first login first."})
+            raise serializers.ValidationError("No valid invitation found. Please complete first login first.")
         
         return attrs
 
@@ -1636,3 +1636,52 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+
+
+# Media upload serializer for systems admin.
+class MediaSerializer(serializers.ModelSerializer):
+    uploaded_by = serializers.StringRelatedField(read_only=True)
+    file = serializers.FileField(required=False, allow_null=True)
+    thumbnail = serializers.ImageField(required=False, allow_null=True)
+
+    class Meta:
+        model = Media
+        fields = [
+            'id', 'media_type', 'title', 'description', 'body', 'file', 'thumbnail',
+            'duration_seconds', 'tags', 'uploaded_by', 'is_published', 'published_at',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['uploaded_by', 'created_at', 'updated_at']
+
+    def validate(self, data):
+        media_type = data.get('media_type') or self.instance.media_type if getattr(self, 'instance', None) else None
+
+        # Article must have body; should NOT require file
+        if media_type == Media.ARTICLE:
+            body = data.get('body') if 'body' in data else getattr(self.instance, 'body', '')
+            if not body:
+                raise serializers.ValidationError("Article must include a body/text.")
+        else:
+            # audio or video must have file
+            file = data.get('file') if 'file' in data else getattr(self.instance, 'file', None)
+            if not file:
+                raise serializers.ValidationError("Audio and Video items must include a file upload.")
+
+        return data
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated:
+            validated_data['uploaded_by'] = request.user
+
+        # If publishing now and no published_at set, set timestamp
+        if validated_data.get('is_published') and not validated_data.get('published_at'):
+            validated_data['published_at'] = timezone.now()
+
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        # same publish behavior
+        if validated_data.get('is_published') and not instance.published_at:
+            validated_data['published_at'] = timezone.now()
+        return super().update(instance, validated_data)

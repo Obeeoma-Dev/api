@@ -1,4 +1,11 @@
 # Keep only these imports (external modules)
+from rest_framework import viewsets, filters, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from .models import Media
+from .serializers import MediaSerializer
+from .permissions import IsSystemAdminOrReadOnly
+from django_filters.rest_framework import DjangoFilterBackend
 
 from rest_framework.permissions import IsAdminUser, AllowAny, SAFE_METHODS, BasePermission
 from django.http import JsonResponse
@@ -242,7 +249,7 @@ def _build_login_success_payload(user):
         "date_joined": user.date_joined,
         "is_active": user.is_active,
         "avatar": user.avatar.url if hasattr(user, "avatar") and user.avatar else None,
-        "onboarding_completed": user.onboarding_completed, 
+        "onboarding_completed": getattr(user, 'onboarding_completed', False), 
     }
 
     # Redirect URL based on role
@@ -291,12 +298,12 @@ class LoginView(APIView):
             })
       
         # Onboarding required ONLY for employees
-        if user.role == "employee" and not user.onboarding_completed:
-               return Response({
-        "onboarding_required": True,
-        "temp_access_token": str(RefreshToken.for_user(user).access_token),
-        "message": "Onboarding required before using the system."
-    }, status=200)     
+        if user.role == "employee" and not getattr(user, 'onboarding_completed', False):
+            return Response({
+                "onboarding_required": True,
+                "temp_access_token": str(RefreshToken.for_user(user).access_token),
+                "message": "Onboarding required before using the system."
+            }, status=200)     
 
         # Login normally
         django_login(request, user)
@@ -1126,7 +1133,6 @@ class EmployeeFirstLoginView(APIView):
                     "application/json": {
                         "example": {
                             "message": "First login successful. Please complete your account setup.",
-                            "token": "abc123xyz",
                             "email": "employee@company.com",
                             "employer": "Company Name"
                         }
@@ -1138,10 +1144,14 @@ class EmployeeFirstLoginView(APIView):
         description="""
         First login endpoint for employees using temporary credentials from invitation email.
         
-        After successful authentication with temporary credentials:
+        This endpoint requires:
+        - temporary_username: Temporary username from email
+        - temporary_password: Temporary password from email
+        
+        After successful authentication:
         - The credentials are marked as used (cannot be reused)
-        - A token is returned for completing account setup
-        - User must then call the account completion endpoint
+        - User receives their email address
+        - User can proceed to complete account setup using their email
         """
     )
     def post(self, request):
@@ -1157,7 +1167,6 @@ class EmployeeFirstLoginView(APIView):
         
         return Response({
             'message': 'First login successful. Please complete your account setup.',
-            'token': invitation.token,
             'email': invitation.email,
             'employer': invitation.employer.name,
             'invited_by': invitation.invited_by.email if invitation.invited_by else 'Unknown'
@@ -1202,7 +1211,6 @@ class CompleteAccountSetupView(APIView):
         Complete account setup after successful first login with temporary credentials.
         
         This endpoint requires:
-        - token: From first login response
         - username: Your chosen permanent username
         - password: Your new permanent password
         - confirm_password: Password confirmation
@@ -1214,13 +1222,14 @@ class CompleteAccountSetupView(APIView):
         - Return authentication tokens for immediate login
         
         **Prerequisites:** Must have successfully completed first login with temporary credentials.
+        **Note:** The system automatically finds your invitation based on the most recent first login.
         """
     )
     def post(self, request):
         """
         Complete account setup with permanent credentials
         """
-        serializer = EmployeeInvitationAcceptSerializer(data=request.data)
+        serializer = EmployeeInvitationAcceptSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         
         user = serializer.save()
@@ -3858,3 +3867,45 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Cannot delete a system admin account.'}, status=status.HTTP_400_BAD_REQUEST)
         return super().destroy(request, *args, **kwargs)
 
+
+# media upload view for systems admin
+class MediaViewSet(viewsets.ModelViewSet):
+    """
+    Handles list/retrieve for employees and create/update/delete for system admins.
+    """
+    queryset = Media.objects.all()
+    serializer_class = MediaSerializer
+    permission_classes = [IsSystemAdminOrReadOnly]
+
+    # Filtering/searching
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['media_type', 'is_published', 'tags']
+    search_fields = ['title', 'description', 'body', 'tags']
+    ordering_fields = ['published_at', 'created_at']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        # By default, employees see only published items
+        if self.request.method in ('GET',) and not (self.request.user.is_staff or getattr(self.request.user, 'is_system_admin', False)):
+            qs = qs.filter(is_published=True)
+        return qs
+
+    @action(detail=True, methods=['post'], permission_classes=[IsSystemAdminOrReadOnly])
+    def publish(self, request, pk=None):
+        """
+        Convenience endpoint for system admin to set is_published=True.
+        """
+        media = self.get_object()
+        media.is_published = True
+        if not media.published_at:
+            from django.utils import timezone
+            media.published_at = timezone.now()
+        media.save()
+        serializer = self.get_serializer(media)
+        return Response(serializer.data)
+
+    def perform_destroy(self, instance):
+        # Optionally delete files from storage here or rely on storage backend.
+        instance.file.delete(save=False)
+        instance.thumbnail.delete(save=False)
+        instance.delete()
