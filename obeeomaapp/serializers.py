@@ -85,6 +85,7 @@ class ContactPersonSerializer(serializers.ModelSerializer):
 class OrganizationCreateSerializer(serializers.ModelSerializer):
     contactPerson = ContactPersonSerializer()
     confirmPassword = serializers.CharField(write_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = Organization
@@ -141,6 +142,7 @@ class ContactPersonSerializer(serializers.ModelSerializer):
 class OrganizationCreateSerializer(serializers.ModelSerializer):
     contactPerson = ContactPersonSerializer()
     confirmPassword = serializers.CharField(write_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = Organization
@@ -153,6 +155,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
             'password',
             'confirmPassword',
             'contactPerson',
+            'created_at',
         ]
         extra_kwargs = {'password': {'write_only': True}}
 
