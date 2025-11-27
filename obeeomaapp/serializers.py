@@ -23,7 +23,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.hashers import check_password
 
-from rest_framework import serializers
+
 from .models import UserAchievement
 import uuid
 import requests
@@ -603,6 +603,10 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
 
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
     """Serializer for completing account setup after first login"""
+    token = serializers.CharField(
+        required=True,
+        help_text="Invitation token from email"
+    )
     username = serializers.CharField(
         required=True,
         min_length=3,
@@ -615,11 +619,6 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         min_length=8,
         help_text="Create your permanent password"
     )
-    confirm_password = serializers.CharField(
-        required=True,
-        write_only=True,
-        help_text="Confirm your password"
-    )
     
     def validate_username(self, value):
         # Check if username already exists
@@ -628,32 +627,21 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         return value
     
     def validate(self, attrs):
-        if attrs['password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({"confirm_password": "Passwords don't match"})
-        
         # Validate password strength
         validate_password(attrs['password'])
         
-        # Find invitation that has been used for first login but not yet accepted
-        # We need to get it from the request context since we don't have email
-        request = self.context.get('request')
-        if not request:
-            raise serializers.ValidationError("Request context is required")
-        
-        # Try to find the most recent invitation that has credentials_used=True but not accepted
+        # Find invitation using the provided token
+        token = attrs.get('token')
         try:
-            invitation = EmployeeInvitation.objects.filter(
+            invitation = EmployeeInvitation.objects.get(
+                token=token,
                 accepted=False,
                 credentials_used=True,  # Must have used temp credentials first
                 expires_at__gt=timezone.now()
-            ).order_by('-created_at').first()
-            
-            if not invitation:
-                raise EmployeeInvitation.DoesNotExist
-                
+            )
             attrs['invitation'] = invitation
         except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError("No valid invitation found. Please complete first login first.")
+            raise serializers.ValidationError({"token": "Invalid or expired invitation token. Please complete first login first."})
         
         return attrs
 
@@ -1317,12 +1305,7 @@ class VideoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Video
-        fields = [
-            'id', 'title', 'description', 'youtube_url',
-            'is_professionally_reviewed', 'reviewed_by', 'review_date',
-            'category_name', 'duration', 'views', 'is_saved',
-            'target_mood', 'updated_at', 'created_at'
-        ]
+        fields = '__all__'
         extra_kwargs = {
             'category': {'required': False, 'allow_null': True}
         }
@@ -1371,17 +1354,13 @@ class AudioSerializer(serializers.ModelSerializer):
 # Article Serializer
 class ArticleSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
-    author_name = serializers.CharField(source='author.username', read_only=True, allow_null=True)
+    author_name = serializers.CharField(source='Title.username', read_only=True, allow_null=True)
     is_saved = serializers.SerializerMethodField()
 
     class Meta:
         model = Article
-        fields = [
-            'id', 'title', 'slug', 'content', 'excerpt', 'author_name',
-            'category', 'category_name', 'featured_image', 'reading_time',
-            'views', 'is_saved', 'published_date'
-        ]
-        read_only_fields = ['slug', 'views']
+        fields = "__all__"
+        read_only_fields = ['views']
 
     @extend_schema_field(serializers.BooleanField())
     def get_is_saved(self, obj) -> bool:
@@ -1389,8 +1368,8 @@ class ArticleSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             return SavedResource.objects.filter(user=request.user, article=obj).exists()
         return False
-
 # Meditation Technique Serializer
+
 class MeditationTechniqueSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     difficulty_display = serializers.CharField(source='get_difficulty_display', read_only=True)
@@ -1398,11 +1377,7 @@ class MeditationTechniqueSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MeditationTechnique
-        fields = [
-            'id', 'title', 'description', 'instructions', 'duration',
-            'difficulty', 'difficulty_display', 'category', 'category_name',
-            'benefits', 'image', 'times_practiced', 'is_saved', 'created_at'
-        ]
+        fields = "__all__"
         read_only_fields = ['times_practiced']
 
     @extend_schema_field(serializers.BooleanField())
@@ -1412,7 +1387,9 @@ class MeditationTechniqueSerializer(serializers.ModelSerializer):
             return SavedResource.objects.filter(user=request.user, meditation=obj).exists()
         return False
 
+
 # Saved Resource Serializer
+
 class SavedResourceSerializer(serializers.ModelSerializer):
     resource_type = serializers.SerializerMethodField()
     resource_title = serializers.SerializerMethodField()
@@ -1420,7 +1397,7 @@ class SavedResourceSerializer(serializers.ModelSerializer):
     class Meta:
         model = SavedResource
         fields = [
-            'id', 'video', 'audio', 'article', 'meditation',
+            'id', 'video', 'cbt_exercise', 'article', 'meditation',
             'resource_type', 'resource_title', 'saved_at'
         ]
 
@@ -1428,6 +1405,8 @@ class SavedResourceSerializer(serializers.ModelSerializer):
     def get_resource_type(self, obj) -> str:
         if obj.video:
             return 'video'
+        elif obj.cbt_exercise:
+            return 'cbt_exercise'
         elif obj.audio:
             return 'audio'
         elif obj.article:
@@ -1440,6 +1419,8 @@ class SavedResourceSerializer(serializers.ModelSerializer):
     def get_resource_title(self, obj) -> str:
         if obj.video:
             return obj.video.title
+        elif obj.cbt_exercise:
+            return obj.cbt_exercise.title
         elif obj.audio:
             return obj.audio.title
         elif obj.article:
@@ -1447,13 +1428,12 @@ class SavedResourceSerializer(serializers.ModelSerializer):
         elif obj.meditation:
             return obj.meditation.title
         return 'Unknown'
-
 # User Activity Serializer
 class UserActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = UserActivity
         fields = [
-            'id', 'video', 'audio', 'article', 'meditation',
+            'id', 'video', 'cbt_exercise', 'article', 'meditation', 'audio',
             'completed', 'progress_percentage', 'notes', 'accessed_at'
         ]
 
@@ -1471,9 +1451,10 @@ class DynamicQuestionSerializer(serializers.ModelSerializer):
 
 # Notification Serializer - CORRECTED: Using 'read' not 'is_read'
 class NotificationSerializer(serializers.ModelSerializer):
+    is_read = serializers.BooleanField(source='read', read_only=True)
     class Meta:
         model = Notification
-        fields = ['id', 'employee', 'message', 'sent_on', 'read']  # Use 'read' here
+        fields = ['id', 'employee', 'message', 'sent_on', 'read', 'is_read']  # Use 'read' here
         read_only_fields = ['employee', 'sent_on']
 
 
@@ -1636,7 +1617,11 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
-
+class SettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Settings
+        fields = ['id', 'user', 'dark_mode', 'notifications_enabled', 'email_updates']
+        read_only_fields = ['user']    
 
 # Media upload serializer for systems admin.
 class MediaSerializer(serializers.ModelSerializer):
@@ -1685,3 +1670,18 @@ class MediaSerializer(serializers.ModelSerializer):
         if validated_data.get('is_published') and not instance.published_at:
             validated_data['published_at'] = timezone.now()
         return super().update(instance, validated_data)
+    def save(self, **kwargs):
+        user = self.context['request'].user
+        user.set_password(self.validated_data['new_password'])
+        user.save()
+        return user
+class CBTExerciseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CBTExercise
+        fields = '__all__'
+        ready_only_fields = ['user', 'created_at', 'updated_at']
+class JournalEntrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = JournalEntry
+        fields = '__all__'    
+        read_only_fields = ['user', 'created_at', 'updated_at']     

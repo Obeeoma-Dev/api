@@ -34,7 +34,8 @@ from obeeomaapp.views import (
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, MediaViewSet,
      CompleteOnboardingView,
     DynamicQuestionViewSet, UserAchievementViewSet,
-    AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView,
+    AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView, CBTExerciseViewSet, SettingsViewSet,
+    JournalEntryViewSet,
 )
 
 
@@ -62,8 +63,9 @@ router.register(r'organization-signup', OrganizationSignupView, basename='organi
 router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'progress', ProgressViewSet)
+router.register(r'cbt-exercises', CBTExerciseViewSet, basename='cbt-exercises')
 router.register(r'achievements', UserAchievementViewSet, basename='achievements')
-
+router.register(r'settings', SettingsViewSet, basename='user-settings')
 # Dashboard routers (Employer Dashboard)
 
 router.register(r'employee/profile', EmployeeProfileView, basename='employee-profile')
@@ -108,7 +110,7 @@ router.register(r'dynamic-questions', DynamicQuestionViewSet, basename='dynamic-
 # ADMIN USER MANAGEMENT ROUTERS
 router.register(r'admin/organizations', OrganizationViewSet, basename='admin-organizations')
 router.register(r'admin/users', AdminUserManagementViewSet, basename='admin-users')
-
+router.register(r'journal-entries', JournalEntryViewSet, basename='journal-entry')
 
 router.register(r'dashboard/billing/verify-payment', BillingView, basename='verify-payment')
 
