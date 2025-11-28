@@ -149,6 +149,84 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/v1/achievements/:
+    get:
+      operationId: api_v1_achievements_list
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserAchievement'
+          description: ''
+  /api/v1/achievements/{id}/:
+    get:
+      operationId: api_v1_achievements_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAchievement'
+          description: ''
+  /api/v1/achievements/summary/:
+    get:
+      operationId: api_v1_achievements_summary_retrieve
+      description: Return overall summary of achievements
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAchievement'
+          description: ''
+  /api/v1/achievements/update_progress/:
+    post:
+      operationId: api_v1_achievements_update_progress_create
+      description: Increment progress for a given achievement
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserAchievement'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserAchievement'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserAchievement'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAchievement'
+          description: ''
   /api/v1/activity/:
     get:
       operationId: api_v1_activity_list
@@ -852,6 +930,364 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/admin/users/:
+    get:
+      operationId: api_v1_admin_users_list
+      description: System Admin full control over users.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminUser'
+          description: ''
+    post:
+      operationId: api_v1_admin_users_create
+      description: System Admin full control over users.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+  /api/v1/admin/users/{id}/:
+    get:
+      operationId: api_v1_admin_users_retrieve
+      description: System Admin full control over users.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+    put:
+      operationId: api_v1_admin_users_update
+      description: System Admin full control over users.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+    patch:
+      operationId: api_v1_admin_users_partial_update
+      description: System Admin full control over users.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminUser'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminUser'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminUser'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+    delete:
+      operationId: api_v1_admin_users_destroy
+      description: System Admin full control over users.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/admin/users/{id}/activate/:
+    post:
+      operationId: api_v1_admin_users_activate_create
+      description: System Admin full control over users.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+  /api/v1/admin/users/{id}/complete_onboarding/:
+    post:
+      operationId: api_v1_admin_users_complete_onboarding_create
+      description: System Admin full control over users.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+  /api/v1/admin/users/{id}/deactivate/:
+    post:
+      operationId: api_v1_admin_users_deactivate_create
+      description: System Admin full control over users.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+  /api/v1/admin/users/{id}/reactivate/:
+    post:
+      operationId: api_v1_admin_users_reactivate_create
+      description: System Admin full control over users.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+  /api/v1/admin/users/{id}/suspend/:
+    post:
+      operationId: api_v1_admin_users_suspend_create
+      description: System Admin full control over users.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+  /api/v1/api/chat/:
+    post:
+      operationId: api_v1_api_chat_create
+      description: "\n    Chat with Sana, the AI mental health support assistant.\n\
+        \    \n    Sana provides:\n    - Empathetic, dynamic responses (no static\
+        \ templates)\n    - Mental health focused conversations\n    - Crisis detection\
+        \ and appropriate resources\n    - Context-aware support based on your history\n\
+        \    \n    The conversation is saved to your chat history for continuity.\n\
+        \    "
+      tags:
+      - Sana AI - Mental Health Chatbot
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  description: User message
+                session_id:
+                  type: integer
+                  description: Optional chat session ID
+              required:
+              - message
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: AI response
+                content:
+                  application/json:
+                    example:
+                      response: I hear that you're feeling anxious. That's completely
+                        valid...
+                      session_id: 123
+                      is_crisis: false
+          description: ''
   /api/v1/api/schema/:
     get:
       operationId: api_v1_api_schema_retrieve
@@ -1150,7 +1586,148 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AssessmentResult'
+                $ref: '#/components/schemas/AssessmentQuestion'
+          description: ''
+  /api/v1/assessments/questions/by_type/:
+    get:
+      operationId: api_v1_assessments_questions_by_type_retrieve
+      description: Get all questions for a specific assessment type (PHQ-9 or GAD-7)
+      parameters:
+      - in: query
+        name: type
+        schema:
+          type: string
+          enum:
+          - GAD-7
+          - PHQ-9
+        description: Assessment type
+        required: true
+      tags:
+      - Assessments - Questions
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentQuestion'
+          description: ''
+  /api/v1/assessments/responses/:
+    get:
+      operationId: api_v1_assessments_responses_list
+      description: ViewSet for assessment responses
+      tags:
+      - Assessments - Responses
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AssessmentResponse'
+          description: ''
+    post:
+      operationId: api_v1_assessments_responses_create
+      description: ViewSet for assessment responses
+      tags:
+      - Assessments - Responses
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssessmentResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AssessmentResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AssessmentResponse'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentResponse'
+          description: ''
+  /api/v1/assessments/responses/{id}/:
+    get:
+      operationId: api_v1_assessments_responses_retrieve
+      description: ViewSet for assessment responses
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Assessments - Responses
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentResponse'
+          description: ''
+  /api/v1/assessments/responses/history/:
+    get:
+      operationId: api_v1_assessments_responses_history_list
+      description: Get user's assessment history
+      parameters:
+      - in: query
+        name: type
+        schema:
+          type: string
+          enum:
+          - GAD-7
+          - PHQ-9
+        description: Filter by assessment type
+      tags:
+      - Assessments - Responses
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AssessmentResponse'
+          description: ''
+  /api/v1/assessments/responses/latest/:
+    get:
+      operationId: api_v1_assessments_responses_latest_retrieve
+      description: Get latest assessment result
+      parameters:
+      - in: query
+        name: type
+        schema:
+          type: string
+          enum:
+          - GAD-7
+          - PHQ-9
+        description: Assessment type
+        required: true
+      tags:
+      - Assessments - Responses
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentResponse'
           description: ''
   /api/v1/audios/:
     get:
@@ -1792,7 +2369,32 @@ paths:
   /api/v1/dashboard/departments/{id}/:
     get:
       operationId: api_v1_dashboard_departments_retrieve
-      description: Department management
+      description: |-
+        EMPLOYER DASHBOARD - DEPARTMENT MANAGEMENT
+
+        This view handles organizational department structure management.
+
+        Purpose for Employers:
+        - Create and manage organizational departments
+        - Organize employees by department
+        - Track department-level metrics
+        - Structure the organization hierarchy
+
+        Features:
+        - Create new departments
+        - Update department information
+        - Delete departments
+        - Search departments by name
+        - Sort departments alphabetically or by creation date
+
+        Use Cases:
+        - Setting up organizational structure
+        - Reorganizing company departments
+        - Tracking department growth
+        - Assigning employees to departments
+
+        Examples of Departments:
+        - Engineering, HR, Marketing, Sales, Operations, Finance, etc.
       parameters:
       - in: path
         name: id
@@ -1813,7 +2415,32 @@ paths:
           description: ''
     put:
       operationId: api_v1_dashboard_departments_update
-      description: Department management
+      description: |-
+        EMPLOYER DASHBOARD - DEPARTMENT MANAGEMENT
+
+        This view handles organizational department structure management.
+
+        Purpose for Employers:
+        - Create and manage organizational departments
+        - Organize employees by department
+        - Track department-level metrics
+        - Structure the organization hierarchy
+
+        Features:
+        - Create new departments
+        - Update department information
+        - Delete departments
+        - Search departments by name
+        - Sort departments alphabetically or by creation date
+
+        Use Cases:
+        - Setting up organizational structure
+        - Reorganizing company departments
+        - Tracking department growth
+        - Assigning employees to departments
+
+        Examples of Departments:
+        - Engineering, HR, Marketing, Sales, Operations, Finance, etc.
       parameters:
       - in: path
         name: id
@@ -1846,7 +2473,32 @@ paths:
           description: ''
     patch:
       operationId: api_v1_dashboard_departments_partial_update
-      description: Department management
+      description: |-
+        EMPLOYER DASHBOARD - DEPARTMENT MANAGEMENT
+
+        This view handles organizational department structure management.
+
+        Purpose for Employers:
+        - Create and manage organizational departments
+        - Organize employees by department
+        - Track department-level metrics
+        - Structure the organization hierarchy
+
+        Features:
+        - Create new departments
+        - Update department information
+        - Delete departments
+        - Search departments by name
+        - Sort departments alphabetically or by creation date
+
+        Use Cases:
+        - Setting up organizational structure
+        - Reorganizing company departments
+        - Tracking department growth
+        - Assigning employees to departments
+
+        Examples of Departments:
+        - Engineering, HR, Marketing, Sales, Operations, Finance, etc.
       parameters:
       - in: path
         name: id
@@ -1878,7 +2530,32 @@ paths:
           description: ''
     delete:
       operationId: api_v1_dashboard_departments_destroy
-      description: Department management
+      description: |-
+        EMPLOYER DASHBOARD - DEPARTMENT MANAGEMENT
+
+        This view handles organizational department structure management.
+
+        Purpose for Employers:
+        - Create and manage organizational departments
+        - Organize employees by department
+        - Track department-level metrics
+        - Structure the organization hierarchy
+
+        Features:
+        - Create new departments
+        - Update department information
+        - Delete departments
+        - Search departments by name
+        - Sort departments alphabetically or by creation date
+
+        Use Cases:
+        - Setting up organizational structure
+        - Reorganizing company departments
+        - Tracking department growth
+        - Assigning employees to departments
+
+        Examples of Departments:
+        - Engineering, HR, Marketing, Sales, Operations, Finance, etc.
       parameters:
       - in: path
         name: id
@@ -4857,23 +5534,23 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - {}
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MeditationTechnique'
+                $ref: '#/components/schemas/Media'
           description: ''
-  /api/v1/meditations/{id}/save/:
-    post:
-      operationId: api_v1_meditations_save_create
+    patch:
+      operationId: api_v1_media_partial_update
+      description: Handles list/retrieve for employees and create/update/delete for
+        system admins.
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: A unique integer value identifying this Meditation Technique.
+        description: A unique integer value identifying this media.
         required: true
       tags:
       - api
@@ -4881,13 +5558,64 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MeditationTechnique'
+              $ref: '#/components/schemas/PatchedMedia'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/MeditationTechnique'
+              $ref: '#/components/schemas/PatchedMedia'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/MeditationTechnique'
+              $ref: '#/components/schemas/PatchedMedia'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Media'
+          description: ''
+    delete:
+      operationId: api_v1_media_destroy
+      description: Handles list/retrieve for employees and create/update/delete for
+        system admins.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this media.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/media/{id}/publish/:
+    post:
+      operationId: api_v1_media_publish_create
+      description: Convenience endpoint for system admin to set is_published=True.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this media.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Media'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Media'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Media'
         required: true
       security:
       - jwtAuth: []
@@ -4896,27 +5624,40 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MeditationTechnique'
+                $ref: '#/components/schemas/Media'
           description: ''
-  /api/v1/meditations/for_beginners/:
+  /api/v1/meditations/:
     get:
-      operationId: api_v1_meditations_for_beginners_retrieve
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MeditationTechnique'
-          description: ''
-  /api/v1/mental-health/assessments/:
-    get:
-      operationId: api_v1_mental_health_assessments_list
-      description: ViewSet for mental health assessments
+      operationId: api_v1_meditations_list
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: integer
+      - in: query
+        name: difficulty
+        schema:
+          type: string
+          enum:
+          - advanced
+          - beginner
+          - intermediate
+        description: |-
+          * `beginner` - Beginner
+          * `intermediate` - Intermediate
+          * `advanced` - Advanced
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
       tags:
       - Employee - Assessments
       security:
@@ -5134,59 +5875,31 @@ paths:
               schema:
                 $ref: '#/components/schemas/MentalHealthAssessment'
           description: ''
-  /api/v1/onboarding/:
-    get:
-      operationId: api_v1_onboarding_retrieve
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OnboardingState'
-          description: ''
-    put:
-      operationId: api_v1_onboarding_update
+  /api/v1/meditations/{id}/save/:
+    post:
+      operationId: api_v1_meditations_save_create
+      description: Save meditation technique to user's library
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Meditation Technique.
+        required: true
       tags:
       - api
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/OnboardingState'
+              $ref: '#/components/schemas/MeditationTechnique'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/OnboardingState'
+              $ref: '#/components/schemas/MeditationTechnique'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/OnboardingState'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OnboardingState'
-          description: ''
-    patch:
-      operationId: api_v1_onboarding_partial_update
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedOnboardingState'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedOnboardingState'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedOnboardingState'
+              $ref: '#/components/schemas/MeditationTechnique'
+        required: true
       security:
       - jwtAuth: []
       responses:
@@ -5337,7 +6050,7 @@ paths:
       - jwtAuth: []
       - {}
       responses:
-        '200':
+        '201':
           content:
             application/json:
               schema:
@@ -6512,27 +7225,72 @@ components:
           minimum: -2147483648
         submitted_on:
           type: string
-          format: date-time
-          readOnly: true
-        employee:
-          type: integer
-          readOnly: true
       required:
-      - employee
+      - assessment_type
+      - assessment_type_display
       - id
-      - score
-      - submitted_on
-      - type
-    AssessmentTypeEnum:
+      - question_number
+      - question_text
+    AssessmentQuestionAssessmentTypeEnum:
       enum:
-      - GAD-7
       - PHQ-9
-      - BOTH
+      - GAD-7
       type: string
       description: |-
-        * `GAD-7` - GAD-7 (Anxiety)
-        * `PHQ-9` - PHQ-9 (Depression)
-        * `BOTH` - Both Assessments
+        * `PHQ-9` - Patient Health Questionnaire (PHQ-9)
+        * `GAD-7` - Generalized Anxiety Disorder (GAD-7)
+    AssessmentResponse:
+      type: object
+      description: Serializer for submitting assessment responses
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        assessment_type:
+          $ref: '#/components/schemas/AssessmentResponseAssessmentTypeEnum'
+        assessment_type_display:
+          type: string
+          readOnly: true
+        responses:
+          description: Array of scores for each question
+        total_score:
+          type: integer
+          readOnly: true
+        severity_level:
+          type: string
+          readOnly: true
+        difficulty_level:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/DifficultyLevelEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        recommendations:
+          type: array
+          items:
+            type: string
+          readOnly: true
+        completed_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - assessment_type
+      - assessment_type_display
+      - completed_at
+      - id
+      - recommendations
+      - responses
+      - severity_level
+      - total_score
+    AssessmentResponseAssessmentTypeEnum:
+      enum:
+      - PHQ-9
+      - GAD-7
+      type: string
+      description: |-
+        * `PHQ-9` - PHQ-9
+        * `GAD-7` - GAD-7
     Audio:
       type: object
       properties:
@@ -6579,7 +7337,6 @@ components:
           readOnly: true
       required:
       - audio_url_full
-      - category
       - category_name
       - created_at
       - description
@@ -6703,19 +7460,19 @@ components:
     ContactPerson:
       type: object
       properties:
-        fullname:
+        firstName:
           type: string
-          maxLength: 255
+        lastName:
+          type: string
         role:
           type: string
-          maxLength: 100
         email:
           type: string
           format: email
-          maxLength: 254
       required:
       - email
-      - fullname
+      - firstName
+      - lastName
       - role
     CrisisTrigger:
       type: object
@@ -6785,6 +7542,18 @@ components:
         * `beginner` - Beginner
         * `intermediate` - Intermediate
         * `advanced` - Advanced
+    DifficultyLevelEnum:
+      enum:
+      - not_difficult
+      - somewhat_difficult
+      - very_difficult
+      - extremely_difficult
+      type: string
+      description: |-
+        * `not_difficult` - Not difficult at all
+        * `somewhat_difficult` - Somewhat difficult
+        * `very_difficult` - Very Difficult
+        * `extremely_difficult` - Extremely Difficult
     DynamicQuestion:
       type: object
       properties:
@@ -6963,6 +7732,24 @@ components:
       - engagement_rate
       - id
       - month
+    EmployeeFirstLogin:
+      type: object
+      description: Serializer for first login with temporary credentials
+      properties:
+        token:
+          type: string
+          description: Invitation token from email
+        temporary_username:
+          type: string
+          description: Temporary username from invitation email
+        temporary_password:
+          type: string
+          writeOnly: true
+          description: Temporary password from invitation email
+      required:
+      - temporary_password
+      - temporary_username
+      - token
     EmployeeInvitationAccept:
       type: object
       properties:
@@ -6974,17 +7761,13 @@ components:
           writeOnly: true
           description: Password for the new account
           minLength: 8
-        first_name:
+        username:
           type: string
-          description: User's first name
-        last_name:
-          type: string
-          description: User's last name
+          description: User_name
       required:
-      - first_name
-      - last_name
       - password
       - token
+      - username
     EmployeeInvitationCreate:
       type: object
       properties:
@@ -7006,10 +7789,18 @@ components:
           type: string
           format: date-time
           readOnly: true
+        temporary_username:
+          type: string
+          readOnly: true
+        temporary_password_plain:
+          type: string
+          readOnly: true
       required:
       - created_at
       - email
       - id
+      - temporary_password_plain
+      - temporary_username
     EmployeeManagement:
       type: object
       properties:
@@ -7055,6 +7846,25 @@ components:
       - joined_date
       - name
       - status_display
+    EmployeeOnboarding:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          writeOnly: true
+        confirm_password:
+          type: string
+          writeOnly: true
+        avatar:
+          type: string
+          format: uri
+      required:
+      - avatar
+      - confirm_password
+      - password
+      - username
     EmployeeProfile:
       type: object
       properties:
@@ -7087,79 +7897,6 @@ components:
       - organization
       - role
       - subscription_tier
-    EmployeeUserCreate:
-      type: object
-      properties:
-        email:
-          type: string
-          format: email
-          maxLength: 254
-        first_name:
-          type: string
-          maxLength: 150
-        last_name:
-          type: string
-          maxLength: 150
-        password:
-          type: string
-          writeOnly: true
-          minLength: 8
-        password_confirm:
-          type: string
-          writeOnly: true
-      required:
-      - email
-      - password
-      - password_confirm
-    Employer:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        name:
-          type: string
-          maxLength: 255
-        joined_date:
-          type: string
-          format: date-time
-          readOnly: true
-        is_active:
-          type: boolean
-      required:
-      - id
-      - joined_date
-      - name
-    EmployerRegistration:
-      type: object
-      description: Serializer for employer organization registration - creates both
-        user and organization
-      properties:
-        organization_name:
-          type: string
-          description: Name of your organization/company
-          maxLength: 255
-        email:
-          type: string
-          format: email
-          description: Your email address (will be used for login)
-        password:
-          type: string
-          writeOnly: true
-          description: Your password (minimum 8 characters)
-        employer_name:
-          type: string
-          description: Your full name
-          maxLength: 255
-        phone_number:
-          type: string
-          description: Your phone number (optional)
-          maxLength: 20
-      required:
-      - email
-      - employer_name
-      - organization_name
-      - password
     EngagementLevelEnum:
       enum:
       - high
@@ -7233,28 +7970,6 @@ components:
       - id
       - rating
       - submitted_on
-    GoalEnum:
-      enum:
-      - reduce_stress
-      - improve_focus
-      - support_team
-      - improve_sleep
-      - manage_anxiety
-      - manage_depression
-      - self_awareness
-      - mental_fitness
-      - navigate_change
-      type: string
-      description: |-
-        * `reduce_stress` - Reduce Stress
-        * `improve_focus` - Improve Focus
-        * `support_team` - Support My Team
-        * `improve_sleep` - Improve Sleep Quality
-        * `manage_anxiety` - Manage Anxiety
-        * `manage_depression` - Manage Depression
-        * `self_awareness` - Increase Self-Awareness
-        * `mental_fitness` - Strengthen Mental Fitness
-        * `navigate_change` - Navigate Life or Work Transitions
     HotlineActivity:
       type: object
       properties:
@@ -7280,20 +7995,17 @@ components:
       - id
       - recorded_at
       - spike_percentage
-    LastCheckinMoodEnum:
-      enum:
-      - happy
-      - sad
-      - stressed
-      - anxious
-      - neutral
-      type: string
-      description: |-
-        * `happy` - Happy
-        * `sad` - Sad
-        * `stressed` - Stressed
-        * `anxious` - Anxious
-        * `neutral` - Neutral
+    Login:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          writeOnly: true
+      required:
+      - password
+      - username
     Logout:
       type: object
       properties:
@@ -7301,6 +8013,95 @@ components:
           type: string
       required:
       - refresh
+    MFAConfirm:
+      type: object
+      properties:
+        code:
+          type: string
+          description: 6-digit MFA code from your authenticator app
+          maxLength: 6
+      required:
+      - code
+    MFAVerify:
+      type: object
+      properties:
+        temp_token:
+          type: string
+          description: Temporary token received after login step 1
+        code:
+          type: string
+          description: 6-digit MFA code from your authenticator app
+          maxLength: 6
+      required:
+      - code
+      - temp_token
+    Media:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        media_type:
+          $ref: '#/components/schemas/MediaTypeEnum'
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        body:
+          type: string
+        file:
+          type: string
+          format: uri
+          nullable: true
+        thumbnail:
+          type: string
+          format: uri
+          nullable: true
+        duration_seconds:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+          description: Optional duration in seconds for audio/video.
+        tags:
+          type: string
+          description: Comma-separated tags
+          maxLength: 255
+        uploaded_by:
+          type: string
+          readOnly: true
+        is_published:
+          type: boolean
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - media_type
+      - title
+      - updated_at
+      - uploaded_by
+    MediaTypeEnum:
+      enum:
+      - article
+      - audio
+      - video
+      type: string
+      description: |-
+        * `article` - Article
+        * `audio` - Audio
+        * `video` - Video
     MeditationTechnique:
       type: object
       properties:
@@ -7359,101 +8160,6 @@ components:
       - is_saved
       - times_practiced
       - title
-    MentalHealthAssessment:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        user:
-          type: integer
-          readOnly: true
-        assessment_type:
-          $ref: '#/components/schemas/AssessmentTypeEnum'
-        gad7_scores: {}
-        phq9_scores: {}
-        gad7_total:
-          type: integer
-          readOnly: true
-        phq9_total:
-          type: integer
-          readOnly: true
-        gad7_severity:
-          type: string
-          readOnly: true
-        phq9_severity:
-          type: string
-          readOnly: true
-        assessment_date:
-          type: string
-          format: date-time
-          readOnly: true
-      required:
-      - assessment_date
-      - assessment_type
-      - gad7_severity
-      - gad7_total
-      - id
-      - phq9_severity
-      - phq9_total
-      - user
-    MentalHealthAssessmentList:
-      type: object
-      description: Simplified serializer for listing assessments
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        assessment_type:
-          $ref: '#/components/schemas/AssessmentTypeEnum'
-        gad7_total:
-          type: integer
-          maximum: 2147483647
-          minimum: 0
-        phq9_total:
-          type: integer
-          maximum: 2147483647
-          minimum: 0
-        gad7_severity:
-          type: string
-          maxLength: 20
-        phq9_severity:
-          type: string
-          maxLength: 20
-        assessment_date:
-          type: string
-          format: date-time
-          readOnly: true
-      required:
-      - assessment_date
-      - assessment_type
-      - id
-    MoodEnum:
-      enum:
-      - depressed
-      - stressed
-      - anxious
-      - burned_out
-      - grieving
-      - overwhelmed
-      - lonely
-      - angry
-      - neutral
-      - hopeful
-      - other
-      type: string
-      description: |-
-        * `depressed` - Depressed
-        * `stressed` - Stressed
-        * `anxious` - Anxious
-        * `burned_out` - Burned Out
-        * `grieving` - Grieving
-        * `overwhelmed` - Overwhelmed
-        * `lonely` - Lonely
-        * `angry` - Angry
-        * `neutral` - Neutral
-        * `hopeful` - Hopeful
-        * `other` - Other
     MoodTracking:
       type: object
       properties:
@@ -7461,7 +8167,9 @@ components:
           type: integer
           readOnly: true
         mood:
-          $ref: '#/components/schemas/MoodEnum'
+          type: string
+          nullable: true
+          maxLength: 50
         note:
           type: string
           nullable: true
@@ -7472,25 +8180,26 @@ components:
       required:
       - checked_in_at
       - id
-      - mood
     NameEnum:
       enum:
       - starter
       - enterprise
-      - enterprise_plus
       type: string
       description: |-
         * `starter` - Starter Plan
         * `enterprise` - Enterprise Plan
-        * `enterprise_plus` - Enterprise Plus Plan
     Notification:
       type: object
       properties:
         id:
           type: integer
           readOnly: true
+        employee:
+          type: integer
+          readOnly: true
         message:
           type: string
+          nullable: true
           maxLength: 255
         sent_on:
           type: string
@@ -7498,13 +8207,9 @@ components:
           readOnly: true
         read:
           type: boolean
-        employee:
-          type: integer
-          readOnly: true
       required:
       - employee
       - id
-      - message
       - sent_on
     NullEnum:
       enum:
@@ -7517,15 +8222,6 @@ components:
           maxLength: 6
       required:
       - code
-    OnboardingState:
-      type: object
-      properties:
-        goal:
-          $ref: '#/components/schemas/GoalEnum'
-        completed:
-          type: boolean
-        first_action_done:
-          type: boolean
     OrganizationCreate:
       type: object
       properties:
@@ -7554,11 +8250,16 @@ components:
           writeOnly: true
         contactPerson:
           $ref: '#/components/schemas/ContactPerson'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
       required:
       - Location
       - companyEmail
       - confirmPassword
       - contactPerson
+      - created_at
       - organisationSize
       - organizationName
       - password
@@ -7673,25 +8374,128 @@ components:
           type: string
           format: date-time
           readOnly: true
-    PatchedAssessmentResult:
+    PatchedAdminUser:
       type: object
       properties:
         id:
           type: integer
           readOnly: true
-        type:
+        username:
           type: string
-          maxLength: 20
-        score:
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          writeOnly: true
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        organization:
+          type: integer
+          nullable: true
+        onboarding_completed:
+          type: boolean
+        is_suspended:
+          type: boolean
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        is_active:
+          type: boolean
+          readOnly: true
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+    PatchedArticle:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        slug:
+          type: string
+          readOnly: true
+          pattern: ^[-a-zA-Z0-9_]+$
+        content:
+          type: string
+        excerpt:
+          type: string
+          description: Short summary
+          maxLength: 500
+        author_name:
+          type: string
+          readOnly: true
+          nullable: true
+        category:
+          type: integer
+        category_name:
+          type: string
+          readOnly: true
+        featured_image:
+          type: string
+          format: uri
+          nullable: true
+        reading_time:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        submitted_on:
+          description: Minutes to read
+        views:
+          type: integer
+          readOnly: true
+        is_saved:
+          type: boolean
+          readOnly: true
+        published_date:
           type: string
           format: date-time
           readOnly: true
-        employee:
+    PatchedAudio:
+      type: object
+      properties:
+        id:
           type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          description: What does this audio help with?
+        audio_url:
+          type: string
+          format: uri
+          nullable: true
+          description: External audio URL
+          maxLength: 200
+        audio_url_full:
+          type: string
+          format: uri
+          readOnly: true
+        category_name:
+          type: string
+          readOnly: true
+        duration:
+          type: string
+          maxLength: 20
+        plays:
+          type: integer
+          readOnly: true
+        is_saved:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
           readOnly: true
     PatchedAvatarProfile:
       type: object
@@ -7796,64 +8600,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-    PatchedEducationalResource:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        video_count:
-          type: integer
-          readOnly: true
-        audio_count:
-          type: integer
-          readOnly: true
-        article_count:
-          type: integer
-          readOnly: true
-        meditation_count:
-          type: integer
-          readOnly: true
-        icon:
-          type: string
-          maxLength: 50
-        title:
-          type: string
-          maxLength: 200
-        description:
-          type: string
-          nullable: true
-        resource_type:
-          nullable: true
-          oneOf:
-          - $ref: '#/components/schemas/EducationalResourceResourceTypeEnum'
-          - $ref: '#/components/schemas/BlankEnum'
-          - $ref: '#/components/schemas/NullEnum'
-        file:
-          type: string
-          format: uri
-          nullable: true
-        thumbnail:
-          type: string
-          format: uri
-          nullable: true
-        file_size:
-          type: string
-          nullable: true
-          maxLength: 20
-        uploaded_at:
-          type: string
-          format: date-time
-          readOnly: true
-        is_public:
-          type: boolean
-        download_count:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
-        uploaded_by:
-          type: integer
-          nullable: true
     PatchedEmployeeInvitationCreate:
       type: object
       properties:
@@ -7874,6 +8620,12 @@ components:
         created_at:
           type: string
           format: date-time
+          readOnly: true
+        temporary_username:
+          type: string
+          readOnly: true
+        temporary_password_plain:
+          type: string
           readOnly: true
     PatchedEmployeeManagement:
       type: object
@@ -7940,21 +8692,6 @@ components:
         current_wellness_status:
           type: string
           maxLength: 50
-    PatchedEmployer:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        name:
-          type: string
-          maxLength: 255
-        joined_date:
-          type: string
-          format: date-time
-          readOnly: true
-        is_active:
-          type: boolean
     PatchedEngagementTracker:
       type: object
       properties:
@@ -7990,32 +8727,99 @@ components:
         employee:
           type: integer
           readOnly: true
-    PatchedMentalHealthAssessment:
+    PatchedMedia:
       type: object
       properties:
         id:
           type: integer
           readOnly: true
-        user:
+        media_type:
+          $ref: '#/components/schemas/MediaTypeEnum'
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        body:
+          type: string
+        file:
+          type: string
+          format: uri
+          nullable: true
+        thumbnail:
+          type: string
+          format: uri
+          nullable: true
+        duration_seconds:
           type: integer
-          readOnly: true
-        assessment_type:
-          $ref: '#/components/schemas/AssessmentTypeEnum'
-        gad7_scores: {}
-        phq9_scores: {}
-        gad7_total:
-          type: integer
-          readOnly: true
-        phq9_total:
-          type: integer
-          readOnly: true
-        gad7_severity:
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+          description: Optional duration in seconds for audio/video.
+        tags:
+          type: string
+          description: Comma-separated tags
+          maxLength: 255
+        uploaded_by:
           type: string
           readOnly: true
-        phq9_severity:
+        is_published:
+          type: boolean
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedMeditationTechnique:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          description: what you want to achieve with this meditation
+        instructions:
+          type: string
+          description: Step-by-step guide
+        duration:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Duration in minutes
+        difficulty:
+          $ref: '#/components/schemas/DifficultyEnum'
+        difficulty_display:
           type: string
           readOnly: true
-        assessment_date:
+        category:
+          type: integer
+        category_name:
+          type: string
+          readOnly: true
+        benefits:
+          type: string
+        image:
+          type: string
+          format: uri
+          nullable: true
+        times_practiced:
+          type: integer
+          readOnly: true
+        is_saved:
+          type: boolean
+          readOnly: true
+        created_at:
           type: string
           format: date-time
           readOnly: true
@@ -8026,7 +8830,9 @@ components:
           type: integer
           readOnly: true
         mood:
-          $ref: '#/components/schemas/MoodEnum'
+          type: string
+          nullable: true
+          maxLength: 50
         note:
           type: string
           nullable: true
@@ -8040,26 +8846,18 @@ components:
         id:
           type: integer
           readOnly: true
+        employee:
+          type: integer
+          readOnly: true
         message:
           type: string
+          nullable: true
           maxLength: 255
         sent_on:
           type: string
           format: date-time
           readOnly: true
         read:
-          type: boolean
-        employee:
-          type: integer
-          readOnly: true
-    PatchedOnboardingState:
-      type: object
-      properties:
-        goal:
-          $ref: '#/components/schemas/GoalEnum'
-        completed:
-          type: boolean
-        first_action_done:
           type: boolean
     PatchedOrganizationCreate:
       type: object
@@ -8089,6 +8887,10 @@ components:
           writeOnly: true
         contactPerson:
           $ref: '#/components/schemas/ContactPerson'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
     PatchedOrganizationSettings:
       type: object
       properties:
@@ -8156,6 +8958,7 @@ components:
         date:
           type: string
           format: date
+          readOnly: true
         mood_score:
           type: integer
           maximum: 2147483647
@@ -8204,6 +9007,33 @@ components:
           type: string
           format: date-time
           readOnly: true
+    PatchedSubscription:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        employer:
+          type: integer
+        plan:
+          $ref: '#/components/schemas/PlanEnum'
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        seats:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        is_active:
+          type: boolean
     PatchedSubscriptionManagement:
       type: object
       properties:
@@ -8264,30 +9094,54 @@ components:
           type: string
           format: date-time
           readOnly: true
-    PatchedWellnessHub:
+    PatchedVideo:
       type: object
       properties:
         id:
           type: integer
           readOnly: true
-        last_checkin_date:
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          description: What will users learn?
+        youtube_url:
+          type: string
+          format: uri
+          description: YouTube video URL
+          maxLength: 200
+        is_professionally_reviewed:
+          type: boolean
+        reviewed_by:
+          type: string
+          maxLength: 100
+        review_date:
           type: string
           format: date
           nullable: true
-        last_checkin_mood:
-          nullable: true
-          oneOf:
-          - $ref: '#/components/schemas/LastCheckinMoodEnum'
-          - $ref: '#/components/schemas/BlankEnum'
-          - $ref: '#/components/schemas/NullEnum'
-        mood_logs: {}
-        mood_insights: {}
+        category_name:
+          type: string
+          readOnly: true
+        duration:
+          type: string
+          description: e.g., 10:30
+          maxLength: 20
+        views:
+          type: integer
+          readOnly: true
+        is_saved:
+          type: boolean
+          readOnly: true
+        target_mood:
+          $ref: '#/components/schemas/TargetMoodEnum'
         updated_at:
           type: string
           format: date-time
           readOnly: true
-        employee:
-          type: integer
+        created_at:
+          type: string
+          format: date-time
           readOnly: true
     PaymentMethod:
       type: object
@@ -8368,6 +9222,7 @@ components:
         date:
           type: string
           format: date
+          readOnly: true
         mood_score:
           type: integer
           maximum: 2147483647
@@ -8380,7 +9235,6 @@ components:
       required:
       - date
       - id
-      - mood_score
       - user
     RecentActivity:
       type: object
@@ -8442,6 +9296,22 @@ components:
       - employee
       - id
       - recommended_on
+    ResetPasswordComplete:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        new_password:
+          type: string
+          writeOnly: true
+        confirm_password:
+          type: string
+          writeOnly: true
+      required:
+      - confirm_password
+      - email
+      - new_password
     RoleEnum:
       enum:
       - systemadmin
@@ -8449,8 +9319,8 @@ components:
       - employee
       type: string
       description: |-
-        * `systemadmin` - System Admin
-        * `organisation` - organisation
+        * `system_admin` - Systems Admin
+        * `employer` - Employer
         * `employee` - Employee
     SavedResource:
       type: object
@@ -8994,7 +9864,6 @@ components:
           format: date-time
           readOnly: true
       required:
-      - category
       - category_name
       - created_at
       - description
@@ -9004,35 +9873,6 @@ components:
       - updated_at
       - views
       - youtube_url
-    WellnessHub:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        last_checkin_date:
-          type: string
-          format: date
-          nullable: true
-        last_checkin_mood:
-          nullable: true
-          oneOf:
-          - $ref: '#/components/schemas/LastCheckinMoodEnum'
-          - $ref: '#/components/schemas/BlankEnum'
-          - $ref: '#/components/schemas/NullEnum'
-        mood_logs: {}
-        mood_insights: {}
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
-        employee:
-          type: integer
-          readOnly: true
-      required:
-      - employee
-      - id
-      - updated_at
   securitySchemes:
     jwtAuth:
       type: http
