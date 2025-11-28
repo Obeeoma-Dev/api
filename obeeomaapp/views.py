@@ -3523,7 +3523,7 @@ class AudioViewSet(viewsets.ModelViewSet):  # Full CRUD support
         for employee in Employee.objects.all():
             Notification.objects.create(
                 employee=employee,
-                message=f"New audio published: {audio.title}",
+                message=f"New audio published1: {audio.title}",
                 content_type="audio",
                 object_id=audio.id
             )
@@ -3557,14 +3557,13 @@ class AdminOrReadOnly(BasePermission):
 
 
 class ArticleViewSet(viewsets.ModelViewSet):  # Full CRUD support
-    queryset = Article.objects.filter(is_published=True)
+    queryset = Article.objects.filter(is_public=True)
     serializer_class = ArticleSerializer
     permission_classes = [AdminOrReadOnly]  #  Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
     search_fields = ['title', 'content', 'excerpt']
     ordering_fields = ['published_date', 'views', 'reading_time']
-    lookup_field = 'slug'
 
     @action(detail=True, methods=['post'])
     def read(self, request, slug=None):
@@ -3705,10 +3704,12 @@ class SavedResourceViewSet(viewsets.ReadOnlyModelViewSet):
         
         if resource_type == 'videos':
             saved = saved.filter(video__isnull=False)
-        elif resource_type == 'audios':
-            saved = saved.filter(audio__isnull=False)
+        elif resource_type == 'cbt-exercises':
+            saved = saved.filter(cbt_exercise__isnull=False)
         elif resource_type == 'articles':
             saved = saved.filter(article__isnull=False)
+        elif resource_type == 'audios':
+            saved = saved.filter(audio__isnull=False)    
         elif resource_type == 'meditations':
             saved = saved.filter(meditation__isnull=False)
         
@@ -3730,8 +3731,9 @@ class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):
         stats = {
             'total_activities': activities.count(),
             'videos_watched': activities.filter(video__isnull=False).count(),
-            'audios_played': activities.filter(audio__isnull=False).count(),
+            'cbt_exercises_played': activities.filter(cbt_exercise__isnull=False).count(),
             'articles_read': activities.filter(article__isnull=False).count(),
+            'audios_listened': activities.filter(audio__isnull=False).count(),
             'meditations_practiced': activities.filter(meditation__isnull=False, completed=True).count(),
         }
         
@@ -3779,15 +3781,6 @@ class DynamicQuestionViewSet(viewsets.ModelViewSet):
         questions = list(self.queryset.order_by('?')[:count])
         serializer = self.get_serializer(questions, many=True)
         return Response(serializer.data)
-
-# views.py
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from django.shortcuts import get_object_or_404
-from .models import UserAchievement, Achievement
-from .serializers import UserAchievementSerializer
 
 class UserAchievementViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UserAchievementSerializer
@@ -3900,7 +3893,18 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
         if user.role == 'system_admin':
             return Response({'detail': 'Cannot delete a system admin account.'}, status=status.HTTP_400_BAD_REQUEST)
         return super().destroy(request, *args, **kwargs)
+@extend_schema(tags=['User - Settings'])
+class SettingsViewSet(viewsets.ModelViewSet):
+    serializer_class = SettingsSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        # Only return settings for the logged-in user
+        return Settings.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        # Ensure settings are tied to the current user
+        serializer.save(user=self.request.user)
 
 # media upload view for systems admin
 class MediaViewSet(viewsets.ModelViewSet):
@@ -3943,3 +3947,49 @@ class MediaViewSet(viewsets.ModelViewSet):
         instance.file.delete(save=False)
         instance.thumbnail.delete(save=False)
         instance.delete()
+
+
+    
+
+
+
+from .permissions import IsAdminOrReadOnly
+class JournalEntryViewSet(viewsets.ModelViewSet):
+    serializer_class = JournalEntrySerializer
+    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return JournalEntry.objects.all()
+        return JournalEntry.objects.filter(user=user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
+from .models import CBTExercise
+from .serializers import CBTExerciseSerializer
+from .permissions import IsAdminOrReadOnly
+
+class CBTExerciseViewSet(viewsets.ModelViewSet):
+    serializer_class = CBTExerciseSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return CBTExercise.objects.all()
+        return CBTExercise.objects.filter(user=user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def perform_update(self, serializer):
+        # If marking as completed, auto-set completed_at
+        instance = serializer.save()
+        if instance.completed and not instance.completed_at:
+            from django.utils import timezone
+            instance.completed_at = timezone.now()
+            instance.save()
