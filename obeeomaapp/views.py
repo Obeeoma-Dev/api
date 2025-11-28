@@ -638,66 +638,86 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         required=True,
         help_text="Invitation token from the email link"
     )
+    username = serializers.CharField(
+        required=True,
+        help_text="Preferred username for the new account"
+    )
     password = serializers.CharField(
         required=True,
         write_only=True,
         min_length=8,
         help_text="Password for the new account"
     )
-    username = serializers.CharField(
+    confirm_password = serializers.CharField(
         required=True,
-        help_text="User_name"
+        write_only=True,
+        help_text="Confirm your new password"
     )
-    
-    
-    def validate_token(self, value):
+
+    def _get_invitation(self, token: str) -> EmployeeInvitation:
+        if hasattr(self, "_invitation") and getattr(self, "_invitation").token == token:
+            return self._invitation
+
         try:
-            invitation = EmployeeInvitation.objects.get(
-                token=value,
+            self._invitation = EmployeeInvitation.objects.select_related("employer").get(
+                token=token,
                 accepted=False,
                 expires_at__gt=timezone.now()
             )
-            return value
         except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError("Invalid or expired invitation token")
+            raise serializers.ValidationError({"token": "Invalid or expired invitation token."})
+
+        return self._invitation
+
+    def validate_username(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("This username is already in use.")
+        return value
+
+    def validate(self, attrs):
+        invitation = self._get_invitation(attrs["token"])
+
+        if not invitation.credentials_used:
+            raise serializers.ValidationError(
+                {"token": "First login must be completed before finishing account setup."}
+            )
+
+        if attrs["password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
+
+        validate_password(attrs["password"])
+        attrs["invitation"] = invitation
+        return attrs
 
     def create(self, validated_data):
-        token = validated_data['token']
-        password = validated_data['password']
-        first_name = validated_data['first_name']
-        last_name = validated_data['last_name']
-        
-        # Get the invitation
-        invitation = EmployeeInvitation.objects.get(
-            token=token,
-            accepted=False,
-            expires_at__gt=timezone.now()
-        )
-        
-        # Create user account
+        invitation = validated_data["invitation"]
+        password = validated_data["password"]
+        username = validated_data["username"]
+
         user = User.objects.create_user(
-            username=invitation.email,  # Use email as username
+            username=username,
             email=invitation.email,
             password=password,
-            first_name=first_name,
-            last_name=last_name,
+            role="employee",
             is_active=True
         )
-        
-        # Create employee profile
-        employee_profile = Employee.objects.create(
+
+        Employee.objects.create(
             user=user,
-            employer=invitation.employer
+            employer=invitation.employer,
+            email=invitation.email,
+            first_name="",
+            last_name="",
+            status="active"
         )
-        
-        # Mark invitation as accepted
+
         invitation.accepted = True
         invitation.accepted_at = timezone.now()
-        invitation.save()
-        
+        invitation.credentials_used = True
+        invitation.save(update_fields=["accepted", "accepted_at", "credentials_used"])
+
         return user
 
-#--- Serializer for creating employee user account ---
 class EmployeeUserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
     password_confirm = serializers.CharField(write_only=True)
@@ -1157,13 +1177,14 @@ class EmployeeFirstLoginView(APIView):
         First login endpoint for employees using temporary credentials from invitation email.
         
         This endpoint requires:
+        - token: Invitation token from email
         - temporary_username: Temporary username from email
         - temporary_password: Temporary password from email
         
         After successful authentication:
         - The credentials are marked as used (cannot be reused)
         - User receives their email address
-        - User can proceed to complete account setup using their email
+        - User can proceed to complete account setup
         """
     )
     def post(self, request):
@@ -1223,12 +1244,13 @@ class CompleteAccountSetupView(APIView):
         Complete account setup after successful first login with temporary credentials.
         
         This endpoint requires:
-        - token: Invitation token from email
-        - username: Your chosen permanent username
-        - password: Your new permanent password
+        - token: Invitation token from the onboarding email
+        - username: Preferred username for the permanent account
+        - new password: Your chosen permanent password
+        - confirm password: confirm permanent password
         
         The system will:
-        - Validate your invitation token
+
         - Create your permanent user account
         - Set your new credentials
         - Create your employee profile

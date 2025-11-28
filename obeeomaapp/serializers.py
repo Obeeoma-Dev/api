@@ -558,7 +558,6 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
             username=validated_data['email'],  # Use email as username
             email=validated_data['email'],
             password=validated_data['password'],
-            user_name=validated_data['user_name'],
     
             is_active=True
         )
@@ -566,6 +565,10 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
 
 class EmployeeFirstLoginSerializer(serializers.Serializer):
     """Serializer for first login with temporary credentials"""
+    token = serializers.CharField(
+        required=True,
+        help_text="Invitation token from email"
+    )
     temporary_username = serializers.CharField(
         required=True,
         help_text="Temporary username from invitation email"
@@ -579,12 +582,14 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
     def validate(self, attrs):
         from django.contrib.auth.hashers import check_password
         
+        token = attrs.get('token')
         temp_username = attrs.get('temporary_username')
         temp_password = attrs.get('temporary_password')
         
-        # Find invitation with this temporary username
+        # Find invitation with this token and temporary username
         try:
             invitation = EmployeeInvitation.objects.get(
+                token=token,
                 temporary_username=temp_username,
                 accepted=False,
                 credentials_used=False,
@@ -601,80 +606,27 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
         return attrs
 
 
-class EmployeeInvitationAcceptSerializer(serializers.Serializer):
-    """Serializer for completing account setup after first login"""
-    token = serializers.CharField(
-        required=True,
-        help_text="Invitation token from email"
-    )
-    username = serializers.CharField(
-        required=True,
-        min_length=3,
-        max_length=150,
-        help_text="Choose your permanent username"
-    )
+# Complete Account Setup serializer
+class CompleteAccountSetupSerializer(serializers.Serializer):
     password = serializers.CharField(
         required=True,
         write_only=True,
         min_length=8,
         help_text="Create your permanent password"
     )
-    
-    def validate_username(self, value):
-        # Check if username already exists
-        if User.objects.filter(username=value).exists():
-            raise serializers.ValidationError("This username is already taken. Please choose another.")
-        return value
-    
+    confirm_password = serializers.CharField(
+        required=True,
+        write_only=True,
+        help_text="Confirm your password"
+    )
+
     def validate(self, attrs):
-        # Validate password strength
+        if attrs['password'] != attrs['confirm_password']:
+            raise serializers.ValidationError({"confirm_password": "Passwords don't match"})
+        
         validate_password(attrs['password'])
-        
-        # Find invitation using the provided token
-        token = attrs.get('token')
-        try:
-            invitation = EmployeeInvitation.objects.get(
-                token=token,
-                accepted=False,
-                credentials_used=True,  # Must have used temp credentials first
-                expires_at__gt=timezone.now()
-            )
-            attrs['invitation'] = invitation
-        except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError({"token": "Invalid or expired invitation token. Please complete first login first."})
-        
         return attrs
 
-    def create(self, validated_data):
-        invitation = validated_data['invitation']
-        username = validated_data['username']
-        password = validated_data['password']
-        
-        # Get the invitation (already validated)
-        # invitation is already in validated_data from validate() method
-        
-        # Create user account with new permanent credentials
-        user = User.objects.create_user(
-            username=username,  # Use chosen username
-            email=invitation.email,
-            password=password,
-            role='employee',
-            is_active=True
-        )
-        
-        # Create employee profile
-        employee_profile = Employee.objects.create(
-            user=user,
-            employer=invitation.employer,
-            email=invitation.email
-        )
-        
-        # Mark invitation as fully accepted
-        invitation.accepted = True
-        invitation.accepted_at = timezone.now()
-        invitation.save()
-        
-        return user
 
 # --- Employee Invitation Serializer ---
 class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):

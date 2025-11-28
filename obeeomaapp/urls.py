@@ -27,7 +27,7 @@ from obeeomaapp.views import (
     MoodTrackingView, SelfHelpResourceView,
     CrisisTriggerView, NotificationView, 
     EngagementTrackerView, FeedbackView, ChatSessionView, 
-    ChatMessageView, RecommendationLogView, InvitationAcceptView, 
+    ChatMessageView, RecommendationLogView, CompleteAccountSetupView, 
     InvitationVerifyView, home, OrganizationSignupView,
     CompleteAccountSetupView, InviteView, EmployeeFirstLoginView,
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
