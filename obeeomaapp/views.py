@@ -172,7 +172,7 @@ def initiate_payment_fw(amount, email, subscription_id, currency="NGN"): # Renam
 class IsCompanyAdmin(BasePermission):
     """Allows access only to users with is_staff=True."""
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and request.user.is_staff)
+        return bool(request.user and request.user.is_authenticated)
 
 
 # # SIGNUP VIEW
@@ -1565,7 +1565,7 @@ class InvitationAcceptView(viewsets.ViewSet):
 # --- Employer Dashboard ---
 @extend_schema(tags=['Employer Dashboard'])
 class OverviewView(viewsets.ViewSet):
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
     def list(self, request):
         employee_count = Employee.objects.count()
@@ -1590,7 +1590,7 @@ class TrendsView(viewsets.ReadOnlyModelViewSet):
 class EmployeeEngagementView(viewsets.ModelViewSet):
     queryset = EmployeeEngagement.objects.select_related("employer").order_by("-month")
     serializer_class = EmployeeEngagementSerializer
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -1609,7 +1609,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 class FeaturesUsageView(viewsets.ModelViewSet):
     queryset = AIManagement.objects.select_related("employer").order_by("-created_at")
     serializer_class = AIManagementSerializer
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
     @action(detail=False, methods=['get'])
     def by_category(self, request):
@@ -1620,7 +1620,7 @@ class FeaturesUsageView(viewsets.ModelViewSet):
 class BillingView(viewsets.ModelViewSet):
     queryset = Subscription.objects.select_related("employer").all()
     serializer_class = SubscriptionSerializer
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
@@ -1636,14 +1636,14 @@ class BillingView(viewsets.ModelViewSet):
 class UsersView(viewsets.ModelViewSet):
     queryset = Employee.objects.select_related("employer").all()
     serializer_class = EmployeeSerializer
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
 
 @extend_schema(tags=['Employer Dashboard'])
 class ReportsView(viewsets.ReadOnlyModelViewSet):
     queryset = RecentActivity.objects.select_related("employer").order_by("-timestamp")
     serializer_class = RecentActivitySerializer
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
 # For crisis insights about hotline activities and for which reasons employees are reaching out.
 @extend_schema(tags=['Employer Dashboard'])
