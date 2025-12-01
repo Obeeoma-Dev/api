@@ -58,7 +58,8 @@ jobs:
         PGUSER: postgres
         PGPASSWORD: postgres
         PGDATABASE: test_db
-        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        PGSSLMODE: disable
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db?sslmode=disable
         SECRET_KEY: test-secret-key-for-ci
         DEBUG: "False"
         ALLOWED_HOSTS: "*"
@@ -72,7 +73,8 @@ jobs:
         PGUSER: postgres
         PGPASSWORD: postgres
         PGDATABASE: test_db
-        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        PGSSLMODE: disable
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db?sslmode=disable
         SECRET_KEY: test-secret-key-for-ci
         DEBUG: "False"
         ALLOWED_HOSTS: "*"
