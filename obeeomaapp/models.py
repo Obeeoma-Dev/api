@@ -7,7 +7,7 @@ from django.utils.text import slugify
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
-
+from datetime import datetime
 User = settings.AUTH_USER_MODEL
 import pyotp
 from cryptography.fernet import Fernet
@@ -250,6 +250,20 @@ class SelfAssessment(models.Model):
 # --- Employee Wellbeing Models ---
 # Mood Tracking model.
 class MoodTracking(models.Model):
+    MOOD_CATEGORIES = {
+    'Ecstatic': 'Positive',
+    'Happy': 'Positive',
+    'Excited': 'Positive',
+    'Content': 'Positive',
+    'Calm': 'Neutral',
+    'Neutral': 'Neutral',
+    'Tired': 'Neutral',
+    'Anxious': 'Negative',
+    'Stressed': 'Negative',
+    'Sad': 'Negative',
+    'Frustrated': 'Negative',
+    'Angry': 'Negative',
+}
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mood_checkins")
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE, null=True, blank=True, related_name="mood_checkins_employee")
     mood = models.CharField(max_length=50, blank=True, null=True)
@@ -752,21 +766,21 @@ class BillingHistory(models.Model):
         ordering = ['-billing_date']
 
 #-- Payment Methods Model. --
-class PaymentMethod(models.Model):
-    """Payment methods for organizations"""
-    employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="payment_methods")
-    card_type = models.CharField(max_length=20)  # Visa, Mastercard, etc.
-    last_four_digits = models.CharField(max_length=4)
-    expiry_month = models.PositiveIntegerField()
-    expiry_year = models.PositiveIntegerField()
-    is_default = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+# class PaymentMethod(models.Model):
+#     """Payment methods for organizations"""
+#     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="payment_methods")
+#     card_type = models.CharField(max_length=20)  # Visa, Mastercard, etc.
+#     last_four_digits = models.CharField(max_length=4)
+#     expiry_month = models.PositiveIntegerField()
+#     expiry_year = models.PositiveIntegerField()
+#     is_default = models.BooleanField(default=False)
+#     created_at = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
-        return f"{self.card_type} ending in {self.last_four_digits}"
+#     def __str__(self):
+#         return f"{self.card_type} ending in {self.last_four_digits}"
 
-    class Meta:
-        ordering = ['-is_default', '-created_at']
+#     class Meta:
+#         ordering = ['-is_default', '-created_at']
 
 #-- Wellness Tests Model. --
 class WellnessTest(models.Model):
@@ -1626,3 +1640,56 @@ class JournalEntry(models.Model):
    updated_at = models.DateTimeField(auto_now=True)
    def __str__(self):
         return f"{self.title} - {self.user.username}"
+
+#Billing and subscription Models
+class PaymentMethod(models.Model):
+    """Payment methods for organizations"""
+    employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="payment_methods")
+    card_type = models.CharField(max_length=20)  # Visa, Mastercard, etc.
+    last_four_digits = models.CharField(max_length=4, blank=False)  # Ensuring this field is required
+    expiry_month = models.PositiveIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(12)],
+        blank=False,  # Making sure this is required
+    )
+    expiry_year = models.PositiveIntegerField(
+        validators=[MinValueValidator(1900), MaxValueValidator(datetime.now().year + 10)],
+        blank=False,  # Making sure this is required
+    )
+    is_default = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE, 
+        related_name='billing_profile',
+        help_text="The associated user/employer account.", blank=True, null=True
+    )
+
+    # The secure token received from Flutterwave (card.token)
+    # This token is used by your server for subsequent recurring charges.
+    token_id = models.CharField(
+        max_length=255,
+        unique=True,
+        help_text="Flutterwave secure card token for recurring payments.", blank=True, null=True
+    )
+
+    def __str__(self):
+        return f"{self.card_type} ending in {self.last_four_digits}"
+
+    class Meta:
+        ordering = ['-is_default', '-created_at']
+# -- PSS-10 Assessment Model. -- for Perceived Stress Scale
+class PSS10Assessment(models.Model):
+    """
+    Stores results of the Perceived Stress Scale (PSS-10) for each user.
+    """
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,related_name="pss10_assessments", blank=True, null=True)
+    score = models.PositiveIntegerField(default=0, blank=True, null=True)  
+    category = models.CharField(max_length=50, blank=True, null=True)  # "Low stress", "Moderate stress", "High stress"
+    responses = models.JSONField(default=list, blank=True, null=True)  # store the 10 responses as a list
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"PSS-10 ({self.user.email}) - {self.score} ({self.category})"

@@ -35,7 +35,7 @@ from obeeomaapp.views import (
      CompleteOnboardingView,
     DynamicQuestionViewSet, UserAchievementViewSet,
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView, CBTExerciseViewSet, SettingsViewSet,
-    JournalEntryViewSet,
+    JournalEntryViewSet, UpdatePaymentMethodViewSet, EmployeeFirstLoginViewSet, PSS10AssessmentViewSet,
 )
 
 
@@ -58,8 +58,10 @@ schema_view = get_schema_view(
 router = DefaultRouter()
 
 # API FOR SIGNING UP AN ORGANIZATION
+router.register(r'assessments/pss10', PSS10AssessmentViewSet, basename='pss10-assessment')
 router.register(r'organization-signup', OrganizationSignupView, basename='organization-signup')
-
+router.register(r'payment-methods', UpdatePaymentMethodViewSet, basename='payment-method')
+router.register(r'employee-first-login', EmployeeFirstLoginViewSet, basename='employee-first-login')
 router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'progress', ProgressViewSet)
