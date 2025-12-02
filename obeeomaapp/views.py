@@ -797,7 +797,18 @@ class InviteView(viewsets.ModelViewSet):
             employer = Employer.objects.first()
         
         if employer:
-            return EmployeeInvitation.objects.filter(employer=employer).order_by('-created_at')
+            queryset = EmployeeInvitation.objects.filter(employer=employer).order_by('-created_at')
+            status_param = self.request.query_params.get('status')
+            now = timezone.now()
+
+            if status_param == 'pending':
+                queryset = queryset.filter(accepted=False, expires_at__gt=now)
+            elif status_param == 'accepted':
+                queryset = queryset.filter(accepted=True)
+            elif status_param == 'expired':
+                queryset = queryset.filter(accepted=False, expires_at__lte=now)
+
+            return queryset
         
         return EmployeeInvitation.objects.none()
     
