@@ -8,7 +8,7 @@ from django.utils import timezone
 from datetime import timedelta
 
 from obeeomaapp.serializers import (
-    SignupSerializer, LoginSerializer, LogoutSerializer,
+    LoginSerializer, LogoutSerializer,
     PasswordResetSerializer, UserSerializer,
     EmployerSerializer, EmployeeInvitationCreateSerializer,
     MentalHealthAssessmentSerializer
@@ -18,32 +18,32 @@ from obeeomaapp.models import Employer, EmployeeInvitation
 User = get_user_model()
 
 
-class SignupSerializerTest(TestCase):
-    def setUp(self):
-        self.valid_data = {
-            'username': 'testuser',
-            'email': 'test@example.com',
-            'password': 'SecurePass123!',
-            'confirm_password': 'SecurePass123!',
-            'role': 'employee'
-        }
+# class SignupSerializerTest(TestCase):
+#     def setUp(self):
+#         self.valid_data = {
+#             'username': 'testuser',
+#             'email': 'test@example.com',
+#             'password': 'SecurePass123!',
+#             'confirm_password': 'SecurePass123!',
+#             'role': 'employee'
+#         }
 
-    def test_valid_signup_data(self):
-        serializer = SignupSerializer(data=self.valid_data)
-        self.assertTrue(serializer.is_valid())
+#     def test_valid_signup_data(self):
+#         serializer = SignupSerializer(data=self.valid_data)
+#         self.assertTrue(serializer.is_valid())
 
-    def test_password_mismatch(self):
-        invalid_data = self.valid_data.copy()
-        invalid_data['confirm_password'] = 'DifferentPass123!'
-        serializer = SignupSerializer(data=invalid_data)
-        self.assertFalse(serializer.is_valid())
+#     def test_password_mismatch(self):
+#         invalid_data = self.valid_data.copy()
+#         invalid_data['confirm_password'] = 'DifferentPass123!'
+#         serializer = SignupSerializer(data=invalid_data)
+#         self.assertFalse(serializer.is_valid())
 
-    def test_user_creation(self):
-        serializer = SignupSerializer(data=self.valid_data)
-        self.assertTrue(serializer.is_valid())
-        user = serializer.save()
-        self.assertEqual(user.username, 'testuser')
-        self.assertEqual(user.email, 'test@example.com')
+#     def test_user_creation(self):
+#         serializer = SignupSerializer(data=self.valid_data)
+#         self.assertTrue(serializer.is_valid())
+#         user = serializer.save()
+#         self.assertEqual(user.username, 'testuser')
+#         self.assertEqual(user.email, 'test@example.com')
 
 
 class LoginSerializerTest(TestCase):

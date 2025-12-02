@@ -172,7 +172,7 @@ def initiate_payment_fw(amount, email, subscription_id, currency="NGN"): # Renam
 class IsCompanyAdmin(BasePermission):
     """Allows access only to users with is_staff=True."""
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and request.user.is_staff)
+        return bool(request.user and request.user.is_authenticated)
 
 
 # # SIGNUP VIEW
@@ -1576,7 +1576,7 @@ class InvitationAcceptView(viewsets.ViewSet):
 # --- Employer Dashboard ---
 @extend_schema(tags=['Employer Dashboard'])
 class OverviewView(viewsets.ViewSet):
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
     def list(self, request):
         employee_count = Employee.objects.count()
@@ -1601,7 +1601,7 @@ class TrendsView(viewsets.ReadOnlyModelViewSet):
 class EmployeeEngagementView(viewsets.ModelViewSet):
     queryset = EmployeeEngagement.objects.select_related("employer").order_by("-month")
     serializer_class = EmployeeEngagementSerializer
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -1620,7 +1620,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 class FeaturesUsageView(viewsets.ModelViewSet):
     queryset = AIManagement.objects.select_related("employer").order_by("-created_at")
     serializer_class = AIManagementSerializer
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
     @action(detail=False, methods=['get'])
     def by_category(self, request):
@@ -1631,7 +1631,7 @@ class FeaturesUsageView(viewsets.ModelViewSet):
 class BillingView(viewsets.ModelViewSet):
     queryset = Subscription.objects.select_related("employer").all()
     serializer_class = SubscriptionSerializer
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
@@ -1647,14 +1647,14 @@ class BillingView(viewsets.ModelViewSet):
 class UsersView(viewsets.ModelViewSet):
     queryset = Employee.objects.select_related("employer").all()
     serializer_class = EmployeeSerializer
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
 
 @extend_schema(tags=['Employer Dashboard'])
 class ReportsView(viewsets.ReadOnlyModelViewSet):
     queryset = RecentActivity.objects.select_related("employer").order_by("-timestamp")
     serializer_class = RecentActivitySerializer
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
 # For crisis insights about hotline activities and for which reasons employees are reaching out.
 @extend_schema(tags=['Employer Dashboard'])
@@ -1723,9 +1723,7 @@ class AvatarProfileView(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return AvatarProfile.objects.filter(employee__user=self.request.user)
-
-
-
+# updated mood tracking view with mood summary action
 @extend_schema(tags=['Employee - Mood Tracking'])
 class MoodTrackingView(viewsets.ModelViewSet):
     serializer_class = MoodTrackingSerializer
@@ -1734,12 +1732,36 @@ class MoodTrackingView(viewsets.ModelViewSet):
     search_fields = ['note']
 
     def get_queryset(self):
-        # FIXED: Return MoodTracking objects, not EmployeeProfile
         return MoodTracking.objects.filter(employee__user=self.request.user)
 
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(user=self.request.user, employee=employee)
+
+    @action(detail=False, methods=['get'], url_path='mood-summary')
+    def mood_summary(self, request):
+        employee = get_object_or_404(EmployeeProfile, user=request.user)
+        today = now().date()
+        start_date = today - timedelta(days=6)  # Last 7 days
+
+        # Aggregate moods per day
+        mood_data = (
+            MoodTracking.objects
+            .filter(employee=employee, created_at__date__gte=start_date)
+            .values('created_at__date', 'mood')
+            .annotate(count=Count('id'))
+        )
+
+        # Format response
+        summary = {}
+        for entry in mood_data:
+            day = entry['created_at__date'].strftime('%a')  # e.g. 'Mon'
+            mood = entry['mood']
+            count = entry['count']
+            summary.setdefault(day, {}).update({mood: count})
+
+        return Response(summary)
+
 @extend_schema(tags=['Employee - Assessments'])
 @extend_schema(tags=['Resources'])
 class SelfHelpResourceView(viewsets.ModelViewSet):
@@ -4004,3 +4026,151 @@ class CBTExerciseViewSet(viewsets.ModelViewSet):
             from django.utils import timezone
             instance.completed_at = timezone.now()
             instance.save()
+
+from rest_framework import viewsets, status
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from drf_spectacular.utils import extend_schema
+
+# --- Payment Method Update ---
+class UpdatePaymentMethodViewSet(viewsets.ViewSet):
+    """
+    API endpoint to receive the new Flutterwave card token and update 
+    the user's stored payment method for recurring billing.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        """POST /payment-methods/"""
+        user = request.user
+        serializer = PaymentTokenSerializer(data=request.data)
+
+        if serializer.is_valid():
+            validated_data = serializer.validated_data
+            token_id = validated_data['token_id']
+            card_last_four = validated_data.get('card_last_four')
+            card_type = validated_data.get('card_type')
+
+            try:
+                payment_method, created = PaymentMethod.objects.update_or_create(
+                    user=user,
+                    defaults={
+                        'token_id': token_id,
+                        'card_last_four': card_last_four,
+                        'card_type': card_type,
+                        'is_active': True
+                    }
+                )
+
+                response_message = (
+                    "New payment method successfully created."
+                    if created else "Payment method successfully updated."
+                )
+
+                return Response(
+                    {"message": response_message, "token_id": token_id},
+                    status=status.HTTP_200_OK
+                )
+
+            except Exception as e:
+                print(f"Database error during payment update: {e}")
+                return Response(
+                    {"detail": "A server error occurred while saving the payment token."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# --- Employee First Login ---
+@extend_schema(tags=['Employee Invitations'])
+class EmployeeFirstLoginViewSet(viewsets.ViewSet):
+    """
+    Handle first login with temporary credentials
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        request=EmployeeFirstLoginSerializer,
+        responses={
+            200: {
+                "description": "First login successful",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "message": "First login successful. Please complete your account setup.",
+                            "token": "abc123xyz",
+                            "email": "employee@company.com",
+                            "employer": "Company Name"
+                        }
+                    }
+                }
+            },
+            400: {"description": "Invalid credentials"}
+        },
+        description="""
+        First login endpoint for employees using temporary credentials from invitation email.
+        
+        After successful authentication with temporary credentials:
+        - The credentials are marked as used (cannot be reused)
+        - A token is returned for completing account setup
+        - User must then call the account completion endpoint
+        """
+    )
+    def create(self, request, *args, **kwargs):
+        """POST /employee-first-login/"""
+        serializer = EmployeeFirstLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        invitation = serializer.validated_data['invitation']
+        invitation.credentials_used = True
+        invitation.save()
+
+        return Response({
+            'message': 'First login successful. Please complete your account setup.',
+            'token': invitation.token,
+            'email': invitation.email,
+            'employer': invitation.employer.name,
+            'invited_by': invitation.invited_by.email if invitation.invited_by else 'Unknown'
+        }, status=status.HTTP_200_OK)
+
+
+@extend_schema(tags=['Assessments'])
+class PSS10AssessmentViewSet(viewsets.ViewSet):
+    """
+    API endpoint for Perceived Stress Scale (PSS-10).
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=PSS10AssessmentSerializer,
+        responses={200: {"description": "Assessment completed"}}
+    )
+    def create(self, request, *args, **kwargs):
+        serializer = PSS10AssessmentSerializer(data=request.data)
+        if serializer.is_valid():
+            responses = serializer.validated_data['responses']
+            score = sum(responses)
+
+            if score <= 13:
+                category = "Low stress"
+            elif 14 <= score <= 26:
+                category = "Moderate stress"
+            else:
+                category = "High stress"
+
+            # Save result
+            PSS10Assessment.objects.create(
+                user=request.user,
+                score=score,
+                category=category,
+                responses=responses
+            )
+
+            return Response({
+                "score": score,
+                "category": category,
+                "message": f"Your stress level is {category.lower()}."
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
