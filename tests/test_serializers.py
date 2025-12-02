@@ -433,8 +433,6 @@ class EmployeeInvitationCreateSerializerTest(TestCase):
 #         self.assertTrue(serializer.is_valid())  # Should still be valid
 #         with self.assertRaises(ValidationError):
 #             serializer.validate(data)
-#         with self.assertRaises(ValidationError):
-#             serializer.validate(data)
 
 
 class SubscriptionSerializerTest(TestCase):
@@ -655,26 +653,6 @@ class ChatSessionSerializerTest(TestCase):
 #         self.assertEqual(serializer.data['mood_score'], 8)
 #         self.assertEqual(serializer.data['notes'], 'Good day today')
 #         self.assertIn('date', serializer.data)
-# DISABLED - Progress model has duplicate fields (date and mood_score defined twice)
-# This causes database issues
-# class ProgressSerializerTest(TestCase):
-#     def setUp(self):
-#         self.user = User.objects.create_user(
-#             username='testuser',
-#             email='test@example.com',
-#             password='testpass123'
-#         )
-#         self.progress = Progress.objects.create(
-#             user=self.user,
-#             mood_score=8,
-#             notes='Good day today'
-#         )
-# 
-#     def test_progress_serialization(self):
-#         serializer = ProgressSerializer(instance=self.progress)
-#         self.assertEqual(serializer.data['mood_score'], 8)
-#         self.assertEqual(serializer.data['notes'], 'Good day today')
-#         self.assertIn('date', serializer.data)
 
 
 class PlatformMetricsSerializerTest(TestCase):
@@ -866,7 +844,6 @@ class SerializerEdgeCasesTest(TestCase):
     def test_empty_data_validation(self):
         """Test serializers with empty data"""
         serializers_to_test = [
-          
           
             (LoginSerializer, {}),
             (PasswordResetSerializer, {}),

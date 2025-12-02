@@ -18,7 +18,7 @@ urlpatterns = [
     
     # API v1 routes (from obeeomaapp)
     path("api/v1/", include(("obeeomaapp.urls", "obeeomaapp"), namespace="v1")),
-
+    path('', include('obeeomaapp.urls')),    
     # Schema & Docs
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
