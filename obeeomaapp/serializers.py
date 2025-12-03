@@ -405,11 +405,11 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
 
 class NotificationSerializer(serializers.ModelSerializer):
-    is_read = serializers.BooleanField(source='read', read_only=True)
+    is_read = serializers.BooleanField(source='read', read_only=True)  # Add this field
     
     class Meta:
         model = Notification
-        fields = ['id', 'employee', 'message', 'sent_on', 'read', 'is_read']
+        fields = ['id', 'employee', 'message', 'sent_on', 'read', 'is_read']  # Include both
         read_only_fields = ['employee', 'sent_on']
 
 class AIManagementSerializer(serializers.ModelSerializer):
@@ -1339,6 +1339,7 @@ class DynamicQuestionSerializer(serializers.ModelSerializer):
     class Meta:
         model = DynamicQuestion
         fields = ['id', 'text', 'category', 'is_active', 'created_at']
+
 
 # ===== ASSESSMENT QUESTIONNAIRE SERIALIZERS =====
 

@@ -4134,43 +4134,41 @@ class EmployeeFirstLoginViewSet(viewsets.ViewSet):
             'invited_by': invitation.invited_by.email if invitation.invited_by else 'Unknown'
         }, status=status.HTTP_200_OK)
 
-
 @extend_schema(tags=['Assessments'])
-class PSS10AssessmentViewSet(viewsets.ViewSet):
+class PSS10AssessmentViewSet(viewsets.ModelViewSet):
     """
-    API endpoint for Perceived Stress Scale (PSS-10).
+    Full CRUD API endpoint for Perceived Stress Scale (PSS-10).
+    Supports: GET, POST, PUT, PATCH, DELETE
     """
     permission_classes = [IsAuthenticated]
+    serializer_class = PSS10AssessmentSerializer
+    queryset = PSS10Assessment.objects.all()
+
+    def get_queryset(self):
+        # Return only assessments for the logged-in user
+        return PSS10Assessment.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        # Calculate score and category before saving
+        responses = serializer.validated_data['responses']
+        score = sum(responses)
+
+        if score <= 13:
+            category = "Low stress"
+        elif 14 <= score <= 26:
+            category = "Moderate stress"
+        else:
+            category = "High stress"
+
+        serializer.save(
+            user=self.request.user,
+            score=score,
+            category=category
+        )
 
     @extend_schema(
         request=PSS10AssessmentSerializer,
-        responses={200: {"description": "Assessment completed"}}
+        responses={200: PSS10AssessmentSerializer}
     )
     def create(self, request, *args, **kwargs):
-        serializer = PSS10AssessmentSerializer(data=request.data)
-        if serializer.is_valid():
-            responses = serializer.validated_data['responses']
-            score = sum(responses)
-
-            if score <= 13:
-                category = "Low stress"
-            elif 14 <= score <= 26:
-                category = "Moderate stress"
-            else:
-                category = "High stress"
-
-            # Save result
-            PSS10Assessment.objects.create(
-                user=request.user,
-                score=score,
-                category=category,
-                responses=responses
-            )
-
-            return Response({
-                "score": score,
-                "category": category,
-                "message": f"Your stress level is {category.lower()}."
-            }, status=status.HTTP_200_OK)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return super().create(request, *args, **kwargs)
