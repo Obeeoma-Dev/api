@@ -143,7 +143,6 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 CORS_ALLOWED_ORIGINS = [
     "http://64.225.122.101:8000",      # Production backend (DigitalOcean)
     "http://64.225.122.101",           # Production frontend (DigitalOcean)
-    "http://localhost:5173/",
 ]
 
 # Additional CORS settings
