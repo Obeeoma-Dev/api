@@ -30,7 +30,7 @@ from rest_framework.permissions import (
     IsAuthenticated,
     BasePermission,
     IsAuthenticatedOrReadOnly,
-    AllowAny,
+    AllowAny, 
 )
 
 import django_filters
@@ -77,7 +77,7 @@ from django.core.mail import send_mail, EmailMultiAlternatives
 from .utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings
 from django.utils import timezone
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,now
 import secrets
 from rest_framework import filters
 import string
@@ -1143,7 +1143,7 @@ class CompleteAccountSetupView(APIView):
     """
     Complete account setup after first login with temporary credentials
     """
-    permission_classes = [AllowAny]  # Allow unauthenticated access for signup
+    permission_classes = [IsAuthenticated]  # changed this to IsAuthenticated because the user is already in with the temp crendtials so the system marks that user as authenticated
     
     @extend_schema(
         request=EmployeeInvitationAcceptSerializer,
