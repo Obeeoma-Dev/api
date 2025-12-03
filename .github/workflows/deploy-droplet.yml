@@ -20,7 +20,7 @@ jobs:
         username: ${{ secrets.DROPLET_USERNAME }}
         key: ${{ secrets.DROPLET_SSH_KEY }}
         script: |
-          cd ~/api
+          cd ~/obeeoma_project/api
           git pull origin main
           docker-compose down
           docker-compose build --no-cache
@@ -37,5 +37,6 @@ jobs:
         username: ${{ secrets.DROPLET_USERNAME }}
         key: ${{ secrets.DROPLET_SSH_KEY }}
         script: |
+          cd ~/obeeoma_project/api
           docker ps
           docker-compose logs --tail=50 backend
