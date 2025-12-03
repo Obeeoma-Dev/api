@@ -1,10 +1,9 @@
 name: Deploy to DigitalOcean Droplet
 
-# DISABLED - Not deploying yet, shifting to DigitalOcean soon
 on:
-  workflow_dispatch:  # Only run manually
-  # push:
-  #   branches: [ main ]
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Can also run manually
 
 jobs:
   deploy:
@@ -21,11 +20,13 @@ jobs:
         username: ${{ secrets.DROPLET_USERNAME }}
         key: ${{ secrets.DROPLET_SSH_KEY }}
         script: |
-          cd /home/deploy/api
+          cd ~/api
           git pull origin main
           docker-compose down
           docker-compose build --no-cache
           docker-compose up -d
+          docker-compose exec -T backend python manage.py migrate --noinput
+          docker-compose exec -T backend python manage.py collectstatic --noinput
           docker system prune -f
           echo "Deployment completed successfully!"
 

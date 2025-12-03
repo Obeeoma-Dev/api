@@ -148,7 +148,7 @@ def initiate_payment_fw(amount, email, subscription_id, currency="NGN"): # Renam
         "tx_ref": tx_ref,
         "amount": str(amount), 
         "currency": currency,
-        "redirect_url": f"http://127.0.0.1:8000/api/billing/confirm_payment/?sub_ref={subscription_id}",
+        "redirect_url": f"http://64.225.122.101:8000/api/v1/billing/verify_payment/?sub_ref={subscription_id}",
         # "redirect_url": f"{FRONTEND_SUCCESS_URL}?tx_ref={tx_ref}", 
         "meta": {
           "subscription_id": subscription_id, # Pass  internal reference
@@ -905,7 +905,7 @@ class InviteView(viewsets.ModelViewSet):
         
         # Send invitation email with temporary credentials
         try:
-            login_url = f"{settings.FRONTEND_URL}/auth/first-login" if hasattr(settings, 'FRONTEND_URL') else f"http://localhost:3000/auth/first-login"
+            login_url = f"{settings.FRONTEND_URL}/auth/first-login" if hasattr(settings, 'FRONTEND_URL') else f"http://64.225.122.101/auth/first-login"
             
             subject = f"🎉 Welcome to {employer.name} on Obeeoma!"
             
@@ -1080,7 +1080,7 @@ The Obeeoma Team
             </div>
             
             <div class="credentials">
-                <h3>🔑 Your One-Time Login Credentials</h3>
+                <h3>Your One-Time Login Credentials</h3>
                 <div class="cred-row">
                     <span class="cred-label">Token</span>
                     <span class="cred-value">{invitation.token}</span>
