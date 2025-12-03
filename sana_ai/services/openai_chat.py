@@ -6,25 +6,56 @@ It uses Hugging Face Transformers to load the model and tokenizer, and exposes a
 single function `get_chat_response(prompt: str)` for generating responses.
 """
 
-from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 from typing import Optional
 
-# Load the tokenizer from the TinyLlama chat-tuned model
-tokenizer = AutoTokenizer.from_pretrained(
-    "TinyLlama/TinyLlama-1.1B-Chat-v1.0", trust_remote_code=True
-)
+# Lazy-load heavy ML dependencies (transformers, torch) to avoid import-time
+# failures when the environment doesn't have them installed. The actual model
+# and tokenizer will be loaded on-demand the first time `get_chat_response`
+# is called.
 
-# Load the model from the same checkpoint
-model = AutoModelForCausalLM.from_pretrained(
-    "TinyLlama/TinyLlama-1.1B-Chat-v1.0", trust_remote_code=True
-)
+# Module-level caches for the tokenizer/model/pipeline
+_tokenizer = None
+_model = None
+_chat_pipeline = None
 
-# Create a text-generation pipeline using the model and tokenizer
-chat_pipeline = pipeline(
-    task="text-generation",  # Specifies the type of generation
-    model=model,
-    tokenizer=tokenizer,
-)
+
+def _ensure_model_loaded():
+    """Load transformers and the TinyLlama model/tokenizer on first use.
+
+    Raises:
+        RuntimeError: if the `transformers` package (or its dependencies) is
+            missing. The message contains actionable guidance for installing
+            the required packages.
+    """
+    global _tokenizer, _model, _chat_pipeline
+
+    if _chat_pipeline is not None:
+        return
+
+    try:
+        from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "The 'transformers' package is required to run the local TinyLlama "
+            "model. Install it in your environment (e.g. add 'transformers', "
+            "'sentencepiece' and an appropriate 'torch' wheel to requirements.txt) "
+            "or switch to a hosted inference API. Original error: %s" % exc
+        )
+
+    # Load the tokenizer and model lazily
+    _tokenizer = AutoTokenizer.from_pretrained(
+        "TinyLlama/TinyLlama-1.1B-Chat-v1.0", trust_remote_code=True
+    )
+
+    _model = AutoModelForCausalLM.from_pretrained(
+        "TinyLlama/TinyLlama-1.1B-Chat-v1.0", trust_remote_code=True
+    )
+
+    _chat_pipeline = pipeline(
+        task="text-generation",
+        model=_model,
+        tokenizer=_tokenizer,
+    )
 
 
 def get_chat_response(prompt: str, max_tokens: Optional[int] = 200) -> str:
@@ -38,11 +69,14 @@ def get_chat_response(prompt: str, max_tokens: Optional[int] = 200) -> str:
     Returns:
         str: The model's generated response, cleaned of prompt prefix.
     """
+    # Ensure the model and tokenizer are available (or raise a helpful error)
+    _ensure_model_loaded()
+
     # Format the prompt to simulate a chat conversation
     formatted_prompt = f"User: {prompt}\nAssistant:"
 
     # Generate the response using the pipeline
-    result = chat_pipeline(
+    result = _chat_pipeline(
         formatted_prompt,
         max_new_tokens=max_tokens,
         temperature=0.8,  # Controls creativity

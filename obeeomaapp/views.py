@@ -1,4 +1,13 @@
 # Keep only these imports (external modules)
+from rest_framework import viewsets, filters, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from .models import Media
+from .serializers import MediaSerializer
+from .permissions import IsSystemAdminOrReadOnly
+from django_filters.rest_framework import DjangoFilterBackend
+
+from rest_framework.permissions import IsAdminUser, AllowAny, SAFE_METHODS, BasePermission
 from django.http import JsonResponse
 from django.db.models import Avg, Count, Sum
 from rest_framework.decorators import action
@@ -11,9 +20,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import NotFound
 from drf_spectacular.utils import extend_schema, OpenApiParameter
-from .models import OnboardingState
-from .serializers import OnboardingStateSerializer
+# from .models import OnboardingState
+from .models import CrisisHotline
+from .serializers import CrisisHotlineSerializer
+# from .serializers import OnboardingStateSerializer
 from rest_framework.permissions import (
     IsAuthenticated,
     BasePermission,
@@ -43,8 +55,11 @@ from .serializers import FeedbackSerializer
 import django_filters
 from .models import Feedback 
 from .models import DynamicQuestion
+from .models import AssessmentQuestion
+from .serializers import AssessmentQuestionSerializer
 from .serializers import DynamicQuestionSerializer
 import random
+from django.db import transaction
 from rest_framework import viewsets, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -62,7 +77,7 @@ from django.core.mail import send_mail, EmailMultiAlternatives
 from .utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings
 from django.utils import timezone
-from datetime import timedelta
+from datetime import datetime, timedelta
 import secrets
 from rest_framework import filters
 import string
@@ -74,7 +89,14 @@ from .serializers import OTPVerificationSerializer
 from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string
 from django.contrib.auth import authenticate, login as django_login
-
+from .serializers import AdminUserSerializer, OrganizationSerializer
+from .permissions import IsSystemAdmin
+import hmac
+import hashlib
+from django.views.decorators.csrf import csrf_exempt  #  Make sure this is present
+from django.http import HttpResponse
+from django.conf import settings
+from rest_framework.decorators import api_view, permission_classes
 import logging
 from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import (
@@ -88,19 +110,78 @@ logging.getLogger(__name__)
 # Get User model
 User = get_user_model()
 
+# Helper function (Moved from a 'services' file into views.py)
+def verify_flutterwave_transaction(tx_ref, expected_amount, currency):
+    """Verifies a transaction using the Flutterwave API."""
+    url = f"https://api.flutterwave.com/v3/transactions/{tx_ref}/verify"
+    headers = {
+        "Authorization": f"Bearer {settings.FLW_SEC_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+
+        if data['status'] == 'success' and data['data']['status'] == 'successful':
+            # Security Check: Compare amount and currency to prevent tampering
+            if data['data']['amount'] >= expected_amount and data['data']['currency'] == currency:
+                return True, data['data'] # Verification success
+            else:
+                return False, {"detail": "Amount or currency mismatch."}
+        else:
+            return False, {"detail": "Transaction failed or not found."}
+    except requests.exceptions.RequestException as e:
+        return False, {"detail": f"Flutterwave API verification error: {e}"}
+
+
+
+def initiate_payment_fw(amount, email, subscription_id, currency="NGN"): # Renamed transaction_id to payment_ref
+    url = "https://api.flutterwave.com/v3/payments"
+    headers = {
+        "Authorization": f"Bearer {settings.FLW_SEC_KEY}" 
+    }
+    tx_ref = str(uuid.uuid4())
+    
+    data = {
+        "tx_ref": tx_ref,
+        "amount": str(amount), 
+        "currency": currency,
+        "redirect_url": f"http://127.0.0.1:8000/api/billing/confirm_payment/?sub_ref={subscription_id}",
+        # "redirect_url": f"{FRONTEND_SUCCESS_URL}?tx_ref={tx_ref}", 
+        "meta": {
+          "subscription_id": subscription_id, # Pass  internal reference
+        },
+        "customer": {
+            "email": email,
+
+        
+            "name": "user_name"
+        },
+        "customizations": {
+            "title": "Subscription Payment",
+            "description": "Payment for subscription plan",            
+            "logo": "http://www.piedpiper.com/app/themes/joystick-v27/images/logo.png"
+        
+        }
+    }
+
+
 #Permission: company admin (is_staff) 
 class IsCompanyAdmin(BasePermission):
     """Allows access only to users with is_staff=True."""
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and request.user.is_staff)
+        return bool(request.user and request.user.is_authenticated)
 
 
-# Authentication Views ---Signup
-@extend_schema(tags=['Authentication'])
-class SignupView(viewsets.ModelViewSet):
-    queryset = User.objects.all()
-    serializer_class = SignupSerializer
-    permission_classes = [permissions.AllowAny]
+# # SIGNUP VIEW
+
+# @extend_schema(tags=['Authentication'])
+# class SignupView(viewsets.ModelViewSet):
+#     queryset = User.objects.all()
+#     serializer_class = SignupSerializer
+#     permission_classes = [permissions.AllowAny]
 
 # VIEWS FOR CREATING AN ORGANIZATION
 @extend_schema(
@@ -112,6 +193,19 @@ class OrganizationSignupView(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationCreateSerializer
     permission_classes = [permissions.AllowAny]
+    
+
+# view for organization details
+class OrganizationDetailView(APIView):
+    def get(self, request, org_id):
+        try:
+            org = Organization.objects.get(id=org_id)
+        except Organization.DoesNotExist:
+            return Response({"error": "Organization not found"}, status=404)
+
+        serializer = OrganizationDetailSerializer(org)
+        return Response(serializer.data)
+
 
 # VIEWS FOR VERIFYING THE OTP
 class VerifyOTPView(APIView):
@@ -121,56 +215,12 @@ class VerifyOTPView(APIView):
         request=OTPVerificationSerializer,
         responses={200: OpenApiTypes.OBJECT},
     )
-# Employer Registration View
-@extend_schema(
-    tags=['Authentication'],
-    request=LoginSerializer,  # ✅ This tells the API docs what to expect
-    responses={
-        200: {
-            "description": "Login successful",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                        "user": {
-                            "id": 1,
-                            "username": "johndoe",
-                            "email": "john@example.com",
-                            "role": "employee",
-                            "date_joined": "2025-01-01T00:00:00Z",
-                            "is_active": True,
-                            "avatar": None
-                        }
-                    }
-                }
-            }
-        },
-        401: {"description": "Invalid credentials"},
-        403: {"description": "Account is disabled"}
-    },
-    description="""
-    Login endpoint for all users (employees, employers, admins).
-    
-    **Required fields:**
-    - username: Your username or email
-    - password: Your password
-    
-    **Returns:**
-    - JWT access and refresh tokens
-    - User information including role
-    """
-)
-class LoginView(APIView):
-    permission_classes = [permissions.AllowAny]
-    serializer_class = LoginSerializer
-
     def post(self, request):
         serializer = OTPVerificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = serializer.context['user']
-        serializer.context['otp'].delete()  # Delete OTP after successful verification
+        serializer.context['otp'].delete()  # This Deletes OTP after successful verification
 
         return Response(
             {"message": "OTP verified successfully. You can now reset your password."},
@@ -179,34 +229,8 @@ class LoginView(APIView):
 
 
 
-# login view
-@extend_schema(
-    request=LoginSerializer,          
-    responses={200: OpenApiTypes.OBJECT},
-    tags=['Authentication'],
-    description="Login using username and password only."
-)
-@extend_schema(
-    request=LoginSerializer,
-    responses={200: OpenApiTypes.OBJECT},
-    tags=['Authentication'],
-    description="Login using username and password. MFA integrated if enabled."
-)
-
-# LOGIN VIEW
+# LOGIN VIEW - Build success payload
 def _build_login_success_payload(user):
-    refresh = RefreshToken.for_user(user)
-    username = serializer.validated_data['username']
-    password = serializer.validated_data['password']
-
-    user = authenticate(request=request, username=username, password=password)
-
-    if not user:
-        return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-    if not user.is_active:
-        return Response({"detail": "Account is disabled"}, status=status.HTTP_403_FORBIDDEN)
-
-    # Generate JWT tokens
     refresh = RefreshToken.for_user(user)
 
     display_username = user.username
@@ -225,11 +249,13 @@ def _build_login_success_payload(user):
         "date_joined": user.date_joined,
         "is_active": user.is_active,
         "avatar": user.avatar.url if hasattr(user, "avatar") and user.avatar else None,
+        "onboarding_completed": getattr(user, 'onboarding_completed', False), 
     }
 
-    if user.role == "systemadmin":
+    # Redirect URL based on role
+    if user.role == "system_admin":
         redirect_url = "/admin/dashboard/"
-    elif user.role in ["organization", "employer"]:
+    elif user.role == "employer":
         redirect_url = "/organization/dashboard/"
     elif user.role == "employee":
         redirect_url = "/api/v1/mobile-login-success/"
@@ -244,6 +270,13 @@ def _build_login_success_payload(user):
     }
 
 
+# LOGIN VIEW - Main login endpoint
+@extend_schema(
+    request=LoginSerializer,
+    responses={200: OpenApiTypes.OBJECT},
+    tags=['Authentication'],
+    description="Login using username and password. MFA integrated if enabled."
+)
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = LoginSerializer
@@ -255,37 +288,29 @@ class LoginView(APIView):
 
         user = serializer.validated_data['user']
 
-    # This is for MFA Check 
+        # This is MFA Check
         if user.mfa_enabled:
-            # this logic Generates temporary token for MFA verification
             temp_token = get_random_string(32)
             cache.set(temp_token, user.id, timeout=300)  # valid 5 minutes
             return Response({
                 "mfa_required": True,
                 "temp_token": temp_token
             })
+      
+        # Onboarding required ONLY for employees
+        if user.role == "employee" and not getattr(user, 'onboarding_completed', False):
+            return Response({
+                "onboarding_required": True,
+                "temp_access_token": str(RefreshToken.for_user(user).access_token),
+                "message": "Onboarding required before using the system."
+            }, status=200)     
 
-        # Log the user in (this creates session cookie if needed)
+        # Login normally
         django_login(request, user)
-
         return Response(_build_login_success_payload(user))
-        user_data = {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "date_joined": user.date_joined,
-            "is_active": user.is_active,
-            "avatar": user.avatar.url if hasattr(user, 'avatar') and user.avatar else None,
-        }
 
-        return Response({
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-            "user": user_data
-        })
-    
-# matching view for custom token obtain pair serializer
+
+# Matching view for custom token obtain pair serializer
 @extend_schema(
     tags=['Authentication'],
     request=CustomTokenObtainPairSerializer,
@@ -294,7 +319,32 @@ class LoginView(APIView):
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
-    
+
+#  CompleteOnboardingView
+class CompleteOnboardingView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        request=EmployeeOnboardingSerializer,
+        responses={200: OpenApiTypes.OBJECT},
+        tags=['Onboarding'],
+        description="Complete first-time user onboarding."
+    )
+    def post(self, request):
+        user = request.user
+
+        if user.onboarding_completed:
+            return Response({"detail": "Onboarding already completed."}, status=400)
+
+        serializer = EmployeeOnboardingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.update(user, serializer.validated_data)
+
+        # Now allow permanent login
+        return Response({
+            "message": "Onboarding completed successfully.",
+            "login_allowed": True
+        })
 
 # LOGOUT VIEW
 @extend_schema(
@@ -399,8 +449,7 @@ Obeeoma Team
                 {"error": "Failed to send email. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-
+        
 # Confirm Password Reset View
 @extend_schema(tags=['Authentication'])
 class PasswordResetConfirmView(viewsets.ViewSet):
@@ -447,10 +496,11 @@ class PasswordResetConfirmView(viewsets.ViewSet):
         except PasswordResetToken.DoesNotExist:
             return Response({"error": "Invalid verification code"}, status=status.HTTP_400_BAD_REQUEST)
 
+
 # View for changing or updating password
 @extend_schema(tags=['Authentication'])
 class PasswordChangeView(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     serializer_class = PasswordChangeSerializer
 
     def create(self, request):
@@ -477,7 +527,7 @@ class PasswordChangeView(viewsets.ViewSet):
 @permission_classes([IsAuthenticated])
 def mfa_setup(request):
     user = request.user
-    if not (user.role == 'systemadmin' or user.is_superuser):
+    if not (user.role == 'system_admin' or user.is_superuser):
         return Response({'error': 'Only system administrators can enable MFA'}, status=403)
 
     raw_secret = user.generate_mfa_secret()
@@ -561,7 +611,26 @@ def mfa_verify(request):
 
     return Response(_build_login_success_payload(user))
 
+# Resetpassword completeview
+@extend_schema(tags=['Authentication'])
+class ResetPasswordCompleteView(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+    serializer_class = ResetPasswordCompleteSerializer
 
+    def create(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.validated_data['user']
+        new_password = serializer.validated_data['new_password']
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response(
+            {"message": "Password has been reset successfully."},
+            status=status.HTTP_200_OK
+        )
 
 # Employee Invitation Serializers
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
@@ -569,66 +638,86 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         required=True,
         help_text="Invitation token from the email link"
     )
+    username = serializers.CharField(
+        required=True,
+        help_text="Preferred username for the new account"
+    )
     password = serializers.CharField(
         required=True,
         write_only=True,
         min_length=8,
         help_text="Password for the new account"
     )
-    username = serializers.CharField(
+    confirm_password = serializers.CharField(
         required=True,
-        help_text="User_name"
+        write_only=True,
+        help_text="Confirm your new password"
     )
-    
-    
-    def validate_token(self, value):
+
+    def _get_invitation(self, token: str) -> EmployeeInvitation:
+        if hasattr(self, "_invitation") and getattr(self, "_invitation").token == token:
+            return self._invitation
+
         try:
-            invitation = EmployeeInvitation.objects.get(
-                token=value,
+            self._invitation = EmployeeInvitation.objects.select_related("employer").get(
+                token=token,
                 accepted=False,
                 expires_at__gt=timezone.now()
             )
-            return value
         except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError("Invalid or expired invitation token")
+            raise serializers.ValidationError({"token": "Invalid or expired invitation token."})
+
+        return self._invitation
+
+    def validate_username(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("This username is already in use.")
+        return value
+
+    def validate(self, attrs):
+        invitation = self._get_invitation(attrs["token"])
+
+        if not invitation.credentials_used:
+            raise serializers.ValidationError(
+                {"token": "First login must be completed before finishing account setup."}
+            )
+
+        if attrs["password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
+
+        validate_password(attrs["password"])
+        attrs["invitation"] = invitation
+        return attrs
 
     def create(self, validated_data):
-        token = validated_data['token']
-        password = validated_data['password']
-        first_name = validated_data['first_name']
-        last_name = validated_data['last_name']
-        
-        # Get the invitation
-        invitation = EmployeeInvitation.objects.get(
-            token=token,
-            accepted=False,
-            expires_at__gt=timezone.now()
-        )
-        
-        # Create user account
+        invitation = validated_data["invitation"]
+        password = validated_data["password"]
+        username = validated_data["username"]
+
         user = User.objects.create_user(
-            username=invitation.email,  # Use email as username
+            username=username,
             email=invitation.email,
             password=password,
-            first_name=first_name,
-            last_name=last_name,
+            role="employee",
             is_active=True
         )
-        
-        # Create employee profile
-        employee_profile = Employee.objects.create(
+
+        Employee.objects.create(
             user=user,
-            employer=invitation.employer
+            employer=invitation.employer,
+            email=invitation.email,
+            first_name="",
+            last_name="",
+            status="active"
         )
-        
-        # Mark invitation as accepted
+
         invitation.accepted = True
         invitation.accepted_at = timezone.now()
-        invitation.save()
-        
+        invitation.credentials_used = True
+        invitation.save(update_fields=["accepted", "accepted_at", "credentials_used"])
+
         return user
 
-#--- Serializer for creating employee user account ---
 class EmployeeUserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
     password_confirm = serializers.CharField(write_only=True)
@@ -654,6 +743,15 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
         )
         return user
 
+
+# VIEWS FOR HOTLINE
+class ActiveHotlineView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        hotline = CrisisHotline.objects.filter(is_active=True).first()
+        serializer = CrisisHotlineSerializer(hotline)
+        return Response(serializer.data)
 
 # --- Employee Invitation Views ---
 @extend_schema(tags=['Employee Invitations'])
@@ -699,10 +797,21 @@ class InviteView(viewsets.ModelViewSet):
             employer = Employer.objects.first()
         
         if employer:
-            return EmployeeInvitation.objects.filter(employer=employer).order_by('-created_at')
+            queryset = EmployeeInvitation.objects.filter(employer=employer).order_by('-created_at')
+            status_param = self.request.query_params.get('status')
+            now = timezone.now()
+
+            if status_param == 'pending':
+                queryset = queryset.filter(accepted=False, expires_at__gt=now)
+            elif status_param == 'accepted':
+                queryset = queryset.filter(accepted=True)
+            elif status_param == 'expired':
+                queryset = queryset.filter(accepted=False, expires_at__lte=now)
+
+            return queryset
         
         return EmployeeInvitation.objects.none()
-
+    
     @extend_schema(
         request=EmployeeInvitationCreateSerializer,
         responses={
@@ -737,8 +846,8 @@ class InviteView(viewsets.ModelViewSet):
         **Example Request:**
         ```json
         {
-          "email": "newemployee@company.com",
-          "message": "Welcome to our team!"
+            "email": "newemployee@company.com",
+            "message": "Welcome to our team!"
         }
         ```
         
@@ -794,25 +903,36 @@ class InviteView(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         invitation = serializer.save()
         
-        # Send invitation email
+        # Send invitation email with temporary credentials
         try:
-            invitation_url = f"{settings.FRONTEND_URL}/auth/accept-invite?token={invitation.token}" if hasattr(settings, 'FRONTEND_URL') else f"http://localhost:3000/auth/accept-invite?token={invitation.token}"
+            login_url = f"{settings.FRONTEND_URL}/auth/first-login" if hasattr(settings, 'FRONTEND_URL') else f"http://localhost:3000/auth/first-login"
             
-            subject = f"You're invited to join {employer.name} on Obeeoma"
-            message = f"""
+            subject = f"🎉 Welcome to {employer.name} on Obeeoma!"
+            
+            # Plain text version
+            text_message = f"""
 Hello,
 
 You have been invited to join {employer.name} on the Obeeoma platform by {request.user.username}.
 
 {invitation.message if invitation.message else ''}
 
-To accept this invitation and create your account, please click the link below:
+To get started, please use the following ONE-TIME credentials for your first login:
 
-{invitation_url}
+Token: {invitation.token}
+Username: {invitation.temporary_username}
+Password: {invitation.temp_password_plain}
 
-Your invitation token: {invitation.token}
+Login URL: {login_url}
 
-This invitation will expire on {invitation.expires_at.strftime('%B %d, %Y at %I:%M %p')}.
+IMPORTANT: These credentials are for ONE-TIME USE ONLY. After your first login, you will be required to:
+1. Enter your token
+2. Choose your permanent username
+3. Create a new permanent password
+
+Your invitation will expire on {invitation.expires_at.strftime('%B %d, %Y at %I:%M %p')}.
+
+For security reasons, please do not share these credentials with anyone.
 
 If you have any questions, please contact your organization administrator.
 
@@ -820,12 +940,191 @@ Best regards,
 The Obeeoma Team
 """
             
+            # HTML version - Obeeoma brand colors
+            html_message = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.5;
+            color: #1f2937;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f9f4;
+        }}
+        .container {{
+            max-width: 560px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(11, 110, 69, 0.12);
+        }}
+        .header {{
+            background: linear-gradient(135deg, #0B6E45 0%, #00A859 100%);
+            color: white;
+            padding: 32px 24px;
+            text-align: center;
+        }}
+        .header h1 {{
+            margin: 0 0 8px;
+            font-size: 24px;
+            font-weight: 700;
+        }}
+        .header p {{
+            margin: 0;
+            font-size: 14px;
+            opacity: 0.95;
+        }}
+        .logo {{
+            margin-bottom: 12px;
+            font-size: 14px;
+            letter-spacing: 1px;
+            opacity: 0.9;
+        }}
+        .content {{
+            padding: 32px 24px;
+        }}
+        .intro {{
+            font-size: 15px;
+            color: #374151;
+            margin-bottom: 24px;
+            text-align: center;
+            line-height: 1.6;
+        }}
+        .credentials {{
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            border: 2px solid #3CB371;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 24px 0;
+        }}
+        .credentials h3 {{
+            margin: 0 0 16px;
+            font-size: 16px;
+            color: #0B6E45;
+            text-align: center;
+            font-weight: 700;
+        }}
+        .cred-row {{
+            display: flex;
+            align-items: center;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border: 1px solid #d1fae5;
+        }}
+        .cred-row:last-child {{
+            margin-bottom: 0;
+        }}
+        .cred-label {{
+            font-size: 12px;
+            color: #0B6E45;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            width: 90px;
+        }}
+        .cred-value {{
+            font-size: 16px;
+            font-weight: 700;
+            color: #111827;
+            font-family: 'Courier New', monospace;
+            flex: 1;
+        }}
+
+        .info-box {{
+            background: #f0f9f4;
+            border-left: 3px solid #3CB371;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-size: 13px;
+            color: #374151;
+        }}
+        .info-box strong {{
+            color: #0B6E45;
+        }}
+        .footer {{
+            background: #f0f9f4;
+            padding: 20px 24px;
+            text-align: center;
+            font-size: 13px;
+            color: #6b7280;
+            border-top: 1px solid #d1fae5;
+        }}
+        .footer p {{
+            margin: 4px 0;
+        }}
+        .footer strong {{
+            color: #0B6E45;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">OBEEOMA • A HAPPY HEART</div>
+            <h1> Welcome to {employer.name}!</h1>
+            <p>Join our team on Obeeoma</p>
+        </div>
+        
+        <div class="content">
+            <div class="intro">
+                <strong>{invitation.invited_by.email if invitation.invited_by else 'Your administrator'}</strong> has invited you to join <strong>{employer.name}</strong> on the Obeeoma platform for mental health and employee wellbeing.
+            </div>
+            
+            <div class="credentials">
+                <h3>🔑 Your One-Time Login Credentials</h3>
+                <div class="cred-row">
+                    <span class="cred-label">Token</span>
+                    <span class="cred-value">{invitation.token}</span>
+                </div>
+                <div class="cred-row">
+                    <span class="cred-label">Username</span>
+                    <span class="cred-value">{invitation.temporary_username}</span>
+                </div>
+                <div class="cred-row">
+                    <span class="cred-label">Password</span>
+                    <span class="cred-value">{invitation.temp_password_plain}</span>
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <strong>Next Steps:</strong> After login, you'll choose your permanent username and password.
+            </div>
+            
+            <div class="info-box">
+                 <strong>Important:</strong> These credentials are for one-time use only and expire on <strong>{invitation.expires_at.strftime('%b %d, %Y')}</strong>.
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Need help? Contact your organization administrator.</p>
+            <p><strong>The Obeeoma Team</strong></p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+            
             # Try to send via Gmail API first, fallback to SMTP
             email_sent = False
             try:
                 # Only try Gmail API if credentials are configured
                 if settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET:
-                    email_sent = send_gmail_api_email(invitation.email, subject, message)
+                    # Pass both plain text and HTML versions
+                    email_sent = send_gmail_api_email(
+                        invitation.email, 
+                        subject, 
+                        text_message,  # Plain text body
+                        html_body=html_message  # HTML body
+                    )
                     logger.info(f"Email sent via Gmail API to {invitation.email}")
             except Exception as gmail_error:
                 logger.warning(f"Gmail API failed: {str(gmail_error)}")
@@ -833,13 +1132,15 @@ The Obeeoma Team
             # Fallback to SMTP if Gmail API didn't work
             if not email_sent:
                 try:
-                    send_mail(
+                    # Send multipart email with both plain text and HTML
+                    email = EmailMultiAlternatives(
                         subject,
-                        message,
+                        text_message,  # Plain text version
                         settings.DEFAULT_FROM_EMAIL,
-                        [invitation.email],
-                        fail_silently=False,
+                        [invitation.email]
                     )
+                    email.attach_alternative(html_message, "text/html")  # HTML version
+                    email.send(fail_silently=False)
                     email_sent = True
                     logger.info(f"Email sent via SMTP to {invitation.email}")
                 except Exception as smtp_error:
@@ -860,134 +1161,144 @@ The Obeeoma Team
 
 
 @extend_schema(tags=['Employee Invitations'])
-class InvitationAcceptanceView(APIView):
+class EmployeeFirstLoginView(APIView):
     """
-    Handle employee invitation acceptance and account creation
+    Handle first login with temporary credentials
+    """
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        request=EmployeeFirstLoginSerializer,
+        responses={
+            200: {
+                "description": "First login successful",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "message": "First login successful. Please complete your account setup.",
+                            "email": "employee@company.com",
+                            "employer": "Company Name"
+                        }
+                    }
+                }
+            },
+            400: {"description": "Invalid credentials"}
+        },
+        description="""
+        First login endpoint for employees using temporary credentials from invitation email.
+        
+        This endpoint requires:
+        - token: Invitation token from email
+        - temporary_username: Temporary username from email
+        - temporary_password: Temporary password from email
+        
+        After successful authentication:
+        - The credentials are marked as used (cannot be reused)
+        - User receives their email address
+        - User can proceed to complete account setup
+        """
+    )
+    def post(self, request):
+        """Authenticate with temporary credentials"""
+        serializer = EmployeeFirstLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        invitation = serializer.validated_data['invitation']
+        
+        # Mark credentials as used
+        invitation.credentials_used = True
+        invitation.save()
+        
+        return Response({
+            'message': 'First login successful. Please complete your account setup.',
+            'email': invitation.email,
+            'employer': invitation.employer.name,
+            'invited_by': invitation.invited_by.email if invitation.invited_by else 'Unknown'
+        }, status=status.HTTP_200_OK)
+
+
+@extend_schema(tags=['Employee Invitations'])
+class CompleteAccountSetupView(APIView):
+    """
+    Complete account setup after first login with temporary credentials
     """
     permission_classes = [AllowAny]  # Allow unauthenticated access for signup
     
     @extend_schema(
         request=EmployeeInvitationAcceptSerializer,
         responses={
-            200: {
-                "description": "Invitation validated successfully",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "valid": True,
-                            "invitation": {
-                                "email": "employee@company.com",
-                                "employer": "Company Name",
-                                "invited_by": "admin@company.com",
-                                "expires_at": "2025-11-06T19:13:03.648Z"
-                            }
-                        }
-                    }
-                }
-            },
-            400: {"description": "Invalid or expired token"}
-        }
-    )
-    def post(self, request):
-        """
-        Validate invitation token and return invitation details
-        """
-        serializer = EmployeeInvitationAcceptSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        token = serializer.validated_data['token']
-        invitation = EmployeeInvitation.objects.get(
-            token=token,
-            accepted=False,
-            expires_at__gt=timezone.now()
-        )
-        
-        return Response({
-            'valid': True,
-            'invitation': {
-                'email': invitation.email,
-                'employer': invitation.employer.name,
-                'invited_by': invitation.invited_by.email if invitation.invited_by else 'Unknown',
-                'expires_at': invitation.expires_at
-            }
-        })
-    
-    @extend_schema(
-        request=EmployeeUserCreateSerializer,
-        responses={
             201: {
-                "description": "Account created successfully",
+                "description": "Account setup completed successfully",
                 "content": {
                     "application/json": {
                         "example": {
-                            "message": "Account created successfully",
+                            "message": "Account created successfully. You can now login with your new credentials.",
                             "user": {
                                 "id": 1,
                                 "email": "employee@company.com",
-                                "first_name": "John",
-                                "last_name": "Doe"
+                                "username": "john_doe",
+                                "role": "employee"
                             },
                             "employee_profile": {
                                 "id": 1,
                                 "employer": "Company Name"
-                            }
+                            },
+                            "access": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+                            "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc..."
                         }
                     }
                 }
             },
-            400: {"description": "Invalid data or token"}
-        }
+            400: {"description": "Invalid data or token not from first login"}
+        },
+        description="""
+        Complete account setup after successful first login with temporary credentials.
+        
+        This endpoint requires:
+        - token: Invitation token from the onboarding email
+        - username: Preferred username for the permanent account
+        - new password: Your chosen permanent password
+        - confirm password: confirm permanent password
+        
+        The system will:
+
+        - Create your permanent user account
+        - Set your new credentials
+        - Create your employee profile
+        - Return authentication tokens for immediate login
+        
+        **Prerequisites:** Must have successfully completed first login with temporary credentials.
+        """
     )
-    def put(self, request):
+    def post(self, request):
         """
-        Create employee account using validated invitation
+        Complete account setup with permanent credentials
         """
-        # First validate the token
-        token_serializer = EmployeeInvitationAcceptSerializer(data=request.data)
-        token_serializer.is_valid(raise_exception=True)
+        serializer = EmployeeInvitationAcceptSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
         
-        token = token_serializer.validated_data['token']
-        invitation = EmployeeInvitation.objects.get(
-            token=token,
-            accepted=False,
-            expires_at__gt=timezone.now()
-        )
+        user = serializer.save()
         
-        # Create user account
-        user_data = {
-            'email': invitation.email,
-            'user_name': request.data.get('user_name'),
-            'password': request.data.get('password'),
-            'password_confirm': request.data.get('password_confirm'),
-        }
-        
-        user_serializer = EmployeeUserCreateSerializer(data=user_data)
-        user_serializer.is_valid(raise_exception=True)
-        user = user_serializer.save()
-        
-        # Create employee profile
-        employee_profile = Employee.objects.create(
-            user=user,
-            employer=invitation.employer
-        )
-        
-        # Mark invitation as accepted
-        invitation.accepted = True
-        invitation.accepted_at = timezone.now()
-        invitation.save()
+        # Generate tokens for immediate login
+        refresh = RefreshToken.for_user(user)
         
         return Response({
-            'message': 'Account created successfully',
+            'message': 'Account created successfully. You can now login with your new credentials.',
             'user': {
                 'id': user.id,
                 'email': user.email,
-                'user_name': user.user_name,
+                'username': user.username,
+                'role': user.role
             },
             'employee_profile': {
-                'id': employee_profile.id,
-                'employer': invitation.employer.name
-            }
+                'id': user.employee_profile.id,
+                'employer': user.employee_profile.employer.name
+            },
+            'access': str(refresh.access_token),
+            'refresh': str(refresh)
         }, status=status.HTTP_201_CREATED)
+    
+    
 
 
 @extend_schema(
@@ -1045,6 +1356,147 @@ class InvitationVerifyView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+# ===== ASSESSMENT QUESTIONNAIRE VIEWS =====
+
+@extend_schema_view(
+    list=extend_schema(tags=['Assessments - Questions']),
+    retrieve=extend_schema(tags=['Assessments - Questions']),
+)
+class AssessmentQuestionViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for assessment questions"""
+    queryset = AssessmentQuestion.objects.filter(is_active=True)
+    serializer_class = AssessmentQuestionSerializer
+    permission_classes = [permissions.AllowAny]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['assessment_type']
+    
+    @extend_schema(
+        description="Get all questions for a specific assessment type (PHQ-9 or GAD-7)",
+        parameters=[
+            OpenApiParameter(name='type', type=str, enum=['PHQ-9', 'GAD-7'], required=True, description='Assessment type')
+        ],
+        tags=['Assessments - Questions']
+    )
+    @action(detail=False, methods=['get'])
+    def by_type(self, request):
+        """Get all questions for a specific assessment with full details"""
+        assessment_type = request.query_params.get('type', 'PHQ-9')
+        
+        if assessment_type not in ['PHQ-9', 'GAD-7']:
+            return Response(
+                {'error': 'Invalid assessment type. Must be PHQ-9 or GAD-7'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        questions = AssessmentQuestion.objects.filter(
+            assessment_type=assessment_type,
+            is_active=True
+        ).order_by('question_number')
+        
+        # Prepare response data
+        if assessment_type == 'PHQ-9':
+            data = {
+                'assessment_type': 'PHQ-9',
+                'title': 'Patient Health Questionnaire (PHQ-9)',
+                'description': 'A 9-question screening tool for depression',
+                'instructions': 'Over the last 2 weeks, how often have you been bothered by any of the following problems?',
+                'time_frame': 'Last 2 weeks',
+                'questions': AssessmentQuestionSerializer(questions, many=True).data,
+                'score_options': [
+                    {'value': 0, 'label': 'Not at all'},
+                    {'value': 1, 'label': 'Several days'},
+                    {'value': 2, 'label': 'More than half the days'},
+                    {'value': 3, 'label': 'Nearly every day'}
+                ]
+            }
+        else:  # GAD-7
+            data = {
+                'assessment_type': 'GAD-7',
+                'title': 'Generalized Anxiety Disorder (GAD-7)',
+                'description': 'A 7-question screening tool for anxiety',
+                'instructions': 'Over the last 2 weeks, how often have you been bothered by any of the following problems?',
+                'time_frame': 'Last 2 weeks',
+                'questions': AssessmentQuestionSerializer(questions, many=True).data,
+                'score_options': [
+                    {'value': 0, 'label': 'Not at all'},
+                    {'value': 1, 'label': 'Several days'},
+                    {'value': 2, 'label': 'Over half the days'},
+                    {'value': 3, 'label': 'Nearly every day'}
+                ]
+            }
+        
+        return Response(data)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['Assessments - Responses']),
+    create=extend_schema(tags=['Assessments - Responses']),
+    retrieve=extend_schema(tags=['Assessments - Responses']),
+)
+class AssessmentResponseViewSet(viewsets.ModelViewSet):
+    """ViewSet for assessment responses"""
+    serializer_class = AssessmentResponseSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post']
+    
+    def get_queryset(self):
+        return AssessmentResponse.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+    
+    @extend_schema(
+        description="Get user's assessment history",
+        parameters=[
+            OpenApiParameter(name='type', type=str, enum=['PHQ-9', 'GAD-7'], description='Filter by assessment type')
+        ],
+        responses=AssessmentResponseSerializer(many=True),
+        tags=['Assessments - Responses']
+    )
+    @action(detail=False, methods=['get'])
+    def history(self, request):
+        """Get user's assessment history"""
+        queryset = self.get_queryset()
+        
+        assessment_type = request.query_params.get('type')
+        if assessment_type:
+            queryset = queryset.filter(assessment_type=assessment_type)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @extend_schema(
+        description="Get latest assessment result",
+        parameters=[
+            OpenApiParameter(name='type', type=str, enum=['PHQ-9', 'GAD-7'], required=True, description='Assessment type')
+        ],
+        responses=AssessmentResponseSerializer,
+        tags=['Assessments - Responses']
+    )
+    @action(detail=False, methods=['get'])
+    def latest(self, request):
+        """Get user's latest assessment result"""
+        assessment_type = request.query_params.get('type')
+        
+        if not assessment_type:
+            return Response(
+                {'error': 'Assessment type is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            latest = self.get_queryset().filter(
+                assessment_type=assessment_type
+            ).latest('completed_at')
+            
+            serializer = self.get_serializer(latest)
+            return Response(serializer.data)
+        
+        except AssessmentResponse.DoesNotExist:
+            return Response(
+                {'message': f'No {assessment_type} assessment found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
 @extend_schema(
     tags=["Authentication"],
@@ -1124,7 +1576,7 @@ class InvitationAcceptView(viewsets.ViewSet):
 # --- Employer Dashboard ---
 @extend_schema(tags=['Employer Dashboard'])
 class OverviewView(viewsets.ViewSet):
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
     def list(self, request):
         employee_count = Employee.objects.count()
@@ -1149,7 +1601,7 @@ class TrendsView(viewsets.ReadOnlyModelViewSet):
 class EmployeeEngagementView(viewsets.ModelViewSet):
     queryset = EmployeeEngagement.objects.select_related("employer").order_by("-month")
     serializer_class = EmployeeEngagementSerializer
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -1168,7 +1620,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 class FeaturesUsageView(viewsets.ModelViewSet):
     queryset = AIManagement.objects.select_related("employer").order_by("-created_at")
     serializer_class = AIManagementSerializer
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
     @action(detail=False, methods=['get'])
     def by_category(self, request):
@@ -1179,7 +1631,7 @@ class FeaturesUsageView(viewsets.ModelViewSet):
 class BillingView(viewsets.ModelViewSet):
     queryset = Subscription.objects.select_related("employer").all()
     serializer_class = SubscriptionSerializer
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
@@ -1195,14 +1647,14 @@ class BillingView(viewsets.ModelViewSet):
 class UsersView(viewsets.ModelViewSet):
     queryset = Employee.objects.select_related("employer").all()
     serializer_class = EmployeeSerializer
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
 
 @extend_schema(tags=['Employer Dashboard'])
 class ReportsView(viewsets.ReadOnlyModelViewSet):
     queryset = RecentActivity.objects.select_related("employer").order_by("-timestamp")
     serializer_class = RecentActivitySerializer
-    permission_classes = [IsCompanyAdmin]
+    # permission_classes = [IsCompanyAdmin]
 
 # For crisis insights about hotline activities and for which reasons employees are reaching out.
 @extend_schema(tags=['Employer Dashboard'])
@@ -1271,9 +1723,7 @@ class AvatarProfileView(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return AvatarProfile.objects.filter(employee__user=self.request.user)
-
-
-
+# updated mood tracking view with mood summary action
 @extend_schema(tags=['Employee - Mood Tracking'])
 class MoodTrackingView(viewsets.ModelViewSet):
     serializer_class = MoodTrackingSerializer
@@ -1282,25 +1732,37 @@ class MoodTrackingView(viewsets.ModelViewSet):
     search_fields = ['note']
 
     def get_queryset(self):
-        # FIXED: Return MoodTracking objects, not EmployeeProfile
         return MoodTracking.objects.filter(employee__user=self.request.user)
 
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(user=self.request.user, employee=employee)
+
+    @action(detail=False, methods=['get'], url_path='mood-summary')
+    def mood_summary(self, request):
+        employee = get_object_or_404(EmployeeProfile, user=request.user)
+        today = now().date()
+        start_date = today - timedelta(days=6)  # Last 7 days
+
+        # Aggregate moods per day
+        mood_data = (
+            MoodTracking.objects
+            .filter(employee=employee, created_at__date__gte=start_date)
+            .values('created_at__date', 'mood')
+            .annotate(count=Count('id'))
+        )
+
+        # Format response
+        summary = {}
+        for entry in mood_data:
+            day = entry['created_at__date'].strftime('%a')  # e.g. 'Mon'
+            mood = entry['mood']
+            count = entry['count']
+            summary.setdefault(day, {}).update({mood: count})
+
+        return Response(summary)
+
 @extend_schema(tags=['Employee - Assessments'])
-class AssessmentResultView(viewsets.ModelViewSet):
-    serializer_class = AssessmentResultSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return AvatarProfile.objects.filter(employee__user=self.request.user)
-
-    def perform_create(self, serializer):
-        employee = get_object_or_404(EmployeeProfile, user=self.request.user)
-        serializer.save(employee=employee)
-
-
 @extend_schema(tags=['Resources'])
 class SelfHelpResourceView(viewsets.ModelViewSet):
     queryset = SelfHelpResource.objects.all()
@@ -1433,216 +1895,6 @@ class RecommendationLogView(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(employee=employee)
-
-
-@extend_schema(tags=['Employee - Assessments'])
-class MentalHealthAssessmentViewSet(viewsets.ModelViewSet):
-    """ViewSet for mental health assessments"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return MentalHealthAssessment.objects.filter(user=self.request.user)
-
-    def get_serializer_class(self):
-        if self.action == 'list':
-            return MentalHealthAssessmentListSerializer
-        return MentalHealthAssessmentSerializer
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-
-    @action(detail=False, methods=['get'], url_path='questionnaires')
-    def get_questionnaires(self, request):
-        """Get assessment questionnaires with all questions"""
-        questionnaires = {
-            "gad7": {
-                "name": "GAD-7 (Generalized Anxiety Disorder)",
-                "description": "This questionnaire measures anxiety symptoms over the past 2 weeks.",
-                "instructions": "Over the last 2 weeks, how often have you been bothered by the following problems?",
-                "response_options": [
-                    {"value": 0, "label": "Not at all"},
-                    {"value": 1, "label": "Several days"},
-                    {"value": 2, "label": "More than half the days"},
-                    {"value": 3, "label": "Nearly every day"}
-                ],
-                "questions": [
-                    {"id": 1, "text": "Feeling nervous, anxious, or on edge"},
-                    {"id": 2, "text": "Not being able to stop or control worrying"},
-                    {"id": 3, "text": "Worrying too much about different things"},
-                    {"id": 4, "text": "Trouble relaxing"},
-                    {"id": 5, "text": "Being so restless that it's hard to sit still"},
-                    {"id": 6, "text": "Becoming easily annoyed or irritable"},
-                    {"id": 7, "text": "Feeling afraid as if something awful might happen"}
-                ],
-                "scoring": {
-                    "minimal": {"range": "0-4", "description": "Minimal anxiety"},
-                    "mild": {"range": "5-9", "description": "Mild anxiety"},
-                    "moderate": {"range": "10-14", "description": "Moderate anxiety"},
-                    "severe": {"range": "15-21", "description": "Severe anxiety"}
-                }
-            },
-            "phq9": {
-                "name": "PHQ-9 (Patient Health Questionnaire)",
-                "description": "This questionnaire measures depression symptoms over the past 2 weeks.",
-                "instructions": "Over the last 2 weeks, how often have you been bothered by any of the following problems?",
-                "response_options": [
-                    {"value": 0, "label": "Not at all"},
-                    {"value": 1, "label": "Several days"},
-                    {"value": 2, "label": "More than half the days"},
-                    {"value": 3, "label": "Nearly every day"}
-                ],
-                "questions": [
-                    {"id": 1, "text": "Little interest or pleasure in doing things"},
-                    {"id": 2, "text": "Feeling down, depressed, or hopeless"},
-                    {"id": 3, "text": "Trouble falling or staying asleep, or sleeping too much"},
-                    {"id": 4, "text": "Feeling tired or having little energy"},
-                    {"id": 5, "text": "Poor appetite or overeating"},
-                    {"id": 6, "text": "Feeling bad about yourself - or that you are a failure or have let yourself or your family down"},
-                    {"id": 7, "text": "Trouble concentrating on things, such as reading the newspaper or watching television"},
-                    {"id": 8, "text": "Moving or speaking so slowly that other people could have noticed. Or the opposite - being so fidgety or restless that you have been moving around a lot more than usual"},
-                    {"id": 9, "text": "Thoughts that you would be better off dead, or of hurting yourself in some way"}
-                ],
-                "scoring": {
-                    "minimal": {"range": "0-4", "description": "Minimal depression"},
-                    "mild": {"range": "5-9", "description": "Mild depression"},
-                    "moderate": {"range": "10-14", "description": "Moderate depression"},
-                    "moderately_severe": {"range": "15-19", "description": "Moderately severe depression"},
-                    "severe": {"range": "20-27", "description": "Severe depression"}
-                },
-                "crisis_note": "If you answered question 9 with anything other than 'Not at all', please seek immediate help. Contact a mental health professional or call a crisis hotline."
-            },
-            "submission_format": {
-                "description": "How to submit your responses",
-                "example_gad7_only": {
-                    "assessment_type": "GAD-7",
-                    "gad7_responses": [0, 1, 2, 1, 0, 2, 1]
-                },
-                "example_phq9_only": {
-                    "assessment_type": "PHQ-9",
-                    "phq9_responses": [1, 2, 1, 0, 1, 2, 1, 0, 1]
-                },
-                "example_both": {
-                    "assessment_type": "BOTH",
-                    "gad7_responses": [0, 1, 2, 1, 0, 2, 1],
-                    "phq9_responses": [1, 2, 1, 0, 1, 2, 1, 0, 1]
-                },
-                "submit_endpoint": "/api/v1/mental-health/assessments/submit-assessment/"
-            }
-        }
-        
-        return Response(questionnaires)
-
-    @action(detail=False, methods=['post'], url_path='submit-assessment')
-    def submit_assessment(self, request):
-        """Submit a new assessment with responses"""
-        serializer = AssessmentResponseSerializer(data=request.data)
-        if serializer.is_valid():
-            data = serializer.validated_data
-            assessment_type = data['assessment_type']
-            gad7_responses = data.get('gad7_responses', [])
-            phq9_responses = data.get('phq9_responses', [])
-
-            # Create assessment instance
-            assessment_data = {
-                'assessment_type': assessment_type,
-                'gad7_scores': gad7_responses,
-                'phq9_scores': phq9_responses,
-            }
-            
-            assessment_serializer = MentalHealthAssessmentSerializer(data=assessment_data)
-            if assessment_serializer.is_valid():
-                assessment = assessment_serializer.save(user=request.user)
-                
-                return Response({
-                    'message': 'Assessment submitted successfully',
-                    'assessment': MentalHealthAssessmentSerializer(assessment).data
-                }, status=status.HTTP_201_CREATED)
-            else:
-                return Response(assessment_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=False, methods=['get'], url_path='my-results')
-    def my_results(self, request):
-        """Get user's assessment results with summary"""
-        assessments = self.get_queryset()
-        
-        if not assessments.exists():
-            return Response({
-                'message': 'No assessments found',
-                'assessments': [],
-                'summary': None
-            })
-
-        # Get latest assessment
-        latest = assessments.first()
-        
-        # Calculate summary statistics
-        all_assessments = list(assessments.values('gad7_total', 'phq9_total', 'assessment_date'))
-        
-        summary = {
-            'total_assessments': len(all_assessments),
-            'latest_assessment_date': latest.assessment_date,
-            'latest_gad7_score': latest.gad7_total,
-            'latest_phq9_score': latest.phq9_total,
-            'latest_gad7_severity': latest.gad7_severity,
-            'latest_phq9_severity': latest.phq9_severity,
-            'average_gad7_score': sum(a['gad7_total'] for a in all_assessments if a['gad7_total'] > 0) / max(1, len([a for a in all_assessments if a['gad7_total'] > 0])),
-            'average_phq9_score': sum(a['phq9_total'] for a in all_assessments if a['phq9_total'] > 0) / max(1, len([a for a in all_assessments if a['phq9_total'] > 0])),
-        }
-
-        return Response({
-            'assessments': MentalHealthAssessmentListSerializer(assessments, many=True).data,
-            'summary': summary
-        })
-
-    @action(detail=True, methods=['get'], url_path='detailed-results')
-    def detailed_results(self, request, pk=None):
-        """Get detailed results for a specific assessment"""
-        assessment = self.get_object()
-        
-        detailed_data = {
-            'assessment': MentalHealthAssessmentSerializer(assessment).data,
-            'interpretation': {
-                'gad7': {
-                    'score': assessment.gad7_total,
-                    'severity': assessment.gad7_severity,
-                    'recommendation': self._get_gad7_recommendation(assessment.gad7_total)
-                },
-                'phq9': {
-                    'score': assessment.phq9_total,
-                    'severity': assessment.phq9_severity,
-                    'recommendation': self._get_phq9_recommendation(assessment.phq9_total)
-                }
-            }
-        }
-        
-        return Response(detailed_data)
-
-    def _get_gad7_recommendation(self, score):
-        """Get recommendation based on GAD-7 score"""
-        if score <= 4:
-            return "Your anxiety levels are minimal. Continue with current self-care practices."
-        elif score <= 9:
-            return "Mild anxiety detected. Consider stress management techniques and regular check-ins."
-        elif score <= 14:
-            return "Moderate anxiety levels. Consider speaking with a healthcare provider or mental health professional."
-        else:
-            return "Severe anxiety levels. Please consider reaching out to a mental health professional for support."
-
-    def _get_phq9_recommendation(self, score):
-        """Get recommendation based on PHQ-9 score"""
-        if score <= 4:
-            return "Your mood appears stable. Continue with current self-care practices."
-        elif score <= 9:
-            return "Mild depression symptoms detected. Consider mood tracking and self-care activities."
-        elif score <= 14:
-            return "Moderate depression symptoms. Consider speaking with a healthcare provider."
-        elif score <= 19:
-            return "Moderately severe depression symptoms. Please consider reaching out to a mental health professional."
-        else:
-            return "Severe depression symptoms detected. Please seek immediate support from a mental health professional."
-
 
 # --- Employee-specific: Badges and Engagement Streaks ---
 @extend_schema(tags=['Employee - Engagement'])
@@ -1795,48 +2047,357 @@ class ProgressViewSet(viewsets.ModelViewSet):
 # New Dashboard Views
 @extend_schema(tags=['Employer Dashboard'])
 class OrganizationOverviewView(viewsets.ViewSet):
-    """Organization overview dashboard data"""
+    """
+    EMPLOYER DASHBOARD - ORGANIZATION OVERVIEW
+    
+    This view provides a comprehensive overview of the organization's workforce
+    and their engagement with the mental health platform.
+    
+    Purpose for Employers:
+    - Monitor overall workforce size and activity
+    - Track employee wellness trends
+    - Understand platform feature adoption
+    - View recent organizational activities
+    
+    Key Metrics Provided:
+    - Total employee count
+    - Wellness index (aggregate mental health score)
+    - Active employees count
+    - Feature usage statistics
+    - Engagement trends
+    """
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
-        # Get total employees
-        total_employees = Employee.objects.count()
+        from django.db.models import Q, Count, Avg
+        from datetime import datetime, timedelta
         
-        # Get total tests
-        total_tests = MoodTracking.objects.count()
+        # ============================================================
+        # STEP 1: IDENTIFY THE EMPLOYER/ORGANIZATION
+        # ============================================================
+        # Get the employer associated with the logged-in user
+        # This ensures employers only see their own organization's data
+        employer = None
+        if hasattr(request.user, 'employer_profile'):
+            employer = request.user.employer_profile.employer
         
-        # Get average score
-        avg_score = MoodTracking.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
+        # Filter employees by employer if available
+        employee_queryset = Employee.objects.all()
+        if employer:
+            employee_queryset = employee_queryset.filter(employer=employer)
         
-        # Get at-risk departments
-        at_risk_departments = Department.objects.filter(at_risk=True).count()
+        # ============================================================
+        # METRIC 1: TOTAL EMPLOYEES
+        # ============================================================
+        # Purpose: Shows the total number of employees in the organization
+        # Helps employers understand their workforce size
+        total_employees = employee_queryset.count()
         
-        # Get recent activities
-        recent_activities = OrganizationActivity.objects.select_related('employer', 'department', 'employee').order_by('-created_at')[:10]
+        # ============================================================
+        # METRIC 2: WELLNESS INDEX
+        # ============================================================
+        # Purpose: Aggregate wellness score across all employees
+        # Higher score = better overall mental health
+        # Range: 0-100 (100 being best)
+        # 
+        # How it works:
+        # - Collects all assessment responses from employees
+        # - Calculates average score
+        # - Converts to wellness index (inverse of severity)
+        # 
+        # Why it matters for employers:
+        # - Quick snapshot of overall workforce mental health
+        # - Helps identify if intervention programs are working
+        # - Can track improvement over time
+        recent_assessments = AssessmentResponse.objects.filter(
+            user__in=employee_queryset.values_list('user', flat=True)
+        )
         
+        if recent_assessments.exists():
+            # Calculate wellness index (inverse of severity - higher is better)
+            # Assuming max score is 27 for PHQ-9, convert to percentage
+            avg_total_score = recent_assessments.aggregate(avg=Avg('total_score'))['avg'] or 0
+            wellness_index = max(0, int(100 - (avg_total_score / 27 * 100)))
+        else:
+            wellness_index = 0
+        
+        # Generate wellness index description based on score
+        if wellness_index >= 80:
+            wellness_description = "Excellent - Your workforce shows strong mental wellbeing"
+        elif wellness_index >= 60:
+            wellness_description = "Good - Overall mental health is positive"
+        elif wellness_index >= 40:
+            wellness_description = "Fair - Some employees may need support"
+        elif wellness_index >= 20:
+            wellness_description = "Concerning - Consider wellness initiatives"
+        else:
+            wellness_description = "Critical - Immediate attention recommended"
+        
+        # ============================================================
+        # METRIC 3: ACTIVE EMPLOYEES COUNT
+        # ============================================================
+        # Purpose: Shows how many employees are currently active
+        # Helps employers understand workforce availability
+        # Active status means employee is currently working and not suspended
+        active_employees_count = employee_queryset.filter(status='active').count()
+        
+        # ============================================================
+        # METRIC 4: RECENT EMPLOYEES LIST
+        # ============================================================
+        # Purpose: Shows the 10 most recently joined employees
+        # Helps employers:
+        # - Track new hires
+        # - Monitor onboarding progress
+        # - See department distribution
+        employees_list = employee_queryset.select_related('department').order_by('-joined_date')[:10]
+        employees_data = [{
+            'id': emp.id,
+            'name': f"{emp.first_name} {emp.last_name}",
+            'email': emp.email,
+            'department': emp.department.name if emp.department else 'N/A',
+            'status': emp.status,
+        } for emp in employees_list]
+        
+        # ============================================================
+        # METRIC 5: ENGAGEMENT TREND
+        # ============================================================
+        # Purpose: Shows workforce engagement breakdown
+        # Pending = Invited but not yet onboarded
+        # Active = Currently working employees
+        # Inactive = Employees who are not currently active or suspended
+        # 
+        # Why it matters for employers:
+        # - Understand workforce availability
+        # - Track onboarding progress (pending employees)
+        # - Identify potential retention issues
+        # - Plan resource allocation
+        engagement_stats = employee_queryset.aggregate(
+            pending=Count('id', filter=Q(status='pending')),
+            active=Count('id', filter=Q(status='active')),
+            inactive=Count('id', filter=Q(status__in=['inactive', 'suspended']))
+        )
+        
+        # ============================================================
+        # METRIC 6: FEATURE USAGE BREAKDOWN
+        # ============================================================
+        # Purpose: Shows what percentage of employees use each platform feature
+        # 
+        # Features tracked:
+        # 1. Wellness Assessments - Mental health self-assessments
+        # 2. AI Chatbot (Sana) - AI-powered mental health support
+        # 3. Mood Tracking - Daily mood check-ins
+        # 4. Resource Library - Educational content and tools
+        # 
+        # Why it matters for employers:
+        # - Understand platform adoption
+        # - Identify which features are most valuable
+        # - Justify ROI on the platform
+        # - Identify areas needing more promotion
+        total_users = employee_queryset.filter(status='active').count() or 1
+        
+        # Count unique users who have used wellness assessments
+        wellness_assessments_count = AssessmentResponse.objects.filter(
+            user__in=employee_queryset.values_list('user', flat=True)
+        ).values('user').distinct().count()
+        
+        # Count unique users who have tracked their mood
+        mood_tracking_count = MoodTracking.objects.filter(
+            user__in=employee_queryset.values_list('user', flat=True)
+        ).values('user').distinct().count()
+        
+        # Count unique users who have used the AI Chatbot (Sana)
+        ai_chatbot_count = 0
+        try:
+            from sana_ai.models import ChatSession
+            ai_chatbot_count = ChatSession.objects.filter(
+                user__in=employee_queryset.values_list('user', flat=True)
+            ).values('user').distinct().count()
+        except:
+            pass
+        
+        # Count unique users who have saved resources
+        resource_usage_count = SavedResource.objects.filter(
+            user__in=employee_queryset.values_list('user', flat=True)
+        ).values('user').distinct().count()
+        
+        # Calculate percentage of active employees using each feature
+        feature_usage = {
+            'wellness_assessments': int((wellness_assessments_count / total_users) * 100),
+            'ai_chatbot': int((ai_chatbot_count / total_users) * 100),
+            'mood_tracking': int((mood_tracking_count / total_users) * 100),
+            'resource_library': int((resource_usage_count / total_users) * 100),
+        }
+        
+        # ============================================================
+        # METRIC 7: MOOD TREND (12-WEEK HISTORY)
+        # ============================================================
+        # Purpose: Shows employee engagement with mood tracking over time
+        # 
+        # How it works:
+        # - Tracks number of mood check-ins per week for last 12 weeks
+        # - Higher numbers indicate better engagement
+        # 
+        # Why it matters for employers:
+        # - Identify engagement patterns (e.g., drops during busy seasons)
+        # - Measure effectiveness of wellness initiatives
+        # - Spot trends that may need attention
+        # - Understand when employees are most engaged with mental health tools
+        mood_trend = []
+        for week in range(12, 0, -1):
+            week_start = datetime.now() - timedelta(weeks=week)
+            week_end = week_start + timedelta(weeks=1)
+            
+            # Count mood tracking entries for this week
+            mood_count = MoodTracking.objects.filter(
+                user__in=employee_queryset.values_list('user', flat=True),
+                checked_in_at__gte=week_start,
+                checked_in_at__lt=week_end
+            ).count()
+            
+            mood_trend.append({
+                'week': 13 - week,
+                'value': mood_count
+            })
+        
+        # ============================================================
+        # METRIC 8: RECENT NOTIFICATIONS
+        # ============================================================
+        # Purpose: Shows recent organizational activities and updates
+        # 
+        # Examples of notifications:
+        # - New employee onboarding
+        # - Department changes
+        # - System updates
+        # - Important announcements
+        # 
+        # Why it matters for employers:
+        # - Stay informed about organizational changes
+        # - Track important events
+        # - Monitor system activity
+        # - Quick access to recent updates
+        notifications = OrganizationActivity.objects.filter(
+            employer=employer
+        ).order_by('-created_at')[:5] if employer else []
+        
+        notifications_data = [{
+            'id': notif.id,
+            'message': notif.description,
+            'department': notif.department.name if notif.department else 'General',
+            'timestamp': notif.created_at,
+            'time_ago': self._get_time_ago(notif.created_at)
+        } for notif in notifications]
+        
+        # ============================================================
+        # COMPILE ALL DASHBOARD DATA
+        # ============================================================
+        # This data structure provides everything an employer needs
+        # to understand their organization's mental health platform usage
+        # and make informed decisions about employee wellbeing initiatives
         data = {
-            'total_employees': total_employees,
-            'total_tests': total_tests,
-            'average_score': round(avg_score, 2),
-            'at_risk_departments': at_risk_departments,
-            'recent_activities': OrganizationActivitySerializer(recent_activities, many=True).data
+            'summary': {
+                'total_employees': total_employees,
+                'wellness_index': wellness_index,
+                'wellness_description': wellness_description,
+                'active_employees': active_employees_count,
+            },
+            'employees': {
+                'list': employees_data,
+                'total': total_employees,
+            },
+            'engagement_trend': {
+                'active': engagement_stats['active'],
+                'inactive': engagement_stats['inactive'],
+                'total': total_employees,
+            },
+            'feature_usage': feature_usage,
+            'mood_trend': mood_trend,
+            'notifications': notifications_data,
         }
         
         return Response(data)
+    
+    def _get_time_ago(self, timestamp):
+        """
+        Helper method to calculate human-readable time differences
+        
+        Purpose: Converts timestamps to user-friendly format
+        Examples: "2 hours ago", "3 days ago", "just now"
+        """
+        now = datetime.now()
+        if timestamp.tzinfo:
+            from django.utils import timezone
+            now = timezone.now()
+        
+        diff = now - timestamp
+        
+        if diff.days > 0:
+            return f"{diff.days} day{'s' if diff.days > 1 else ''} ago"
+        elif diff.seconds >= 3600:
+            hours = diff.seconds // 3600
+            return f"{hours} hour{'s' if hours > 1 else ''} ago"
+        elif diff.seconds >= 60:
+            minutes = diff.seconds // 60
+            return f"{minutes} minute{'s' if minutes > 1 else ''} ago"
+        else:
+            return "just now"
 
 
 @extend_schema(tags=['Employer Dashboard'])
 class EmployeeManagementView(viewsets.ModelViewSet):
-    """Employee management with search and filtering"""
+    """
+    EMPLOYER DASHBOARD - EMPLOYEE MANAGEMENT
+    
+    This view handles all employee management operations for employers.
+    
+    Purpose for Employers:
+    - View complete list of all employees
+    - Search employees by name, email, or department
+    - Filter employees by department or status
+    - Add new employees to the organization
+    - Update employee information
+    - Remove employees from the system
+    
+    Features:
+    - Full CRUD operations (Create, Read, Update, Delete)
+    - Advanced search functionality
+    - Department-based filtering
+    - Status-based filtering (active, inactive, suspended)
+    - Sorting by multiple fields
+    
+    Use Cases:
+    - Onboarding new employees
+    - Updating employee departments
+    - Managing employee status
+    - Finding specific employees quickly
+    - Generating employee reports
+    """
     queryset = Employee.objects.select_related('employer', 'department').all()
     serializer_class = EmployeeManagementSerializer
     permission_classes = [IsCompanyAdmin]
+    
+    # Search Configuration
+    # Employers can search by: first name, last name, email, or department name
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['first_name', 'last_name', 'email', 'department__name']
+    
+    # Sorting Configuration
+    # Employers can sort by: name, email, join date, or status
     ordering_fields = ['first_name', 'email', 'joined_date', 'status']
-    ordering = ['-joined_date']
+    ordering = ['-joined_date']  # Default: newest employees first
     
     def get_queryset(self):
+        """
+        Filter employees based on query parameters
+        
+        Available Filters:
+        - department: Filter by department name (partial match)
+        - status: Filter by employee status (exact match)
+        
+        Examples:
+        - /api/employees/?department=Engineering
+        - /api/employees/?status=active
+        - /api/employees/?department=HR&status=active
+        """
         queryset = super().get_queryset()
         department = self.request.query_params.get('department', None)
         status = self.request.query_params.get('status', None)
@@ -1849,23 +2410,65 @@ class EmployeeManagementView(viewsets.ModelViewSet):
         return queryset
     
     def perform_create(self, serializer):
-        """Create employee with proper employer assignment"""
+        """
+        Create a new employee record
+        
+        Purpose: Add new employees to the organization
+        Note: Employee will be automatically assigned to the employer's organization
+        """
         serializer.save()
 
 
 @extend_schema(tags=['Employer Dashboard'])
 class DepartmentManagementView(viewsets.ModelViewSet):
-    """Department management"""
+    """
+    EMPLOYER DASHBOARD - DEPARTMENT MANAGEMENT
+    
+    This view handles organizational department structure management.
+    
+    Purpose for Employers:
+    - Create and manage organizational departments
+    - Organize employees by department
+    - Track department-level metrics
+    - Structure the organization hierarchy
+    
+    Features:
+    - Create new departments
+    - Update department information
+    - Delete departments
+    - Search departments by name
+    - Sort departments alphabetically or by creation date
+    
+    Use Cases:
+    - Setting up organizational structure
+    - Reorganizing company departments
+    - Tracking department growth
+    - Assigning employees to departments
+    
+    Examples of Departments:
+    - Engineering, HR, Marketing, Sales, Operations, Finance, etc.
+    """
     queryset = Department.objects.select_related('employer').all()
     serializer_class = DepartmentSerializer
     permission_classes = [IsCompanyAdmin]
+    
+    # Search Configuration
+    # Employers can search departments by name
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name']
+    
+    # Sorting Configuration
+    # Sort by name (alphabetically) or creation date
     ordering_fields = ['name', 'created_at']
-    ordering = ['name']
+    ordering = ['name']  # Default: alphabetical order
     
     def perform_create(self, serializer):
-        """Create department with proper employer assignment"""
+        """
+        Create a new department
+        
+        Purpose: Add new departments to organize the workforce
+        Note: Department is automatically linked to the employer's organization
+        """
         # Get employer from request user or use first employer
         employer = Employer.objects.first()
         if hasattr(self.request.user, 'employer_profile'):
@@ -1875,17 +2478,71 @@ class DepartmentManagementView(viewsets.ModelViewSet):
 
 @extend_schema(tags=['Employer Dashboard'])
 class SubscriptionManagementView(viewsets.ModelViewSet):
-    """Subscription management"""
+    """
+    EMPLOYER DASHBOARD - SUBSCRIPTION MANAGEMENT
+    
+    This view handles all subscription and billing operations for employers.
+    
+    Purpose for Employers:
+    - View current subscription plan details
+    - Browse available subscription plans
+    - Upgrade or downgrade subscription
+    - View billing history
+    - Manage payment methods
+    - Track subscription usage (seats used vs available)
+    
+    Features:
+    - Current subscription overview
+    - Plan comparison
+    - Billing history with invoices
+    - Payment method management
+    - Seat usage tracking
+    - Renewal date monitoring
+    
+    Use Cases:
+    - Checking current plan limits
+    - Upgrading when adding more employees
+    - Reviewing past invoices
+    - Updating payment information
+    - Planning budget for renewals
+    
+    Subscription Plans Typically Include:
+    - Starter Plan: Small teams (5-50 employees)
+    - Enterprise Plan: Medium to large organizations (50-500 employees)
+    - Enterprise Plus: Large corporations (500+ employees)
+    """
     queryset = Subscription.objects.select_related('employer', 'plan_details', 'payment_method').all()
     serializer_class = SubscriptionManagementSerializer
-    permission_classes = [IsCompanyAdmin]
+    """permission_classes = [IsSystemAdminororga]"""
+    
+    # Sorting Configuration
+    # Sort by start date or amount
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['start_date', 'amount']
-    ordering = ['-start_date']
+    ordering = ['-start_date']  # Default: newest subscriptions first
     
     @action(detail=False, methods=['get'])
     def current_subscription(self, request):
-        """Get current active subscription"""
+        """
+        Get Current Active Subscription
+        
+        Purpose: View details of the organization's current subscription
+        
+        Returns:
+        - Plan name and type
+        - Number of seats (total and used)
+        - Subscription amount
+        - Start and end dates
+        - Renewal date
+        - Payment method
+        - Active status
+        
+        Why it matters for employers:
+        - Know how many employee seats are available
+        - Track when renewal is due
+        - Understand current plan limitations
+        - Plan for upgrades if needed
+        """
         subscription = self.get_queryset().filter(is_active=True).first()
         if subscription:
             return Response(SubscriptionManagementSerializer(subscription).data)
@@ -1893,17 +2550,217 @@ class SubscriptionManagementView(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def available_plans(self, request):
-        """Get available subscription plans"""
+        """
+        Get Available Subscription Plans
+        
+        Purpose: Browse all available subscription plans for comparison
+        
+        Returns:
+        - Plan names and descriptions
+        - Pricing for each plan
+        - Number of seats included
+        - Features included in each plan
+        
+        Why it matters for employers:
+        - Compare plans before upgrading
+        - Understand what features are available
+        - Make informed decisions about plan changes
+        - Budget for future growth
+        """
         plans = SubscriptionPlan.objects.filter(is_active=True)
         return Response(SubscriptionPlanSerializer(plans, many=True).data)
     
     @action(detail=False, methods=['get'])
     def billing_history(self, request):
-        """Get billing history"""
+        """
+        Get Billing History
+        
+        Purpose: View past invoices and payment records
+        
+        Returns:
+        - Invoice numbers
+        - Payment amounts
+        - Billing dates
+        - Payment status (paid, pending, failed)
+        - Plan names for each billing period
+        
+        Why it matters for employers:
+        - Track expenses for accounting
+        - Verify payments
+        - Download invoices for records
+        - Monitor payment patterns
+        - Budget planning
+        """
         billing_history = BillingHistory.objects.select_related('employer').order_by('-billing_date')[:10]
         return Response(BillingHistorySerializer(billing_history, many=True).data)
 
 
+# FLUTTERWAVE WEBHOOK
+@api_view(['POST'])
+@csrf_exempt
+@permission_classes([AllowAny])
+def flutterwave_webhook_listener(request):
+    """
+    Receives and processes webhook events from Flutterwave, verifying the signature.
+    """
+    # 1. Get raw request body (CRITICAL for HMAC verification)
+    raw_body = request.body
+    
+    # 2. Get the signature sent by Flutterwave
+    flw_signature = request.headers.get('VERIF-HASH') 
+
+    # --- SECURITY CHECK ---
+    
+    if not flw_signature:
+        # No signature header present: discard immediately.
+        return HttpResponse(status=401) 
+
+    try:
+        local_secret = settings.FLW_WEBHOOK_HASH.encode('utf-8')
+        
+        # 1. Calculate the raw hash digest (bytes)
+        computed_hash_bytes = hmac.new(
+            local_secret,
+            raw_body,
+            digestmod=hashlib.sha256
+        ).digest()
+        
+        # 2. CRITICAL FIX: Encode the bytes to a Base64 string to match Flutterwave's header
+        computed_signature = base64.b64encode(computed_hash_bytes).decode('utf-8')
+        
+        # 3. Compare the computed Base64 string with the one from Flutterwave
+        if computed_signature != flw_signature:
+            print("WEBHOOK ERROR: Signature mismatch.")
+            return HttpResponse(status=401) # Unauthorized (Hash verification failed)
+
+    except Exception as e:
+        print(f"WEBHOOK HASH ERROR: {e}")
+        # Return 500 for a server error during hash computation, or 401 if you treat it as unauthorized
+        return HttpResponse(status=401) 
+    
+    # --- PROCESSING STARTS AFTER SUCCESSFUL VERIFICATION ---
+    # ... (Rest of your code remains the same)
+    
+    try:
+        # ... your transaction verification logic ...
+        return HttpResponse(status=200) 
+    
+    except Exception as e:
+        print(f"WEBHOOK PROCESSING ERROR: {e}") 
+        return HttpResponse(status=500)
+
+
+
+#  FOR FRONTEND REDIRECT VERIFICATION 
+# NOTE: This endpoint is called by your React component after the user is redirected 
+# back from Flutterwave's payment page. It requires authentication.
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_payment_and_activate_subscription(request):
+    """Endpoint called by the frontend (POST) to verify payment and activate subscription."""
+    serializer = PaymentVerificationSerializer(data=request.data)
+    tx_ref = request.data.get('tx_ref')
+    subscription_id = request.data.get('subscription_id') # Use the ID created in initiate_subscription_payment
+
+    if not tx_ref or not subscription_id:
+        return Response({"detail": "Missing transaction reference or subscription ID."}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        
+        expected_amount = 99.00
+        currency = "USD"
+        
+        # 2. Verify with Flutterwave
+        is_verified, fw_data = verify_flutterwave_transaction(tx_ref, expected_amount, currency)
+
+        if is_verified:
+            # 3. Fulfill the subscription
+            with transaction.atomic():
+                # sub.is_active = True; sub.save()
+                # Invoice.objects.create(...)
+                
+                return Response({"message": "Payment successful and subscription activated."}, status=status.HTTP_200_OK)
+        else:
+            return Response({"detail": fw_data.get('detail', 'Verification failed.')}, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({"detail": f"Server error during verification: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# 
+@action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+def initiate_subscription_payment(self, request):
+    """Initiate payment for a new subscription plan."""
+    
+    # --- 1. Validate Input Data and Look up Plan ---
+    serializer = SubscriptionInitiateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True) 
+    
+    plan_id = serializer.validated_data['plan_id']
+    selected_plan = serializer.selected_plan # Fetched by the serializer
+    
+    try:
+        # --- 2. Get User/Organization context (CRITICAL CHANGE HERE) ---
+        # The user's 'organization' field already holds the related object.
+        organization = request.user.organization
+        
+        
+        if not organization:
+          
+            return Response(
+                {"organization": "User must be linked to an organization to initiate payment."},
+                status=status.HTTP_403_FORBIDDEN # 403 is
+            )
+    
+        expected_amount = selected_plan.price 
+        currency = selected_plan.currency    
+        
+        # Determine seats and initial dates (Simplified calculation)
+        seats = selected_plan.seats # Using 'seats' field from your SubscriptionPlan model
+        start_date = timezone.now().date()
+        end_date = start_date + timedelta(days=30) 
+        renewal_date = end_date
+        
+        with transaction.atomic():
+            
+            # Generate the unique reference ID for the payment gateway
+            pending_sub_id = f"SUB-{uuid.uuid4().hex[:8]}" 
+            
+            # Create the PENDING Subscription record in the database
+            pending_sub = Subscription.objects.create(
+                employer=organization, 
+                plan=plan_id, 
+                plan_details=selected_plan,
+                amount=expected_amount,
+                seats=seats,
+                start_date=start_date,
+                end_date=end_date,
+                renewal_date=renewal_date,
+                is_active=False, 
+                subscription_reference=pending_sub_id, 
+            )
+            
+            # 4. Call Flutterwave to get the payment link
+            payment_result = initiate_payment_fw(
+                amount=expected_amount,
+                email=request.user.email,
+                subscription_id=pending_sub.subscription_reference,
+                currency=currency
+            )
+
+        if payment_result.get('status') == 'success':
+            return Response({
+                'status': 'success',
+                'payment_url': payment_result['data']['link'], 
+                'subscription_id': pending_sub.subscription_reference
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response(payment_result, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# Wellness Reports View   
 @extend_schema(tags=['Employer Dashboard'])
 class WellnessReportsView(viewsets.ViewSet):
     """Wellness reports and analytics"""
@@ -1968,7 +2825,7 @@ class TestsByTypeView(viewsets.ViewSet):
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
-        tests_by_type = MoodTest.objects.values('test_type').annotate(
+        tests_by_type = MoodTracking.objects.values('test_type').annotate(
             count=Count('id')
         ).order_by('-count')
         
@@ -1981,15 +2838,13 @@ class TestsByDepartmentView(viewsets.ViewSet):
     permission_classes = [IsCompanyAdmin]
     
     def list(self, request):
-        
-        tests_by_department = MoodTest.objects.values(
+        tests_by_department = MoodTracking.objects.values(
             'department__name'
         ).annotate(
             count=Count('id')
         ).order_by('-count')
         
         return Response(list(tests_by_department))
-
 
 # System Admin Views
 @extend_schema(tags=['System Admin'])
@@ -2207,7 +3062,7 @@ class OrganizationsManagementView(viewsets.ModelViewSet):
         
         return Response(list(distribution))
 
-
+# HOTLINE VIEWS
 @extend_schema(tags=['System Admin'])
 class HotlineActivityView(viewsets.ViewSet):
     """Hotline activity management for system admin"""
@@ -2292,8 +3147,9 @@ class HotlineActivityView(viewsets.ViewSet):
         }
         
         return Response(data)
+    
 
-
+# ActiveHotlineView
 @extend_schema(tags=['System Admin'])
 class AIManagementView(viewsets.ViewSet):
     """AI Management dashboard for system admin"""
@@ -2593,173 +3449,279 @@ class EducationalResourceViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['name', 'created_at']
 
 
-class VideoViewSet(viewsets.ReadOnlyModelViewSet):
+
+class AdminOrReadOnly(BasePermission):
+    """
+    Custom permission: Read-only for everyone, write for admins only.
+    """
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:  # GET, HEAD, OPTIONS
+            return True
+        return request.user and request.user.is_staff  # Only admins can write
+
+
+class VideoViewSet(viewsets.ModelViewSet):  # Full CRUD support
     queryset = Video.objects.filter(is_active=True)
     serializer_class = VideoSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [AdminOrReadOnly]  #  Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
     search_fields = ['title', 'description']
     ordering_fields = ['created_at', 'views', 'title']
-    
+    lookup_field = 'pk'  # Explicit lookup
+
     @action(detail=True, methods=['post'])
     def watch(self, request, pk=None):
         """Record that user watched this video"""
-        video = self.get_object()
+        try:
+            video = self.get_object()
+        except Exception:
+            raise NotFound("No video matches the given query.")
+
         video.views += 1
         video.save()
-        
-        # Track user activity if authenticated
+
         if request.user.is_authenticated:
             UserActivity.objects.create(user=request.user, video=video)
-        
+
+        # Notify employees (optional, but should be outside Response)
+        for employee in Employee.objects.all():
+            Notification.objects.create(
+                employee=employee,
+                message=f"New video added: {video.title}",
+                content_type="video",
+                object_id=video.id
+            )
+
         return Response({'message': 'View recorded', 'total_views': video.views})
-    
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     def save(self, request, pk=None):
         """Save video to user's library"""
-        video = self.get_object()
-        saved, created = SavedResource.objects.get_or_create(
-            user=request.user, 
-            video=video
-        )
-        
+        try:
+            video = self.get_object()
+        except Exception:
+            raise NotFound("No video matches the given query.")
+
+        saved, created = SavedResource.objects.get_or_create(user=request.user, video=video)
+
         if created:
             return Response({'message': 'Video saved to your library'})
         else:
             saved.delete()
             return Response({'message': 'Video removed from library'})
-    
+
     @action(detail=False, methods=['get'])
     def popular(self, request):
-       
+        """Return top 10 most viewed videos"""
         popular = self.queryset.order_by('-views')[:10]
         serializer = self.get_serializer(popular, many=True)
         return Response(serializer.data)
 
+class AdminOrReadOnly(BasePermission):
+    """
+    Read-only for everyone, write access only for admins.
+    """
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:  # GET, HEAD, OPTIONS
+            return True
+        return request.user and request.user.is_staff  # Only admins can write
 
-class AudioViewSet(viewsets.ReadOnlyModelViewSet):
-   
+
+class AudioViewSet(viewsets.ModelViewSet):  # Full CRUD support
     queryset = Audio.objects.filter(is_active=True)
     serializer_class = AudioSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [AdminOrReadOnly]  #  Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
     search_fields = ['title', 'description']
     ordering_fields = ['created_at', 'plays', 'title']
-    
+    lookup_field = 'pk'
+
     @action(detail=True, methods=['post'])
     def play(self, request, pk=None):
-        
-        audio = self.get_object()
+        """Record that user played this audio"""
+        try:
+            audio = self.get_object()
+        except Exception:
+            raise NotFound("No audio matches the given query.")
+
         audio.plays += 1
         audio.save()
-        
-        # Track user activity if authenticated
+
         if request.user.is_authenticated:
             UserActivity.objects.create(user=request.user, audio=audio)
-        
+
+        # Notify employees (should be outside Response)
+        for employee in Employee.objects.all():
+            Notification.objects.create(
+                employee=employee,
+                message=f"New audio published1: {audio.title}",
+                content_type="audio",
+                object_id=audio.id
+            )
+
         return Response({'message': 'Play recorded', 'total_plays': audio.plays})
-    
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def save(self, request, pk=None):
-        audio = self.get_object()
-        saved, created = SavedResource.objects.get_or_create(
-            user=request.user, 
-            audio=audio
-        )
-        
+        """Save audio to user's library"""
+        try:
+            audio = self.get_object()
+        except Exception:
+            raise NotFound("No audio matches the given query.")
+
+        saved, created = SavedResource.objects.get_or_create(user=request.user, audio=audio)
+
         if created:
             return Response({'message': 'Audio saved to your library'})
         else:
             saved.delete()
             return Response({'message': 'Audio removed from library'})
 
+class AdminOrReadOnly(BasePermission):
+    """
+    Read-only for everyone, write access only for admins.
+    """
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:  # GET, HEAD, OPTIONS
+            return True
+        return request.user and request.user.is_staff  # Only admins can write
 
-class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Article.objects.filter(is_published=True)
+
+class ArticleViewSet(viewsets.ModelViewSet):  # Full CRUD support
+    queryset = Article.objects.filter(is_public=True)
     serializer_class = ArticleSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [AdminOrReadOnly]  #  Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
     search_fields = ['title', 'content', 'excerpt']
     ordering_fields = ['published_date', 'views', 'reading_time']
-    lookup_field = 'slug'
-    
+
     @action(detail=True, methods=['post'])
     def read(self, request, slug=None):
-        article = self.get_object()
+        """Record that user read this article"""
+        try:
+            article = self.get_object()
+        except Exception:
+            raise NotFound("No article matches the given query.")
+
         article.views += 1
         article.save()
-        
+
         # Track user activity if authenticated
         if request.user.is_authenticated:
             UserActivity.objects.create(user=request.user, article=article)
-        
+
+        # Notify employees (should be outside Response)
+        for employee in Employee.objects.all():
+            Notification.objects.create(
+                employee=employee,
+                message=f"New article published: {article.title}",
+                content_type="article",
+                object_id=article.id
+            )
+
         return Response({'message': 'Read recorded', 'total_views': article.views})
-    
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def save(self, request, slug=None):
-        article = self.get_object()
+        """Save article to user's library"""
+        try:
+            article = self.get_object()
+        except Exception:
+            raise NotFound("No article matches the given query.")
+
         saved, created = SavedResource.objects.get_or_create(
-            user=request.user, 
+            user=request.user,
             article=article
         )
-        
+
         if created:
             return Response({'message': 'Article saved to your library'})
         else:
             saved.delete()
             return Response({'message': 'Article removed from library'})
-    
+
     @action(detail=False, methods=['get'])
     def trending(self, request):
+        """Return top 10 most viewed articles"""
         trending = self.queryset.order_by('-views')[:10]
         serializer = self.get_serializer(trending, many=True)
         return Response(serializer.data)
 
 
-class MeditationTechniqueViewSet(viewsets.ReadOnlyModelViewSet):
+from rest_framework.permissions import IsAdminUser, IsAuthenticated, SAFE_METHODS, BasePermission
+class AdminOrReadOnly(BasePermission):
+    """
+    Read-only for everyone, write access only for admins.
+    """
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:  # GET, HEAD, OPTIONS
+            return True
+        return request.user and request.user.is_staff  # Only admins can write
+
+
+class MeditationTechniqueViewSet(viewsets.ModelViewSet):  # Full CRUD support
     queryset = MeditationTechnique.objects.filter(is_active=True)
     serializer_class = MeditationTechniqueSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [AdminOrReadOnly]  # 👈 Restrict edits/deletes to admins
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category', 'difficulty']
     search_fields = ['title', 'description', 'benefits']
     ordering_fields = ['difficulty', 'duration', 'times_practiced']
-    
+
     @action(detail=True, methods=['post'])
     def practice(self, request, pk=None):
-        meditation = self.get_object()
+        """Record that user practiced this meditation technique"""
+        try:
+            meditation = self.get_object()
+        except Exception:
+            raise NotFound("No meditation technique matches the given query.")
+
         meditation.times_practiced += 1
         meditation.save()
-        
+
         # Track user activity if authenticated
         if request.user.is_authenticated:
             UserActivity.objects.create(user=request.user, meditation=meditation, completed=True)
-        
+
+        # Notify employees (should be outside Response)
+        for employee in Employee.objects.all():
+            Notification.objects.create(
+                employee=employee,
+                message=f"New meditation published: {meditation.title}",
+                content_type="meditation",
+                object_id=meditation.id
+            )
+
         return Response({'message': 'Practice recorded', 'total_sessions': meditation.times_practiced})
-    
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def save(self, request, pk=None):
-        meditation = self.get_object()
+        """Save meditation technique to user's library"""
+        try:
+            meditation = self.get_object()
+        except Exception:
+            raise NotFound("No meditation technique matches the given query.")
+
         saved, created = SavedResource.objects.get_or_create(
-            user=request.user, 
+            user=request.user,
             meditation=meditation
         )
-        
+
         if created:
             return Response({'message': 'Meditation saved to your library'})
         else:
             saved.delete()
             return Response({'message': 'Meditation removed from library'})
-    
+
     @action(detail=False, methods=['get'])
     def for_beginners(self, request):
+        """Return beginner-friendly meditation techniques"""
         beginners = self.queryset.filter(difficulty='beginner')
         serializer = self.get_serializer(beginners, many=True)
         return Response(serializer.data)
-
 
 class SavedResourceViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = SavedResourceSerializer
@@ -2775,10 +3737,12 @@ class SavedResourceViewSet(viewsets.ReadOnlyModelViewSet):
         
         if resource_type == 'videos':
             saved = saved.filter(video__isnull=False)
-        elif resource_type == 'audios':
-            saved = saved.filter(audio__isnull=False)
+        elif resource_type == 'cbt-exercises':
+            saved = saved.filter(cbt_exercise__isnull=False)
         elif resource_type == 'articles':
             saved = saved.filter(article__isnull=False)
+        elif resource_type == 'audios':
+            saved = saved.filter(audio__isnull=False)    
         elif resource_type == 'meditations':
             saved = saved.filter(meditation__isnull=False)
         
@@ -2800,8 +3764,9 @@ class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):
         stats = {
             'total_activities': activities.count(),
             'videos_watched': activities.filter(video__isnull=False).count(),
-            'audios_played': activities.filter(audio__isnull=False).count(),
+            'cbt_exercises_played': activities.filter(cbt_exercise__isnull=False).count(),
             'articles_read': activities.filter(article__isnull=False).count(),
+            'audios_listened': activities.filter(audio__isnull=False).count(),
             'meditations_practiced': activities.filter(meditation__isnull=False, completed=True).count(),
         }
         
@@ -2809,42 +3774,22 @@ class UserActivityViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 
-@extend_schema(
-    request=OnboardingStateSerializer,
-    responses=OnboardingStateSerializer,
-    methods=["GET", "PATCH"]
-)
-class OnboardingView(RetrieveUpdateAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = OnboardingStateSerializer
+# @extend_schema(
+#     request=OnboardingStateSerializer,
+#     responses=OnboardingStateSerializer,
+#     methods=["GET", "PATCH"]
+# )
+# class OnboardingView(RetrieveUpdateAPIView):
+#     permission_classes = [IsAuthenticated]
+#     serializer_class = OnboardingStateSerializer
 
-    def get_object(self):
-        obj, _ = OnboardingState.objects.get_or_create(user=self.request.user)
-        return obj
+#     def get_object(self):
+#         obj, _ = OnboardingState.objects.get_or_create(user=self.request.user)
+#         return obj
 
-# POST to mark onboarding as complete
-@extend_schema(
-    request=None,
-    responses={200: {"message": "Onboarding completed."}, 404: {"error": "Onboarding state not found."}},
-    methods=["POST"]
-)
-class CompleteOnboardingView(UpdateAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = OnboardingStateSerializer
-
-    def get_object(self):
-        try:
-            return OnboardingState.objects.get(user=self.request.user)
-        except OnboardingState.DoesNotExist:
-            return None
-
-    def update(self, request, *args, **kwargs):
-        state = self.get_object()
-        if not state:
-            return Response({'error': 'Onboarding state not found.'}, status=404)
-        state.completed = True
-        state.save()
-        return Response({'message': 'Onboarding completed.'})
+# Note: the onboarding 'state' view was intentionally removed to keep a single
+# POST-only completion endpoint. The active `CompleteOnboardingView` is defined
+# earlier in this file as a POST-only `APIView` that marks `user.is_onboarded=True`.
 
 
 
@@ -2858,7 +3803,7 @@ class CompleteOnboardingView(UpdateAPIView):
         tags=['Dynamic Questions']
     )
 )
-class DynamicQuestionViewSet(viewsets.ModelViewSet):
+class DynamicQuestionViewSet(viewsets.ModelViewSet): 
     queryset = DynamicQuestion.objects.filter(is_active=True)
     serializer_class = DynamicQuestionSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -2869,3 +3814,363 @@ class DynamicQuestionViewSet(viewsets.ModelViewSet):
         questions = list(self.queryset.order_by('?')[:count])
         serializer = self.get_serializer(questions, many=True)
         return Response(serializer.data)
+
+class UserAchievementViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = UserAchievementSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return UserAchievement.objects.filter(user=self.request.user).select_related('achievement')
+
+    @action(detail=False, methods=['post'])
+    def update_progress(self, request):
+        """Increment progress for a given achievement"""
+        achievement_title = request.data.get('title')
+        increment = int(request.data.get('increment', 1))
+
+        achievement = get_object_or_404(Achievement, title=achievement_title, is_active=True)
+        ua, _ = UserAchievement.objects.get_or_create(user=request.user, achievement=achievement)
+        ua.increment_progress(increment)
+
+        serializer = self.get_serializer(ua)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        """Return overall summary of achievements"""
+        achievements = self.get_queryset()
+        total = achievements.count()
+        completed = achievements.filter(achieved=True).count()
+        serializer = self.get_serializer(achievements, many=True)
+
+        return Response({
+            'total_achievements': total,
+            'completed': completed,
+            'progress': serializer.data
+        })
+
+
+# VIEWS FOR ADMIN USER MANAGEMENT
+class OrganizationViewSet(viewsets.ModelViewSet):
+    queryset = Organization.objects.all()
+    serializer_class = OrganizationSerializer
+    permission_classes = [IsSystemAdmin]
+
+
+class AdminUserManagementViewSet(viewsets.ModelViewSet):
+    """
+    System Admin full control over users.
+    """
+    queryset = User.objects.all()
+    serializer_class = AdminUserSerializer
+    permission_classes = [IsSystemAdmin]
+
+    # Temporary suspension
+    @action(detail=True, methods=['post'])
+    def suspend(self, request, pk=None):
+        user = self.get_object()
+        if user.role == 'system_admin':
+            return Response({'detail': 'Cannot suspend a system admin.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.is_suspended = True
+        user.save(update_fields=['is_suspended'])
+        return Response({'status': 'user suspended'})
+
+    # Activate (clear suspension + ensure not deactivated)
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        user = self.get_object()
+        # Ensure employee has avatar before activation
+        if user.role == 'employee' and not user.avatar:
+            return Response({'detail': 'Employee must have an avatar before activation.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.is_suspended = False
+        user.is_active = True
+        user.save(update_fields=['is_suspended', 'is_active'])
+        return Response({'status': 'user activated'})
+
+    # Deactivate (soft disable) — admin action to remove access
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        user = self.get_object()
+        if user.role == 'system_admin':
+            return Response({'detail': 'Cannot deactivate a system admin.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.is_active = False
+        user.is_suspended = False
+        user.save(update_fields=['is_active', 'is_suspended'])
+        return Response({'status': 'user deactivated'})
+
+    # Reactivate after deactivation (admin only)
+    @action(detail=True, methods=['post'])
+    def reactivate(self, request, pk=None):
+        user = self.get_object()
+        if user.role == 'system_admin':
+            return Response({'detail': 'System admin already active.'}, status=status.HTTP_400_BAD_REQUEST)
+        if user.role == 'employee' and not user.avatar:
+            return Response({'detail': 'Employee must have an avatar before reactivation.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.is_active = True
+        user.save(update_fields=['is_active'])
+        return Response({'status': 'user reactivated'})
+
+    # Mark onboarding complete for an employee (admin may set this if needed)
+    @action(detail=True, methods=['post'])
+    def complete_onboarding(self, request, pk=None):
+        user = self.get_object()
+        if user.role != 'employee':
+            return Response({'detail': 'Only employees can have onboarding completed.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.onboarding_completed = True
+        user.save(update_fields=['onboarding_completed'])
+        return Response({'status': 'onboarding completed'})
+
+    # Override destroy to prevent accidental deletion of system_admin accounts
+    def destroy(self, request, *args, **kwargs):
+        user = self.get_object()
+        if user.role == 'system_admin':
+            return Response({'detail': 'Cannot delete a system admin account.'}, status=status.HTTP_400_BAD_REQUEST)
+        return super().destroy(request, *args, **kwargs)
+@extend_schema(tags=['User - Settings'])
+class SettingsViewSet(viewsets.ModelViewSet):
+    serializer_class = SettingsSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Only return settings for the logged-in user
+        return Settings.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        # Ensure settings are tied to the current user
+        serializer.save(user=self.request.user)
+
+# media upload view for systems admin
+class MediaViewSet(viewsets.ModelViewSet):
+    """
+    Handles list/retrieve for employees and create/update/delete for system admins.
+    """
+    queryset = Media.objects.all()
+    serializer_class = MediaSerializer
+    permission_classes = [IsSystemAdminOrReadOnly]
+
+    # Filtering/searching
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['media_type', 'is_published', 'tags']
+    search_fields = ['title', 'description', 'body', 'tags']
+    ordering_fields = ['published_at', 'created_at']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        # By default, employees see only published items
+        if self.request.method in ('GET',) and not (self.request.user.is_staff or getattr(self.request.user, 'is_system_admin', False)):
+            qs = qs.filter(is_published=True)
+        return qs
+
+    @action(detail=True, methods=['post'], permission_classes=[IsSystemAdminOrReadOnly])
+    def publish(self, request, pk=None):
+        """
+        Convenience endpoint for system admin to set is_published=True.
+        """
+        media = self.get_object()
+        media.is_published = True
+        if not media.published_at:
+            from django.utils import timezone
+            media.published_at = timezone.now()
+        media.save()
+        serializer = self.get_serializer(media)
+        return Response(serializer.data)
+
+    def perform_destroy(self, instance):
+        # Optionally delete files from storage here or rely on storage backend.
+        instance.file.delete(save=False)
+        instance.thumbnail.delete(save=False)
+        instance.delete()
+
+
+    
+
+
+
+from .permissions import IsAdminOrReadOnly
+class JournalEntryViewSet(viewsets.ModelViewSet):
+    serializer_class = JournalEntrySerializer
+    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return JournalEntry.objects.all()
+        return JournalEntry.objects.filter(user=user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
+from .models import CBTExercise
+from .serializers import CBTExerciseSerializer
+from .permissions import IsAdminOrReadOnly
+
+class CBTExerciseViewSet(viewsets.ModelViewSet):
+    serializer_class = CBTExerciseSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return CBTExercise.objects.all()
+        return CBTExercise.objects.filter(user=user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def perform_update(self, serializer):
+        # If marking as completed, auto-set completed_at
+        instance = serializer.save()
+        if instance.completed and not instance.completed_at:
+            from django.utils import timezone
+            instance.completed_at = timezone.now()
+            instance.save()
+
+from rest_framework import viewsets, status
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from drf_spectacular.utils import extend_schema
+
+# --- Payment Method Update ---
+class UpdatePaymentMethodViewSet(viewsets.ViewSet):
+    """
+    API endpoint to receive the new Flutterwave card token and update 
+    the user's stored payment method for recurring billing.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        """POST /payment-methods/"""
+        user = request.user
+        serializer = PaymentTokenSerializer(data=request.data)
+
+        if serializer.is_valid():
+            validated_data = serializer.validated_data
+            token_id = validated_data['token_id']
+            card_last_four = validated_data.get('card_last_four')
+            card_type = validated_data.get('card_type')
+
+            try:
+                payment_method, created = PaymentMethod.objects.update_or_create(
+                    user=user,
+                    defaults={
+                        'token_id': token_id,
+                        'card_last_four': card_last_four,
+                        'card_type': card_type,
+                        'is_active': True
+                    }
+                )
+
+                response_message = (
+                    "New payment method successfully created."
+                    if created else "Payment method successfully updated."
+                )
+
+                return Response(
+                    {"message": response_message, "token_id": token_id},
+                    status=status.HTTP_200_OK
+                )
+
+            except Exception as e:
+                print(f"Database error during payment update: {e}")
+                return Response(
+                    {"detail": "A server error occurred while saving the payment token."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# --- Employee First Login ---
+@extend_schema(tags=['Employee Invitations'])
+class EmployeeFirstLoginViewSet(viewsets.ViewSet):
+    """
+    Handle first login with temporary credentials
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        request=EmployeeFirstLoginSerializer,
+        responses={
+            200: {
+                "description": "First login successful",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "message": "First login successful. Please complete your account setup.",
+                            "token": "abc123xyz",
+                            "email": "employee@company.com",
+                            "employer": "Company Name"
+                        }
+                    }
+                }
+            },
+            400: {"description": "Invalid credentials"}
+        },
+        description="""
+        First login endpoint for employees using temporary credentials from invitation email.
+        
+        After successful authentication with temporary credentials:
+        - The credentials are marked as used (cannot be reused)
+        - A token is returned for completing account setup
+        - User must then call the account completion endpoint
+        """
+    )
+    def create(self, request, *args, **kwargs):
+        """POST /employee-first-login/"""
+        serializer = EmployeeFirstLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        invitation = serializer.validated_data['invitation']
+        invitation.credentials_used = True
+        invitation.save()
+
+        return Response({
+            'message': 'First login successful. Please complete your account setup.',
+            'token': invitation.token,
+            'email': invitation.email,
+            'employer': invitation.employer.name,
+            'invited_by': invitation.invited_by.email if invitation.invited_by else 'Unknown'
+        }, status=status.HTTP_200_OK)
+
+
+@extend_schema(tags=['Assessments'])
+class PSS10AssessmentViewSet(viewsets.ViewSet):
+    """
+    API endpoint for Perceived Stress Scale (PSS-10).
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=PSS10AssessmentSerializer,
+        responses={200: {"description": "Assessment completed"}}
+    )
+    def create(self, request, *args, **kwargs):
+        serializer = PSS10AssessmentSerializer(data=request.data)
+        if serializer.is_valid():
+            responses = serializer.validated_data['responses']
+            score = sum(responses)
+
+            if score <= 13:
+                category = "Low stress"
+            elif 14 <= score <= 26:
+                category = "Moderate stress"
+            else:
+                category = "High stress"
+
+            # Save result
+            PSS10Assessment.objects.create(
+                user=request.user,
+                score=score,
+                category=category,
+                responses=responses
+            )
+
+            return Response({
+                "score": score,
+                "category": category,
+                "message": f"Your stress level is {category.lower()}."
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

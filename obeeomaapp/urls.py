@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework import permissions
 from . import views
+from .views import OrganizationViewSet, AdminUserManagementViewSet
 
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
@@ -10,30 +11,33 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 from .views import CustomTokenObtainPairView
 from obeeomaapp.views import (
-    MentalHealthAssessmentViewSet, OrganizationOverviewView, EmployeeManagementView,
+     OrganizationOverviewView, EmployeeManagementView,
     DepartmentManagementView, SubscriptionManagementView,
     WellnessReportsView, OrganizationSettingsView, TestsByTypeView,
     TestsByDepartmentView, SystemAdminOverviewView, 
     OrganizationsManagementView, HotlineActivityView,
     AIManagementView, ClientEngagementView,
     ReportsAnalyticsView, SystemSettingsView, FeaturesUsageView,
-    EmployerViewSet, MyBadgesView, MyStreaksView, ProgressViewSet, 
-    EmailConfigCheckView, SignupView, LoginView, LogoutView, 
+    MyBadgesView, MyStreaksView, ProgressViewSet, 
+    EmailConfigCheckView, LoginView, LogoutView, 
     PasswordResetView, PasswordResetConfirmView, PasswordChangeView,
     OverviewView, TrendsView, EmployeeEngagementView, BillingView,
     UsersView, ReportsView, CrisisInsightsView,
     EmployeeProfileView, AvatarProfileView, 
-    MoodTrackingView, AssessmentResultView, SelfHelpResourceView,
-     CrisisTriggerView, NotificationView, 
+    MoodTrackingView, SelfHelpResourceView,
+    CrisisTriggerView, NotificationView, 
     EngagementTrackerView, FeedbackView, ChatSessionView, 
-    ChatMessageView, RecommendationLogView, InvitationAcceptView, 
+    ChatMessageView, RecommendationLogView, CompleteAccountSetupView, 
     InvitationVerifyView, home, OrganizationSignupView,
-    InvitationAcceptanceView, InviteView, 
+    CompleteAccountSetupView, InviteView, EmployeeFirstLoginView,
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
-    SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, 
-    OnboardingView, CompleteOnboardingView, DynamicQuestionViewSet
-    
+    SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, MediaViewSet,
+     CompleteOnboardingView,
+    DynamicQuestionViewSet, UserAchievementViewSet,
+    AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView, CBTExerciseViewSet, SettingsViewSet,
+    JournalEntryViewSet, UpdatePaymentMethodViewSet, EmployeeFirstLoginViewSet, PSS10AssessmentViewSet,
 )
+
 
 
 
@@ -54,21 +58,21 @@ schema_view = get_schema_view(
 router = DefaultRouter()
 
 # API FOR SIGNING UP AN ORGANIZATION
+router.register(r'assessments/pss10', PSS10AssessmentViewSet, basename='pss10-assessment')
 router.register(r'organization-signup', OrganizationSignupView, basename='organization-signup')
-
-router.register(r'mental-health/assessments', MentalHealthAssessmentViewSet, basename='mental-health-assessment')
-router.register(r'employers', EmployerViewSet, basename='employer')
+router.register(r'payment-methods', UpdatePaymentMethodViewSet, basename='payment-method')
+router.register(r'employee-first-login', EmployeeFirstLoginViewSet, basename='employee-first-login')
 router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'progress', ProgressViewSet)
-
-
+router.register(r'cbt-exercises', CBTExerciseViewSet, basename='cbt-exercises')
+router.register(r'achievements', UserAchievementViewSet, basename='achievements')
+router.register(r'settings', SettingsViewSet, basename='user-settings')
 # Dashboard routers (Employer Dashboard)
 
 router.register(r'employee/profile', EmployeeProfileView, basename='employee-profile')
 router.register(r'employee/avatar', AvatarProfileView, basename='avatar-profile')
 router.register(r'employee/mood-tracking', MoodTrackingView, basename='mood-tracking')
-router.register(r'employee/assessments', AssessmentResultView, basename='assessment-results')
 router.register(r'resources/self-help', SelfHelpResourceView, basename='self-help-resources')
 router.register(r'resources/educational', EducationalResourceViewSet, basename='educational-resources')
 router.register(r'employee/crisis', CrisisTriggerView, basename='crisis-trigger')
@@ -105,9 +109,22 @@ router.register(r'admin/reports-analytics', ReportsAnalyticsView, basename='repo
 router.register(r'admin/system-settings', SystemSettingsView, basename='system-settings')
 router.register(r'admin/feature-flags', FeaturesUsageView, basename='feature-flags')
 router.register(r'dynamic-questions', DynamicQuestionViewSet, basename='dynamic-question')
+# ADMIN USER MANAGEMENT ROUTERS
+router.register(r'admin/organizations', OrganizationViewSet, basename='admin-organizations')
+router.register(r'admin/users', AdminUserManagementViewSet, basename='admin-users')
+router.register(r'journal-entries', JournalEntryViewSet, basename='journal-entry')
+
+router.register(r'dashboard/billing/verify-payment', BillingView, basename='verify-payment')
+
+# Assessment Questionnaires (PHQ-9 & GAD-7)
+router.register(r'assessments/questions', AssessmentQuestionViewSet, basename='assessment-question')
+router.register(r'assessments/responses', AssessmentResponseViewSet, basename='assessment-response')
+
 # Employee Invitations
 router.register(r'invitations', InviteView, basename='invitations')
 
+# Media uploads
+router.register(r'media', MediaViewSet, basename='media')
 urlpatterns = [
     # Home
     path("", home, name="home"),
@@ -116,17 +133,35 @@ urlpatterns = [
         "debug/email-config/", EmailConfigCheckView.as_view(), name="email-config-check"
     ),
     # Authentication
-    path("auth/signup/", SignupView.as_view({"post": "create"}), name="signup"),
+    # path("auth/signup/", SignupView.as_view({"post": "create"}), name="signup"),
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/logout/", LogoutView.as_view(), name="logout"),
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
     path("auth/reset-password/confirm/", PasswordResetConfirmView.as_view({'post': 'create'}), name="password-reset-confirm"),
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
     path('auth/verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
+    path('auth/reset-password/complete/', ResetPasswordCompleteView.as_view({'post': 'create'}), name='password-reset-complete'),
     path('auth/mfa/setup/', views.mfa_setup, name='mfa-setup'),
     path('auth/mfa/confirm/', views.mfa_confirm, name='mfa-confirm'),
     path('auth/mfa/verify/', views.mfa_verify, name='mfa-verify'),
 
+    # Hotline Active Endpoint
+    path('auth/hotline/active/', ActiveHotlineView.as_view(), name="active-hotline"),
+
+    # Organisation detials endpoint
+    path('auth/organizations/<int:org_id>/details/', OrganizationDetailView.as_view(), name='organization-details'),
+
+    # Complete Onboarding Endpoint
+    path('auth/complete-onboarding/', CompleteOnboardingView.as_view(), name='complete-onboarding'),
+
+
+  
+    # # path('billing/initiate_payment/', views.initiate_subscription_payment, name='initiate-subscription-payment'),
+     path('billing/verify_payment/', views.verify_payment_and_activate_subscription, name='verify-payment-activate'),
+
+     path('billing/flutterwave-webhook/', views.flutterwave_webhook_listener, name='flutterwave-webhook'),
+    
+   
     # Dashboard
     path("dashboard/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),
     path("dashboard/trends/", TrendsView.as_view({'get': 'list'}), name="trends"),
@@ -151,10 +186,7 @@ urlpatterns = [
     # Employee endpoints
     path('employee/profile/', EmployeeProfileView.as_view({'get': 'list', 'post': 'create'}), name='employee-profile'),
     path('employee/avatar/', AvatarProfileView.as_view({'get': 'list', 'post': 'create'}), name='avatar-profile'),
-    
-    path('employee/assessments/', AssessmentResultView.as_view({'get': 'list', 'post': 'create'}), name='assessment-results'),
     path('resources/self-help/', SelfHelpResourceView.as_view({'get': 'list', 'post': 'create'}), name='self-help-resources'),
-    path('assessment-result/<int:id>/', AssessmentResultView.as_view({'get': 'retrieve'}), name='assessment-result'),
 
     # path('resources/educational/', EducationalResourceView.as_view({'get': 'list', 'post': 'create'}), name='educational-resources'),
     path('employee/crisis/', CrisisTriggerView.as_view({'get': 'list', 'post': 'create'}), name='crisis-trigger'),
@@ -164,17 +196,14 @@ urlpatterns = [
     path('sana/sessions/', ChatSessionView.as_view({'get': 'list', 'post': 'create'}), name='chat-sessions'),
     path('sana/sessions/<int:session_id>/messages/', ChatMessageView.as_view({'get': 'list', 'post': 'create'}), name='chat-messages'),
     path('employee/recommendations/', RecommendationLogView.as_view({'get': 'list', 'post': 'create'}), name='recommendation-log'),
-    
-
-
-    path('onboarding/', OnboardingView.as_view(), name='onboarding'),
-    path('onboarding/complete/', CompleteOnboardingView.as_view(), name='complete-onboarding'),
 
 
 
-    # Invitation acceptance (public) - Updated to use InvitationAcceptanceView
+
+    # Employee invitation flow
+    path('auth/first-login/', EmployeeFirstLoginView.as_view(), name='first-login'),
+    path('auth/complete-account-setup/', CompleteAccountSetupView.as_view(), name='complete-account-setup'),
     path('auth/verify-invite/', InvitationVerifyView.as_view(), name='verify-invite'),
-    path('auth/accept-invite/', InvitationAcceptanceView.as_view(), name='accept-invite'),
 
     # Include router URLs
     path("", include(router.urls)),
@@ -196,6 +225,7 @@ urlpatterns = [
         name="schema-swagger-ui",
     ),
     path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
+
     # Sana_ai.
     path("api/", include("sana_ai.urls")),
 ]

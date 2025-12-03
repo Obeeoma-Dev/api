@@ -4,229 +4,6 @@ info:
   version: 1.0.0
   description: API documentation
 paths:
-  /api/schema/:
-    get:
-      operationId: api_schema_retrieve
-      description: |-
-        OpenApi3 schema for this API. Format can be selected via content negotiation.
-
-        - YAML: application/vnd.oai.openapi
-        - JSON: application/vnd.oai.openapi+json
-      parameters:
-      - in: query
-        name: format
-        schema:
-          type: string
-          enum:
-          - json
-          - yaml
-      - in: query
-        name: lang
-        schema:
-          type: string
-          enum:
-          - af
-          - ar
-          - ar-dz
-          - ast
-          - az
-          - be
-          - bg
-          - bn
-          - br
-          - bs
-          - ca
-          - ckb
-          - cs
-          - cy
-          - da
-          - de
-          - dsb
-          - el
-          - en
-          - en-au
-          - en-gb
-          - eo
-          - es
-          - es-ar
-          - es-co
-          - es-mx
-          - es-ni
-          - es-ve
-          - et
-          - eu
-          - fa
-          - fi
-          - fr
-          - fy
-          - ga
-          - gd
-          - gl
-          - he
-          - hi
-          - hr
-          - hsb
-          - hu
-          - hy
-          - ia
-          - id
-          - ig
-          - io
-          - is
-          - it
-          - ja
-          - ka
-          - kab
-          - kk
-          - km
-          - kn
-          - ko
-          - ky
-          - lb
-          - lt
-          - lv
-          - mk
-          - ml
-          - mn
-          - mr
-          - ms
-          - my
-          - nb
-          - ne
-          - nl
-          - nn
-          - os
-          - pa
-          - pl
-          - pt
-          - pt-br
-          - ro
-          - ru
-          - sk
-          - sl
-          - sq
-          - sr
-          - sr-latn
-          - sv
-          - sw
-          - ta
-          - te
-          - tg
-          - th
-          - tk
-          - tr
-          - tt
-          - udm
-          - ug
-          - uk
-          - ur
-          - uz
-          - vi
-          - zh-hans
-          - zh-hant
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/vnd.oai.openapi:
-              schema:
-                type: object
-                additionalProperties: {}
-            application/yaml:
-              schema:
-                type: object
-                additionalProperties: {}
-            application/vnd.oai.openapi+json:
-              schema:
-                type: object
-                additionalProperties: {}
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-  /api/v1/achievements/:
-    get:
-      operationId: api_v1_achievements_list
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/UserAchievement'
-          description: ''
-  /api/v1/achievements/{id}/:
-    get:
-      operationId: api_v1_achievements_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserAchievement'
-          description: ''
-  /api/v1/achievements/summary/:
-    get:
-      operationId: api_v1_achievements_summary_retrieve
-      description: Return overall summary of achievements
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserAchievement'
-          description: ''
-  /api/v1/achievements/update_progress/:
-    post:
-      operationId: api_v1_achievements_update_progress_create
-      description: Increment progress for a given achievement
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UserAchievement'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/UserAchievement'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/UserAchievement'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserAchievement'
-          description: ''
   /api/v1/activity/:
     get:
       operationId: api_v1_activity_list
@@ -930,364 +707,6 @@ paths:
       responses:
         '204':
           description: No response body
-  /api/v1/admin/users/:
-    get:
-      operationId: api_v1_admin_users_list
-      description: System Admin full control over users.
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/AdminUser'
-          description: ''
-    post:
-      operationId: api_v1_admin_users_create
-      description: System Admin full control over users.
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminUser'
-          description: ''
-  /api/v1/admin/users/{id}/:
-    get:
-      operationId: api_v1_admin_users_retrieve
-      description: System Admin full control over users.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this user.
-        required: true
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminUser'
-          description: ''
-    put:
-      operationId: api_v1_admin_users_update
-      description: System Admin full control over users.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this user.
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminUser'
-          description: ''
-    patch:
-      operationId: api_v1_admin_users_partial_update
-      description: System Admin full control over users.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this user.
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedAdminUser'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedAdminUser'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedAdminUser'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminUser'
-          description: ''
-    delete:
-      operationId: api_v1_admin_users_destroy
-      description: System Admin full control over users.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this user.
-        required: true
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      responses:
-        '204':
-          description: No response body
-  /api/v1/admin/users/{id}/activate/:
-    post:
-      operationId: api_v1_admin_users_activate_create
-      description: System Admin full control over users.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this user.
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminUser'
-          description: ''
-  /api/v1/admin/users/{id}/complete_onboarding/:
-    post:
-      operationId: api_v1_admin_users_complete_onboarding_create
-      description: System Admin full control over users.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this user.
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminUser'
-          description: ''
-  /api/v1/admin/users/{id}/deactivate/:
-    post:
-      operationId: api_v1_admin_users_deactivate_create
-      description: System Admin full control over users.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this user.
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminUser'
-          description: ''
-  /api/v1/admin/users/{id}/reactivate/:
-    post:
-      operationId: api_v1_admin_users_reactivate_create
-      description: System Admin full control over users.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this user.
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminUser'
-          description: ''
-  /api/v1/admin/users/{id}/suspend/:
-    post:
-      operationId: api_v1_admin_users_suspend_create
-      description: System Admin full control over users.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this user.
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AdminUser'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminUser'
-          description: ''
-  /api/v1/api/chat/:
-    post:
-      operationId: api_v1_api_chat_create
-      description: "\n    Chat with Sana, the AI mental health support assistant.\n\
-        \    \n    Sana provides:\n    - Empathetic, dynamic responses (no static\
-        \ templates)\n    - Mental health focused conversations\n    - Crisis detection\
-        \ and appropriate resources\n    - Context-aware support based on your history\n\
-        \    \n    The conversation is saved to your chat history for continuity.\n\
-        \    "
-      tags:
-      - Sana AI - Mental Health Chatbot
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                message:
-                  type: string
-                  description: User message
-                session_id:
-                  type: integer
-                  description: Optional chat session ID
-              required:
-              - message
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                description: AI response
-                content:
-                  application/json:
-                    example:
-                      response: I hear that you're feeling anxious. That's completely
-                        valid...
-                      session_id: 123
-                      is_crisis: false
-          description: ''
   /api/v1/api/schema/:
     get:
       operationId: api_v1_api_schema_retrieve
@@ -1457,6 +876,7 @@ paths:
       - api
       security:
       - jwtAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -1465,31 +885,6 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Article'
-          description: ''
-    post:
-      operationId: api_v1_articles_create
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Article'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Article'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Article'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Article'
           description: ''
   /api/v1/articles/{slug}/:
     get:
@@ -1504,6 +899,7 @@ paths:
       - api
       security:
       - jwtAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -1511,86 +907,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Article'
           description: ''
-    put:
-      operationId: api_v1_articles_update
-      parameters:
-      - in: path
-        name: slug
-        schema:
-          type: string
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Article'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Article'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Article'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Article'
-          description: ''
-    patch:
-      operationId: api_v1_articles_partial_update
-      parameters:
-      - in: path
-        name: slug
-        schema:
-          type: string
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedArticle'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedArticle'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedArticle'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Article'
-          description: ''
-    delete:
-      operationId: api_v1_articles_destroy
-      parameters:
-      - in: path
-        name: slug
-        schema:
-          type: string
-        required: true
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      responses:
-        '204':
-          description: No response body
   /api/v1/articles/{slug}/read/:
     post:
       operationId: api_v1_articles_read_create
-      description: Record that user read this article
       parameters:
       - in: path
         name: slug
@@ -1613,6 +932,7 @@ paths:
         required: true
       security:
       - jwtAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -1623,7 +943,6 @@ paths:
   /api/v1/articles/{slug}/save/:
     post:
       operationId: api_v1_articles_save_create
-      description: Save article to user's library
       parameters:
       - in: path
         name: slug
@@ -1656,9 +975,29 @@ paths:
   /api/v1/articles/trending/:
     get:
       operationId: api_v1_articles_trending_retrieve
-      description: Return top 10 most viewed articles
       tags:
       - api
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Article'
+          description: ''
+  /api/v1/assessment-result/{id}/:
+    get:
+      operationId: api_v1_assessment_result_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Employee - Assessments
       security:
       - jwtAuth: []
       responses:
@@ -1666,7 +1005,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Article'
+                $ref: '#/components/schemas/AssessmentResult'
           description: ''
   /api/v1/assessments/questions/:
     get:
@@ -1744,7 +1083,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AssessmentQuestion'
+                $ref: '#/components/schemas/AssessmentQuestionsResponse'
           description: ''
   /api/v1/assessments/responses/:
     get:
@@ -1861,6 +1200,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/AssessmentResponse'
           description: ''
+  /api/v1/assessments/responses/stats/:
+    get:
+      operationId: api_v1_assessments_responses_stats_retrieve
+      description: Get assessment statistics
+      tags:
+      - Assessments - Responses
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: Assessment statistics
+          description: ''
   /api/v1/audios/:
     get:
       operationId: api_v1_audios_list
@@ -1885,6 +1239,7 @@ paths:
       - api
       security:
       - jwtAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -1893,31 +1248,6 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Audio'
-          description: ''
-    post:
-      operationId: api_v1_audios_create
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Audio'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Audio'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Audio'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Audio'
           description: ''
   /api/v1/audios/{id}/:
     get:
@@ -1933,6 +1263,7 @@ paths:
       - api
       security:
       - jwtAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -1940,89 +1271,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Audio'
           description: ''
-    put:
-      operationId: api_v1_audios_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this  Audio.
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Audio'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Audio'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Audio'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Audio'
-          description: ''
-    patch:
-      operationId: api_v1_audios_partial_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this  Audio.
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedAudio'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedAudio'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedAudio'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Audio'
-          description: ''
-    delete:
-      operationId: api_v1_audios_destroy
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this  Audio.
-        required: true
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      responses:
-        '204':
-          description: No response body
   /api/v1/audios/{id}/play/:
     post:
       operationId: api_v1_audios_play_create
-      description: Record that user played this audio
       parameters:
       - in: path
         name: id
@@ -2046,6 +1297,7 @@ paths:
         required: true
       security:
       - jwtAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -2056,7 +1308,6 @@ paths:
   /api/v1/audios/{id}/save/:
     post:
       operationId: api_v1_audios_save_create
-      description: Save audio to user's library
       parameters:
       - in: path
         name: id
@@ -2086,6 +1337,94 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Audio'
+          description: ''
+  /api/v1/auth/accept-invite/:
+    post:
+      operationId: api_v1_auth_accept_invite_create
+      description: Validate invitation token and return invitation details
+      tags:
+      - Employee Invitations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeInvitationAccept'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EmployeeInvitationAccept'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EmployeeInvitationAccept'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: Invitation validated successfully
+                content:
+                  application/json:
+                    example:
+                      valid: true
+                      invitation:
+                        email: employee@company.com
+                        employer: Company Name
+                        invited_by: admin@company.com
+                        expires_at: '2025-11-06T19:13:03.648Z'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Invalid or expired token
+          description: ''
+    put:
+      operationId: api_v1_auth_accept_invite_update
+      description: Create employee account using validated invitation
+      tags:
+      - Employee Invitations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeUserCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EmployeeUserCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EmployeeUserCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                description: Account created successfully
+                content:
+                  application/json:
+                    example:
+                      message: Account created successfully
+                      user:
+                        id: 1
+                        email: employee@company.com
+                        first_name: John
+                        last_name: Doe
+                      employee_profile:
+                        id: 1
+                        employer: Company Name
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Invalid data or token
           description: ''
   /api/v1/auth/change-password/:
     post:
@@ -2106,7 +1445,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - {}
       responses:
         '201':
           content:
@@ -2114,150 +1452,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/PasswordChange'
           description: ''
-  /api/v1/auth/complete-account-setup/:
-    post:
-      operationId: api_v1_auth_complete_account_setup_create
-      description: "\n        Complete account setup after successful first login\
-        \ with temporary credentials.\n        \n        This endpoint requires:\n\
-        \        - token: Invitation token from email\n        - username: Your chosen\
-        \ permanent username\n        - password: Your new permanent password\n  \
-        \      \n        The system will:\n        - Validate your invitation token\n\
-        \        - Create your permanent user account\n        - Set your new credentials\n\
-        \        - Create your employee profile\n        - Return authentication tokens\
-        \ for immediate login\n        \n        **Prerequisites:** Must have successfully\
-        \ completed first login with temporary credentials.\n        "
-      tags:
-      - Employee Invitations
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/EmployeeInvitationAccept'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/EmployeeInvitationAccept'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/EmployeeInvitationAccept'
-        required: true
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                description: Account setup completed successfully
-                content:
-                  application/json:
-                    example:
-                      message: Account created successfully. You can now login with
-                        your new credentials.
-                      user:
-                        id: 1
-                        email: employee@company.com
-                        username: john_doe
-                        role: employee
-                      employee_profile:
-                        id: 1
-                        employer: Company Name
-                      access: eyJ0eXAiOiJKV1QiLCJhbGc...
-                      refresh: eyJ0eXAiOiJKV1QiLCJhbGc...
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                description: Invalid data or token not from first login
-          description: ''
-  /api/v1/auth/complete-onboarding/:
-    post:
-      operationId: api_v1_auth_complete_onboarding_create
-      description: Complete first-time user onboarding.
-      tags:
-      - Onboarding
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/EmployeeOnboarding'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/EmployeeOnboarding'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/EmployeeOnboarding'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-  /api/v1/auth/first-login/:
-    post:
-      operationId: api_v1_auth_first_login_create
-      description: "\n        First login endpoint for employees using temporary credentials\
-        \ from invitation email.\n        \n        This endpoint requires:\n    \
-        \    - token: Invitation token from email\n        - temporary_username: Temporary\
-        \ username from email\n        - temporary_password: Temporary password from\
-        \ email\n        \n        After successful authentication:\n        - The\
-        \ credentials are marked as used (cannot be reused)\n        - User receives\
-        \ their email address\n        - User can proceed to complete account setup\n\
-        \        "
-      tags:
-      - Employee Invitations
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/EmployeeFirstLogin'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/EmployeeFirstLogin'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/EmployeeFirstLogin'
-        required: true
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                description: First login successful
-                content:
-                  application/json:
-                    example:
-                      message: First login successful. Please complete your account
-                        setup.
-                      email: employee@company.com
-                      employer: Company Name
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                description: Invalid credentials
-          description: ''
-  /api/v1/auth/hotline/active/:
-    get:
-      operationId: api_v1_auth_hotline_active_retrieve
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          description: No response body
   /api/v1/auth/login/:
     post:
       operationId: api_v1_auth_login_create
@@ -2382,22 +1576,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/MFAVerify'
           description: ''
-  /api/v1/auth/organizations/{org_id}/details/:
-    get:
-      operationId: api_v1_auth_organizations_details_retrieve
-      parameters:
-      - in: path
-        name: org_id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          description: No response body
   /api/v1/auth/reset-password/:
     post:
       operationId: api_v1_auth_reset_password_create
@@ -2425,33 +1603,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/PasswordReset'
           description: ''
-  /api/v1/auth/reset-password/complete/:
-    post:
-      operationId: api_v1_auth_reset_password_complete_create
-      tags:
-      - Authentication
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ResetPasswordComplete'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ResetPasswordComplete'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ResetPasswordComplete'
-        required: true
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ResetPasswordComplete'
-          description: ''
   /api/v1/auth/reset-password/confirm/:
     post:
       operationId: api_v1_auth_reset_password_confirm_create
@@ -2478,6 +1629,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PasswordReset'
+          description: ''
+  /api/v1/auth/signup/:
+    post:
+      operationId: api_v1_auth_signup_create
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Signup'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Signup'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Signup'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Signup'
           description: ''
   /api/v1/auth/token/:
     post:
@@ -2608,32 +1786,6 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
-  /api/v1/billing/flutterwave-webhook/:
-    post:
-      operationId: api_v1_billing_flutterwave_webhook_create
-      description: Receives and processes webhook events from Flutterwave, verifying
-        the signature.
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          description: No response body
-  /api/v1/billing/verify_payment/:
-    post:
-      operationId: api_v1_billing_verify_payment_create
-      description: Endpoint called by the frontend (POST) to verify payment and activate
-        subscription.
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          description: No response body
   /api/v1/dashboard/billing/:
     get:
       operationId: api_v1_dashboard_billing_list
@@ -2675,161 +1827,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Subscription'
           description: ''
-  /api/v1/dashboard/billing/verify-payment/:
-    get:
-      operationId: api_v1_dashboard_billing_verify_payment_list
-      tags:
-      - Employer Dashboard
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Subscription'
-          description: ''
-    post:
-      operationId: api_v1_dashboard_billing_verify_payment_create
-      tags:
-      - Employer Dashboard
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Subscription'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Subscription'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Subscription'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Subscription'
-          description: ''
-  /api/v1/dashboard/billing/verify-payment/{id}/:
-    get:
-      operationId: api_v1_dashboard_billing_verify_payment_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this subscription.
-        required: true
-      tags:
-      - Employer Dashboard
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Subscription'
-          description: ''
-    put:
-      operationId: api_v1_dashboard_billing_verify_payment_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this subscription.
-        required: true
-      tags:
-      - Employer Dashboard
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Subscription'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Subscription'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Subscription'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Subscription'
-          description: ''
-    patch:
-      operationId: api_v1_dashboard_billing_verify_payment_partial_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this subscription.
-        required: true
-      tags:
-      - Employer Dashboard
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedSubscription'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedSubscription'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedSubscription'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Subscription'
-          description: ''
-    delete:
-      operationId: api_v1_dashboard_billing_verify_payment_destroy
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this subscription.
-        required: true
-      tags:
-      - Employer Dashboard
-      security:
-      - jwtAuth: []
-      responses:
-        '204':
-          description: No response body
-  /api/v1/dashboard/billing/verify-payment/summary/:
-    get:
-      operationId: api_v1_dashboard_billing_verify_payment_summary_retrieve
-      tags:
-      - Employer Dashboard
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Subscription'
-          description: ''
   /api/v1/dashboard/crisis-insights/:
     get:
       operationId: api_v1_dashboard_crisis_insights_list
@@ -2849,32 +1846,7 @@ paths:
   /api/v1/dashboard/departments/:
     get:
       operationId: api_v1_dashboard_departments_list
-      description: |-
-        EMPLOYER DASHBOARD - DEPARTMENT MANAGEMENT
-
-        This view handles organizational department structure management.
-
-        Purpose for Employers:
-        - Create and manage organizational departments
-        - Organize employees by department
-        - Track department-level metrics
-        - Structure the organization hierarchy
-
-        Features:
-        - Create new departments
-        - Update department information
-        - Delete departments
-        - Search departments by name
-        - Sort departments alphabetically or by creation date
-
-        Use Cases:
-        - Setting up organizational structure
-        - Reorganizing company departments
-        - Tracking department growth
-        - Assigning employees to departments
-
-        Examples of Departments:
-        - Engineering, HR, Marketing, Sales, Operations, Finance, etc.
+      description: Department management
       parameters:
       - name: ordering
         required: false
@@ -2903,32 +1875,7 @@ paths:
           description: ''
     post:
       operationId: api_v1_dashboard_departments_create
-      description: |-
-        EMPLOYER DASHBOARD - DEPARTMENT MANAGEMENT
-
-        This view handles organizational department structure management.
-
-        Purpose for Employers:
-        - Create and manage organizational departments
-        - Organize employees by department
-        - Track department-level metrics
-        - Structure the organization hierarchy
-
-        Features:
-        - Create new departments
-        - Update department information
-        - Delete departments
-        - Search departments by name
-        - Sort departments alphabetically or by creation date
-
-        Use Cases:
-        - Setting up organizational structure
-        - Reorganizing company departments
-        - Tracking department growth
-        - Assigning employees to departments
-
-        Examples of Departments:
-        - Engineering, HR, Marketing, Sales, Operations, Finance, etc.
+      description: Department management
       tags:
       - Employer Dashboard
       requestBody:
@@ -2955,32 +1902,7 @@ paths:
   /api/v1/dashboard/departments/{id}/:
     get:
       operationId: api_v1_dashboard_departments_retrieve
-      description: |-
-        EMPLOYER DASHBOARD - DEPARTMENT MANAGEMENT
-
-        This view handles organizational department structure management.
-
-        Purpose for Employers:
-        - Create and manage organizational departments
-        - Organize employees by department
-        - Track department-level metrics
-        - Structure the organization hierarchy
-
-        Features:
-        - Create new departments
-        - Update department information
-        - Delete departments
-        - Search departments by name
-        - Sort departments alphabetically or by creation date
-
-        Use Cases:
-        - Setting up organizational structure
-        - Reorganizing company departments
-        - Tracking department growth
-        - Assigning employees to departments
-
-        Examples of Departments:
-        - Engineering, HR, Marketing, Sales, Operations, Finance, etc.
+      description: Department management
       parameters:
       - in: path
         name: id
@@ -3001,32 +1923,7 @@ paths:
           description: ''
     put:
       operationId: api_v1_dashboard_departments_update
-      description: |-
-        EMPLOYER DASHBOARD - DEPARTMENT MANAGEMENT
-
-        This view handles organizational department structure management.
-
-        Purpose for Employers:
-        - Create and manage organizational departments
-        - Organize employees by department
-        - Track department-level metrics
-        - Structure the organization hierarchy
-
-        Features:
-        - Create new departments
-        - Update department information
-        - Delete departments
-        - Search departments by name
-        - Sort departments alphabetically or by creation date
-
-        Use Cases:
-        - Setting up organizational structure
-        - Reorganizing company departments
-        - Tracking department growth
-        - Assigning employees to departments
-
-        Examples of Departments:
-        - Engineering, HR, Marketing, Sales, Operations, Finance, etc.
+      description: Department management
       parameters:
       - in: path
         name: id
@@ -3059,32 +1956,7 @@ paths:
           description: ''
     patch:
       operationId: api_v1_dashboard_departments_partial_update
-      description: |-
-        EMPLOYER DASHBOARD - DEPARTMENT MANAGEMENT
-
-        This view handles organizational department structure management.
-
-        Purpose for Employers:
-        - Create and manage organizational departments
-        - Organize employees by department
-        - Track department-level metrics
-        - Structure the organization hierarchy
-
-        Features:
-        - Create new departments
-        - Update department information
-        - Delete departments
-        - Search departments by name
-        - Sort departments alphabetically or by creation date
-
-        Use Cases:
-        - Setting up organizational structure
-        - Reorganizing company departments
-        - Tracking department growth
-        - Assigning employees to departments
-
-        Examples of Departments:
-        - Engineering, HR, Marketing, Sales, Operations, Finance, etc.
+      description: Department management
       parameters:
       - in: path
         name: id
@@ -3116,32 +1988,7 @@ paths:
           description: ''
     delete:
       operationId: api_v1_dashboard_departments_destroy
-      description: |-
-        EMPLOYER DASHBOARD - DEPARTMENT MANAGEMENT
-
-        This view handles organizational department structure management.
-
-        Purpose for Employers:
-        - Create and manage organizational departments
-        - Organize employees by department
-        - Track department-level metrics
-        - Structure the organization hierarchy
-
-        Features:
-        - Create new departments
-        - Update department information
-        - Delete departments
-        - Search departments by name
-        - Sort departments alphabetically or by creation date
-
-        Use Cases:
-        - Setting up organizational structure
-        - Reorganizing company departments
-        - Tracking department growth
-        - Assigning employees to departments
-
-        Examples of Departments:
-        - Engineering, HR, Marketing, Sales, Operations, Finance, etc.
+      description: Department management
       parameters:
       - in: path
         name: id
@@ -3200,32 +2047,7 @@ paths:
   /api/v1/dashboard/employees/:
     get:
       operationId: api_v1_dashboard_employees_list
-      description: |-
-        EMPLOYER DASHBOARD - EMPLOYEE MANAGEMENT
-
-        This view handles all employee management operations for employers.
-
-        Purpose for Employers:
-        - View complete list of all employees
-        - Search employees by name, email, or department
-        - Filter employees by department or status
-        - Add new employees to the organization
-        - Update employee information
-        - Remove employees from the system
-
-        Features:
-        - Full CRUD operations (Create, Read, Update, Delete)
-        - Advanced search functionality
-        - Department-based filtering
-        - Status-based filtering (active, inactive, suspended)
-        - Sorting by multiple fields
-
-        Use Cases:
-        - Onboarding new employees
-        - Updating employee departments
-        - Managing employee status
-        - Finding specific employees quickly
-        - Generating employee reports
+      description: Employee management with search and filtering
       parameters:
       - name: ordering
         required: false
@@ -3254,32 +2076,7 @@ paths:
           description: ''
     post:
       operationId: api_v1_dashboard_employees_create
-      description: |-
-        EMPLOYER DASHBOARD - EMPLOYEE MANAGEMENT
-
-        This view handles all employee management operations for employers.
-
-        Purpose for Employers:
-        - View complete list of all employees
-        - Search employees by name, email, or department
-        - Filter employees by department or status
-        - Add new employees to the organization
-        - Update employee information
-        - Remove employees from the system
-
-        Features:
-        - Full CRUD operations (Create, Read, Update, Delete)
-        - Advanced search functionality
-        - Department-based filtering
-        - Status-based filtering (active, inactive, suspended)
-        - Sorting by multiple fields
-
-        Use Cases:
-        - Onboarding new employees
-        - Updating employee departments
-        - Managing employee status
-        - Finding specific employees quickly
-        - Generating employee reports
+      description: Employee management with search and filtering
       tags:
       - Employer Dashboard
       requestBody:
@@ -3306,32 +2103,7 @@ paths:
   /api/v1/dashboard/employees/{id}/:
     get:
       operationId: api_v1_dashboard_employees_retrieve
-      description: |-
-        EMPLOYER DASHBOARD - EMPLOYEE MANAGEMENT
-
-        This view handles all employee management operations for employers.
-
-        Purpose for Employers:
-        - View complete list of all employees
-        - Search employees by name, email, or department
-        - Filter employees by department or status
-        - Add new employees to the organization
-        - Update employee information
-        - Remove employees from the system
-
-        Features:
-        - Full CRUD operations (Create, Read, Update, Delete)
-        - Advanced search functionality
-        - Department-based filtering
-        - Status-based filtering (active, inactive, suspended)
-        - Sorting by multiple fields
-
-        Use Cases:
-        - Onboarding new employees
-        - Updating employee departments
-        - Managing employee status
-        - Finding specific employees quickly
-        - Generating employee reports
+      description: Employee management with search and filtering
       parameters:
       - in: path
         name: id
@@ -3352,32 +2124,7 @@ paths:
           description: ''
     put:
       operationId: api_v1_dashboard_employees_update
-      description: |-
-        EMPLOYER DASHBOARD - EMPLOYEE MANAGEMENT
-
-        This view handles all employee management operations for employers.
-
-        Purpose for Employers:
-        - View complete list of all employees
-        - Search employees by name, email, or department
-        - Filter employees by department or status
-        - Add new employees to the organization
-        - Update employee information
-        - Remove employees from the system
-
-        Features:
-        - Full CRUD operations (Create, Read, Update, Delete)
-        - Advanced search functionality
-        - Department-based filtering
-        - Status-based filtering (active, inactive, suspended)
-        - Sorting by multiple fields
-
-        Use Cases:
-        - Onboarding new employees
-        - Updating employee departments
-        - Managing employee status
-        - Finding specific employees quickly
-        - Generating employee reports
+      description: Employee management with search and filtering
       parameters:
       - in: path
         name: id
@@ -3410,32 +2157,7 @@ paths:
           description: ''
     patch:
       operationId: api_v1_dashboard_employees_partial_update
-      description: |-
-        EMPLOYER DASHBOARD - EMPLOYEE MANAGEMENT
-
-        This view handles all employee management operations for employers.
-
-        Purpose for Employers:
-        - View complete list of all employees
-        - Search employees by name, email, or department
-        - Filter employees by department or status
-        - Add new employees to the organization
-        - Update employee information
-        - Remove employees from the system
-
-        Features:
-        - Full CRUD operations (Create, Read, Update, Delete)
-        - Advanced search functionality
-        - Department-based filtering
-        - Status-based filtering (active, inactive, suspended)
-        - Sorting by multiple fields
-
-        Use Cases:
-        - Onboarding new employees
-        - Updating employee departments
-        - Managing employee status
-        - Finding specific employees quickly
-        - Generating employee reports
+      description: Employee management with search and filtering
       parameters:
       - in: path
         name: id
@@ -3467,32 +2189,7 @@ paths:
           description: ''
     delete:
       operationId: api_v1_dashboard_employees_destroy
-      description: |-
-        EMPLOYER DASHBOARD - EMPLOYEE MANAGEMENT
-
-        This view handles all employee management operations for employers.
-
-        Purpose for Employers:
-        - View complete list of all employees
-        - Search employees by name, email, or department
-        - Filter employees by department or status
-        - Add new employees to the organization
-        - Update employee information
-        - Remove employees from the system
-
-        Features:
-        - Full CRUD operations (Create, Read, Update, Delete)
-        - Advanced search functionality
-        - Department-based filtering
-        - Status-based filtering (active, inactive, suspended)
-        - Sorting by multiple fields
-
-        Use Cases:
-        - Onboarding new employees
-        - Updating employee departments
-        - Managing employee status
-        - Finding specific employees quickly
-        - Generating employee reports
+      description: Employee management with search and filtering
       parameters:
       - in: path
         name: id
@@ -3526,24 +2223,7 @@ paths:
   /api/v1/dashboard/organization-overview/:
     get:
       operationId: api_v1_dashboard_organization_overview_retrieve
-      description: |-
-        EMPLOYER DASHBOARD - ORGANIZATION OVERVIEW
-
-        This view provides a comprehensive overview of the organization's workforce
-        and their engagement with the mental health platform.
-
-        Purpose for Employers:
-        - Monitor overall workforce size and activity
-        - Track employee wellness trends
-        - Understand platform feature adoption
-        - View recent organizational activities
-
-        Key Metrics Provided:
-        - Total employee count
-        - Wellness index (aggregate mental health score)
-        - Active employees count
-        - Feature usage statistics
-        - Engagement trends
+      description: Organization overview dashboard data
       tags:
       - Employer Dashboard
       security:
@@ -3725,38 +2405,7 @@ paths:
   /api/v1/dashboard/subscriptions/:
     get:
       operationId: api_v1_dashboard_subscriptions_list
-      description: |-
-        EMPLOYER DASHBOARD - SUBSCRIPTION MANAGEMENT
-
-        This view handles all subscription and billing operations for employers.
-
-        Purpose for Employers:
-        - View current subscription plan details
-        - Browse available subscription plans
-        - Upgrade or downgrade subscription
-        - View billing history
-        - Manage payment methods
-        - Track subscription usage (seats used vs available)
-
-        Features:
-        - Current subscription overview
-        - Plan comparison
-        - Billing history with invoices
-        - Payment method management
-        - Seat usage tracking
-        - Renewal date monitoring
-
-        Use Cases:
-        - Checking current plan limits
-        - Upgrading when adding more employees
-        - Reviewing past invoices
-        - Updating payment information
-        - Planning budget for renewals
-
-        Subscription Plans Typically Include:
-        - Starter Plan: Small teams (5-50 employees)
-        - Enterprise Plan: Medium to large organizations (50-500 employees)
-        - Enterprise Plus: Large corporations (500+ employees)
+      description: Subscription management
       parameters:
       - name: ordering
         required: false
@@ -3779,38 +2428,7 @@ paths:
           description: ''
     post:
       operationId: api_v1_dashboard_subscriptions_create
-      description: |-
-        EMPLOYER DASHBOARD - SUBSCRIPTION MANAGEMENT
-
-        This view handles all subscription and billing operations for employers.
-
-        Purpose for Employers:
-        - View current subscription plan details
-        - Browse available subscription plans
-        - Upgrade or downgrade subscription
-        - View billing history
-        - Manage payment methods
-        - Track subscription usage (seats used vs available)
-
-        Features:
-        - Current subscription overview
-        - Plan comparison
-        - Billing history with invoices
-        - Payment method management
-        - Seat usage tracking
-        - Renewal date monitoring
-
-        Use Cases:
-        - Checking current plan limits
-        - Upgrading when adding more employees
-        - Reviewing past invoices
-        - Updating payment information
-        - Planning budget for renewals
-
-        Subscription Plans Typically Include:
-        - Starter Plan: Small teams (5-50 employees)
-        - Enterprise Plan: Medium to large organizations (50-500 employees)
-        - Enterprise Plus: Large corporations (500+ employees)
+      description: Subscription management
       tags:
       - Employer Dashboard
       requestBody:
@@ -3837,38 +2455,7 @@ paths:
   /api/v1/dashboard/subscriptions/{id}/:
     get:
       operationId: api_v1_dashboard_subscriptions_retrieve
-      description: |-
-        EMPLOYER DASHBOARD - SUBSCRIPTION MANAGEMENT
-
-        This view handles all subscription and billing operations for employers.
-
-        Purpose for Employers:
-        - View current subscription plan details
-        - Browse available subscription plans
-        - Upgrade or downgrade subscription
-        - View billing history
-        - Manage payment methods
-        - Track subscription usage (seats used vs available)
-
-        Features:
-        - Current subscription overview
-        - Plan comparison
-        - Billing history with invoices
-        - Payment method management
-        - Seat usage tracking
-        - Renewal date monitoring
-
-        Use Cases:
-        - Checking current plan limits
-        - Upgrading when adding more employees
-        - Reviewing past invoices
-        - Updating payment information
-        - Planning budget for renewals
-
-        Subscription Plans Typically Include:
-        - Starter Plan: Small teams (5-50 employees)
-        - Enterprise Plan: Medium to large organizations (50-500 employees)
-        - Enterprise Plus: Large corporations (500+ employees)
+      description: Subscription management
       parameters:
       - in: path
         name: id
@@ -3889,38 +2476,7 @@ paths:
           description: ''
     put:
       operationId: api_v1_dashboard_subscriptions_update
-      description: |-
-        EMPLOYER DASHBOARD - SUBSCRIPTION MANAGEMENT
-
-        This view handles all subscription and billing operations for employers.
-
-        Purpose for Employers:
-        - View current subscription plan details
-        - Browse available subscription plans
-        - Upgrade or downgrade subscription
-        - View billing history
-        - Manage payment methods
-        - Track subscription usage (seats used vs available)
-
-        Features:
-        - Current subscription overview
-        - Plan comparison
-        - Billing history with invoices
-        - Payment method management
-        - Seat usage tracking
-        - Renewal date monitoring
-
-        Use Cases:
-        - Checking current plan limits
-        - Upgrading when adding more employees
-        - Reviewing past invoices
-        - Updating payment information
-        - Planning budget for renewals
-
-        Subscription Plans Typically Include:
-        - Starter Plan: Small teams (5-50 employees)
-        - Enterprise Plan: Medium to large organizations (50-500 employees)
-        - Enterprise Plus: Large corporations (500+ employees)
+      description: Subscription management
       parameters:
       - in: path
         name: id
@@ -3953,38 +2509,7 @@ paths:
           description: ''
     patch:
       operationId: api_v1_dashboard_subscriptions_partial_update
-      description: |-
-        EMPLOYER DASHBOARD - SUBSCRIPTION MANAGEMENT
-
-        This view handles all subscription and billing operations for employers.
-
-        Purpose for Employers:
-        - View current subscription plan details
-        - Browse available subscription plans
-        - Upgrade or downgrade subscription
-        - View billing history
-        - Manage payment methods
-        - Track subscription usage (seats used vs available)
-
-        Features:
-        - Current subscription overview
-        - Plan comparison
-        - Billing history with invoices
-        - Payment method management
-        - Seat usage tracking
-        - Renewal date monitoring
-
-        Use Cases:
-        - Checking current plan limits
-        - Upgrading when adding more employees
-        - Reviewing past invoices
-        - Updating payment information
-        - Planning budget for renewals
-
-        Subscription Plans Typically Include:
-        - Starter Plan: Small teams (5-50 employees)
-        - Enterprise Plan: Medium to large organizations (50-500 employees)
-        - Enterprise Plus: Large corporations (500+ employees)
+      description: Subscription management
       parameters:
       - in: path
         name: id
@@ -4016,38 +2541,7 @@ paths:
           description: ''
     delete:
       operationId: api_v1_dashboard_subscriptions_destroy
-      description: |-
-        EMPLOYER DASHBOARD - SUBSCRIPTION MANAGEMENT
-
-        This view handles all subscription and billing operations for employers.
-
-        Purpose for Employers:
-        - View current subscription plan details
-        - Browse available subscription plans
-        - Upgrade or downgrade subscription
-        - View billing history
-        - Manage payment methods
-        - Track subscription usage (seats used vs available)
-
-        Features:
-        - Current subscription overview
-        - Plan comparison
-        - Billing history with invoices
-        - Payment method management
-        - Seat usage tracking
-        - Renewal date monitoring
-
-        Use Cases:
-        - Checking current plan limits
-        - Upgrading when adding more employees
-        - Reviewing past invoices
-        - Updating payment information
-        - Planning budget for renewals
-
-        Subscription Plans Typically Include:
-        - Starter Plan: Small teams (5-50 employees)
-        - Enterprise Plan: Medium to large organizations (50-500 employees)
-        - Enterprise Plus: Large corporations (500+ employees)
+      description: Subscription management
       parameters:
       - in: path
         name: id
@@ -4065,22 +2559,7 @@ paths:
   /api/v1/dashboard/subscriptions/available_plans/:
     get:
       operationId: api_v1_dashboard_subscriptions_available_plans_retrieve
-      description: |-
-        Get Available Subscription Plans
-
-        Purpose: Browse all available subscription plans for comparison
-
-        Returns:
-        - Plan names and descriptions
-        - Pricing for each plan
-        - Number of seats included
-        - Features included in each plan
-
-        Why it matters for employers:
-        - Compare plans before upgrading
-        - Understand what features are available
-        - Make informed decisions about plan changes
-        - Budget for future growth
+      description: Get available subscription plans
       tags:
       - Employer Dashboard
       security:
@@ -4095,24 +2574,7 @@ paths:
   /api/v1/dashboard/subscriptions/billing-history/:
     get:
       operationId: api_v1_dashboard_subscriptions_billing_history_retrieve
-      description: |-
-        Get Billing History
-
-        Purpose: View past invoices and payment records
-
-        Returns:
-        - Invoice numbers
-        - Payment amounts
-        - Billing dates
-        - Payment status (paid, pending, failed)
-        - Plan names for each billing period
-
-        Why it matters for employers:
-        - Track expenses for accounting
-        - Verify payments
-        - Download invoices for records
-        - Monitor payment patterns
-        - Budget planning
+      description: Get billing history
       tags:
       - Employer Dashboard
       security:
@@ -4127,24 +2589,7 @@ paths:
   /api/v1/dashboard/subscriptions/billing_history/:
     get:
       operationId: api_v1_dashboard_subscriptions_billing_history_retrieve_2
-      description: |-
-        Get Billing History
-
-        Purpose: View past invoices and payment records
-
-        Returns:
-        - Invoice numbers
-        - Payment amounts
-        - Billing dates
-        - Payment status (paid, pending, failed)
-        - Plan names for each billing period
-
-        Why it matters for employers:
-        - Track expenses for accounting
-        - Verify payments
-        - Download invoices for records
-        - Monitor payment patterns
-        - Budget planning
+      description: Get billing history
       tags:
       - Employer Dashboard
       security:
@@ -4159,25 +2604,7 @@ paths:
   /api/v1/dashboard/subscriptions/current/:
     get:
       operationId: api_v1_dashboard_subscriptions_current_retrieve
-      description: |-
-        Get Current Active Subscription
-
-        Purpose: View details of the organization's current subscription
-
-        Returns:
-        - Plan name and type
-        - Number of seats (total and used)
-        - Subscription amount
-        - Start and end dates
-        - Renewal date
-        - Payment method
-        - Active status
-
-        Why it matters for employers:
-        - Know how many employee seats are available
-        - Track when renewal is due
-        - Understand current plan limitations
-        - Plan for upgrades if needed
+      description: Get current active subscription
       tags:
       - Employer Dashboard
       security:
@@ -4192,25 +2619,7 @@ paths:
   /api/v1/dashboard/subscriptions/current_subscription/:
     get:
       operationId: api_v1_dashboard_subscriptions_current_subscription_retrieve
-      description: |-
-        Get Current Active Subscription
-
-        Purpose: View details of the organization's current subscription
-
-        Returns:
-        - Plan name and type
-        - Number of seats (total and used)
-        - Subscription amount
-        - Start and end dates
-        - Renewal date
-        - Payment method
-        - Active status
-
-        Why it matters for employers:
-        - Know how many employee seats are available
-        - Track when renewal is due
-        - Understand current plan limitations
-        - Plan for upgrades if needed
+      description: Get current active subscription
       tags:
       - Employer Dashboard
       security:
@@ -4225,22 +2634,7 @@ paths:
   /api/v1/dashboard/subscriptions/plans/:
     get:
       operationId: api_v1_dashboard_subscriptions_plans_retrieve
-      description: |-
-        Get Available Subscription Plans
-
-        Purpose: Browse all available subscription plans for comparison
-
-        Returns:
-        - Plan names and descriptions
-        - Pricing for each plan
-        - Number of seats included
-        - Features included in each plan
-
-        Why it matters for employers:
-        - Compare plans before upgrading
-        - Understand what features are available
-        - Make informed decisions about plan changes
-        - Budget for future growth
+      description: Get available subscription plans
       tags:
       - Employer Dashboard
       security:
@@ -4512,6 +2906,143 @@ paths:
                 items:
                   $ref: '#/components/schemas/DynamicQuestion'
           description: ''
+  /api/v1/employee/assessments/:
+    get:
+      operationId: api_v1_employee_assessments_list
+      tags:
+      - Employee - Assessments
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AssessmentResult'
+          description: ''
+    post:
+      operationId: api_v1_employee_assessments_create
+      tags:
+      - Employee - Assessments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssessmentResult'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AssessmentResult'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AssessmentResult'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentResult'
+          description: ''
+  /api/v1/employee/assessments/{id}/:
+    get:
+      operationId: api_v1_employee_assessments_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Employee - Assessments
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentResult'
+          description: ''
+    put:
+      operationId: api_v1_employee_assessments_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Employee - Assessments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssessmentResult'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AssessmentResult'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AssessmentResult'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentResult'
+          description: ''
+    patch:
+      operationId: api_v1_employee_assessments_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Employee - Assessments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAssessmentResult'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAssessmentResult'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAssessmentResult'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentResult'
+          description: ''
+    delete:
+      operationId: api_v1_employee_assessments_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Employee - Assessments
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/employee/avatar/:
     get:
       operationId: api_v1_employee_avatar_list
@@ -5252,6 +3783,7 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/Notification'
+        required: true
       security:
       - jwtAuth: []
       responses:
@@ -5302,6 +3834,7 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/Notification'
+        required: true
       security:
       - jwtAuth: []
       responses:
@@ -5628,6 +4161,308 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/employers/:
+    get:
+      operationId: api_v1_employers_list
+      tags:
+      - Employer - Organization
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Employer'
+          description: ''
+    post:
+      operationId: api_v1_employers_create
+      description: Block direct creation - employers should use /auth/register-organization/
+        endpoint
+      tags:
+      - Employer - Organization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Employer'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Employer'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Employer'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employer'
+          description: ''
+  /api/v1/employers/{id}/:
+    get:
+      operationId: api_v1_employers_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this employer.
+        required: true
+      tags:
+      - Employer - Organization
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employer'
+          description: ''
+    put:
+      operationId: api_v1_employers_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this employer.
+        required: true
+      tags:
+      - Employer - Organization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Employer'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Employer'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Employer'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employer'
+          description: ''
+    patch:
+      operationId: api_v1_employers_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this employer.
+        required: true
+      tags:
+      - Employer - Organization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedEmployer'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedEmployer'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedEmployer'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employer'
+          description: ''
+    delete:
+      operationId: api_v1_employers_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this employer.
+        required: true
+      tags:
+      - Employer - Organization
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/employers/{id}/activities/:
+    get:
+      operationId: api_v1_employers_activities_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this employer.
+        required: true
+      tags:
+      - Employer - Organization
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employer'
+          description: ''
+  /api/v1/employers/{id}/employees/:
+    get:
+      operationId: api_v1_employers_employees_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this employer.
+        required: true
+      tags:
+      - Employer - Organization
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employer'
+          description: ''
+  /api/v1/employers/{id}/engagements/:
+    get:
+      operationId: api_v1_employers_engagements_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this employer.
+        required: true
+      tags:
+      - Employer - Organization
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employer'
+          description: ''
+  /api/v1/employers/{id}/features/:
+    get:
+      operationId: api_v1_employers_features_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this employer.
+        required: true
+      tags:
+      - Employer - Organization
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employer'
+          description: ''
+  /api/v1/employers/{id}/invite/:
+    post:
+      operationId: api_v1_employers_invite_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this employer.
+        required: true
+      tags:
+      - Employer - Organization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Employer'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Employer'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Employer'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employer'
+          description: ''
+  /api/v1/employers/{id}/overview/:
+    get:
+      operationId: api_v1_employers_overview_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this employer.
+        required: true
+      tags:
+      - Employer - Organization
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employer'
+          description: ''
+  /api/v1/employers/{id}/subscriptions/:
+    get:
+      operationId: api_v1_employers_subscriptions_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this employer.
+        required: true
+      tags:
+      - Employer - Organization
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employer'
+          description: ''
   /api/v1/invitations/:
     get:
       operationId: api_v1_invitations_list
@@ -5653,14 +4488,13 @@ paths:
           description: ''
     post:
       operationId: api_v1_invitations_create
-      description: "\n        Send an invitation to a new employee.\n        \n  \
-        \      The system will:\n        - Generate a unique invitation token\n  \
-        \      - Send an email to the invited person\n        - Set an expiration\
-        \ date for the invitation (defaults to 7 days)\n        \n        **Example\
-        \ Request:**\n        ```json\n        {\n            \"email\": \"newemployee@company.com\"\
-        ,\n            \"message\": \"Welcome to our team!\"\n        }\n        ```\n\
-        \        \n        **Note:** The employer is automatically set from your authenticated\
-        \ user.\n        "
+      description: |-
+        Employee Invitation Management
+
+        Allows employers to:
+        - Send email invitations to new employees
+        - View pending invitations
+        - Resend or cancel invitations
       tags:
       - Employee Invitations
       requestBody:
@@ -5682,24 +4516,7 @@ paths:
           content:
             application/json:
               schema:
-                description: Invitation sent successfully
-                content:
-                  application/json:
-                    example:
-                      message: Invitation sent successfully
-                      invitation:
-                        id: 1
-                        email: newemployee@company.com
-                        message: Welcome to our team!
-                        expires_at: '2025-11-06T19:13:03.648Z'
-                        created_at: '2025-10-30T19:13:03.648Z'
-                      invitation_link: /auth/accept-invite/?token=abc123xyz
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                description: Bad Request - Invalid data or user has no organization
+                $ref: '#/components/schemas/EmployeeInvitationCreate'
           description: ''
   /api/v1/invitations/{id}/:
     get:
@@ -5901,226 +4718,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/EngagementStreak'
           description: ''
-  /api/v1/media/:
-    get:
-      operationId: api_v1_media_list
-      description: Handles list/retrieve for employees and create/update/delete for
-        system admins.
-      parameters:
-      - in: query
-        name: is_published
-        schema:
-          type: boolean
-      - in: query
-        name: media_type
-        schema:
-          type: string
-          enum:
-          - article
-          - audio
-          - video
-        description: |-
-          * `article` - Article
-          * `audio` - Audio
-          * `video` - Video
-      - name: ordering
-        required: false
-        in: query
-        description: Which field to use when ordering the results.
-        schema:
-          type: string
-      - name: search
-        required: false
-        in: query
-        description: A search term.
-        schema:
-          type: string
-      - in: query
-        name: tags
-        schema:
-          type: string
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Media'
-          description: ''
-    post:
-      operationId: api_v1_media_create
-      description: Handles list/retrieve for employees and create/update/delete for
-        system admins.
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Media'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Media'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Media'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Media'
-          description: ''
-  /api/v1/media/{id}/:
-    get:
-      operationId: api_v1_media_retrieve
-      description: Handles list/retrieve for employees and create/update/delete for
-        system admins.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this media.
-        required: true
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Media'
-          description: ''
-    put:
-      operationId: api_v1_media_update
-      description: Handles list/retrieve for employees and create/update/delete for
-        system admins.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this media.
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Media'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Media'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Media'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Media'
-          description: ''
-    patch:
-      operationId: api_v1_media_partial_update
-      description: Handles list/retrieve for employees and create/update/delete for
-        system admins.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this media.
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedMedia'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedMedia'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedMedia'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Media'
-          description: ''
-    delete:
-      operationId: api_v1_media_destroy
-      description: Handles list/retrieve for employees and create/update/delete for
-        system admins.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this media.
-        required: true
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      responses:
-        '204':
-          description: No response body
-  /api/v1/media/{id}/publish/:
-    post:
-      operationId: api_v1_media_publish_create
-      description: Convenience endpoint for system admin to set is_published=True.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this media.
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Media'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Media'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Media'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Media'
-          description: ''
   /api/v1/meditations/:
     get:
       operationId: api_v1_meditations_list
@@ -6157,6 +4754,7 @@ paths:
       - api
       security:
       - jwtAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -6165,31 +4763,6 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/MeditationTechnique'
-          description: ''
-    post:
-      operationId: api_v1_meditations_create
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MeditationTechnique'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/MeditationTechnique'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/MeditationTechnique'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MeditationTechnique'
           description: ''
   /api/v1/meditations/{id}/:
     get:
@@ -6205,6 +4778,7 @@ paths:
       - api
       security:
       - jwtAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -6212,89 +4786,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/MeditationTechnique'
           description: ''
-    put:
-      operationId: api_v1_meditations_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Meditation Technique.
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MeditationTechnique'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/MeditationTechnique'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/MeditationTechnique'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MeditationTechnique'
-          description: ''
-    patch:
-      operationId: api_v1_meditations_partial_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Meditation Technique.
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedMeditationTechnique'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedMeditationTechnique'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedMeditationTechnique'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MeditationTechnique'
-          description: ''
-    delete:
-      operationId: api_v1_meditations_destroy
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Meditation Technique.
-        required: true
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      responses:
-        '204':
-          description: No response body
   /api/v1/meditations/{id}/practice/:
     post:
       operationId: api_v1_meditations_practice_create
-      description: Record that user practiced this meditation technique
       parameters:
       - in: path
         name: id
@@ -6318,6 +4812,7 @@ paths:
         required: true
       security:
       - jwtAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -6328,7 +4823,6 @@ paths:
   /api/v1/meditations/{id}/save/:
     post:
       operationId: api_v1_meditations_save_create
-      description: Save meditation technique to user's library
       parameters:
       - in: path
         name: id
@@ -6362,7 +4856,242 @@ paths:
   /api/v1/meditations/for_beginners/:
     get:
       operationId: api_v1_meditations_for_beginners_retrieve
-      description: Return beginner-friendly meditation techniques
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeditationTechnique'
+          description: ''
+  /api/v1/mental-health/assessments/:
+    get:
+      operationId: api_v1_mental_health_assessments_list
+      description: ViewSet for mental health assessments
+      tags:
+      - Employee - Assessments
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MentalHealthAssessmentList'
+          description: ''
+    post:
+      operationId: api_v1_mental_health_assessments_create
+      description: ViewSet for mental health assessments
+      tags:
+      - Employee - Assessments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MentalHealthAssessment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MentalHealthAssessment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MentalHealthAssessment'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MentalHealthAssessment'
+          description: ''
+  /api/v1/mental-health/assessments/{id}/:
+    get:
+      operationId: api_v1_mental_health_assessments_retrieve
+      description: ViewSet for mental health assessments
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Employee - Assessments
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MentalHealthAssessment'
+          description: ''
+    put:
+      operationId: api_v1_mental_health_assessments_update
+      description: ViewSet for mental health assessments
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Employee - Assessments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MentalHealthAssessment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MentalHealthAssessment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MentalHealthAssessment'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MentalHealthAssessment'
+          description: ''
+    patch:
+      operationId: api_v1_mental_health_assessments_partial_update
+      description: ViewSet for mental health assessments
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Employee - Assessments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMentalHealthAssessment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMentalHealthAssessment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMentalHealthAssessment'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MentalHealthAssessment'
+          description: ''
+    delete:
+      operationId: api_v1_mental_health_assessments_destroy
+      description: ViewSet for mental health assessments
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Employee - Assessments
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/mental-health/assessments/{id}/detailed-results/:
+    get:
+      operationId: api_v1_mental_health_assessments_detailed_results_retrieve
+      description: Get detailed results for a specific assessment
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Employee - Assessments
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MentalHealthAssessment'
+          description: ''
+  /api/v1/mental-health/assessments/my-results/:
+    get:
+      operationId: api_v1_mental_health_assessments_my_results_retrieve
+      description: Get user's assessment results with summary
+      tags:
+      - Employee - Assessments
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MentalHealthAssessment'
+          description: ''
+  /api/v1/mental-health/assessments/questionnaires/:
+    get:
+      operationId: api_v1_mental_health_assessments_questionnaires_retrieve
+      description: Get assessment questionnaires with all questions
+      tags:
+      - Employee - Assessments
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MentalHealthAssessment'
+          description: ''
+  /api/v1/mental-health/assessments/submit-assessment/:
+    post:
+      operationId: api_v1_mental_health_assessments_submit_assessment_create
+      description: Submit a new assessment with responses
+      tags:
+      - Employee - Assessments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MentalHealthAssessment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MentalHealthAssessment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MentalHealthAssessment'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MentalHealthAssessment'
+          description: ''
+  /api/v1/onboarding/:
+    get:
+      operationId: api_v1_onboarding_retrieve
       tags:
       - api
       security:
@@ -6372,7 +5101,104 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MeditationTechnique'
+                $ref: '#/components/schemas/OnboardingState'
+          description: ''
+    put:
+      operationId: api_v1_onboarding_update
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingState'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OnboardingState'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OnboardingState'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingState'
+          description: ''
+    patch:
+      operationId: api_v1_onboarding_partial_update
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedOnboardingState'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedOnboardingState'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedOnboardingState'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingState'
+          description: ''
+  /api/v1/onboarding/complete/:
+    put:
+      operationId: api_v1_onboarding_complete_update
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingState'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OnboardingState'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OnboardingState'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingState'
+          description: ''
+    patch:
+      operationId: api_v1_onboarding_complete_partial_update
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedOnboardingState'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedOnboardingState'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedOnboardingState'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingState'
           description: ''
   /api/v1/organization-signup/:
     get:
@@ -6736,7 +5562,7 @@ paths:
     get:
       operationId: api_v1_resources_self_help_list
       tags:
-      - Employee - Assessments
+      - Resources
       security:
       - jwtAuth: []
       responses:
@@ -6751,7 +5577,7 @@ paths:
     post:
       operationId: api_v1_resources_self_help_create
       tags:
-      - Employee - Assessments
+      - Resources
       requestBody:
         content:
           application/json:
@@ -6784,7 +5610,7 @@ paths:
         description: A unique integer value identifying this self help resource.
         required: true
       tags:
-      - Employee - Assessments
+      - Resources
       security:
       - jwtAuth: []
       responses:
@@ -6804,7 +5630,7 @@ paths:
         description: A unique integer value identifying this self help resource.
         required: true
       tags:
-      - Employee - Assessments
+      - Resources
       requestBody:
         content:
           application/json:
@@ -6836,7 +5662,7 @@ paths:
         description: A unique integer value identifying this self help resource.
         required: true
       tags:
-      - Employee - Assessments
+      - Resources
       requestBody:
         content:
           application/json:
@@ -6867,7 +5693,7 @@ paths:
         description: A unique integer value identifying this self help resource.
         required: true
       tags:
-      - Employee - Assessments
+      - Resources
       security:
       - jwtAuth: []
       responses:
@@ -7337,6 +6163,7 @@ paths:
       - api
       security:
       - jwtAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -7345,31 +6172,6 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Video'
-          description: ''
-    post:
-      operationId: api_v1_videos_create
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Video'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Video'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Video'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Video'
           description: ''
   /api/v1/videos/{id}/:
     get:
@@ -7385,6 +6187,7 @@ paths:
       - api
       security:
       - jwtAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -7392,85 +6195,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Video'
           description: ''
-    put:
-      operationId: api_v1_videos_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this  Video.
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Video'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Video'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Video'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Video'
-          description: ''
-    patch:
-      operationId: api_v1_videos_partial_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this  Video.
-        required: true
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedVideo'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedVideo'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedVideo'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Video'
-          description: ''
-    delete:
-      operationId: api_v1_videos_destroy
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this  Video.
-        required: true
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      responses:
-        '204':
-          description: No response body
   /api/v1/videos/{id}/save/:
     post:
       operationId: api_v1_videos_save_create
@@ -7532,6 +6256,7 @@ paths:
         required: true
       security:
       - jwtAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -7542,11 +6267,11 @@ paths:
   /api/v1/videos/popular/:
     get:
       operationId: api_v1_videos_popular_retrieve
-      description: Return top 10 most viewed videos
       tags:
       - api
       security:
       - jwtAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -7584,49 +6309,6 @@ components:
       - employer
       - id
       - title
-    AdminUser:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        username:
-          type: string
-          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
-            only.
-          pattern: ^[\w.@+-]+$
-          maxLength: 150
-        email:
-          type: string
-          format: email
-          maxLength: 254
-        password:
-          type: string
-          writeOnly: true
-        role:
-          $ref: '#/components/schemas/RoleEnum'
-        organization:
-          type: integer
-          nullable: true
-        onboarding_completed:
-          type: boolean
-        is_suspended:
-          type: boolean
-        avatar:
-          type: string
-          format: uri
-          nullable: true
-        is_active:
-          type: boolean
-          readOnly: true
-          title: Active
-          description: Designates whether this user should be treated as active. Unselect
-            this instead of deleting accounts.
-      required:
-      - email
-      - id
-      - is_active
-      - username
     Article:
       type: object
       properties:
@@ -7717,6 +6399,42 @@ components:
       description: |-
         * `PHQ-9` - Patient Health Questionnaire (PHQ-9)
         * `GAD-7` - Generalized Anxiety Disorder (GAD-7)
+    AssessmentQuestionsResponse:
+      type: object
+      description: Serializer for questions endpoint response
+      properties:
+        assessment_type:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        instructions:
+          type: string
+        time_frame:
+          type: string
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssessmentQuestion'
+        score_options:
+          type: array
+          items: {}
+        difficulty_question:
+          type: string
+        difficulty_options:
+          type: array
+          items: {}
+      required:
+      - assessment_type
+      - description
+      - difficulty_options
+      - difficulty_question
+      - instructions
+      - questions
+      - score_options
+      - time_frame
+      - title
     AssessmentResponse:
       type: object
       description: Serializer for submitting assessment responses
@@ -7769,6 +6487,46 @@ components:
       description: |-
         * `PHQ-9` - PHQ-9
         * `GAD-7` - GAD-7
+    AssessmentResult:
+      type: object
+      description: Serializer for assessment results
+      properties:
+        assessment_type:
+          type: string
+        total_score:
+          type: integer
+        severity_level:
+          type: string
+        severity_description:
+          type: string
+        recommendations:
+          type: array
+          items:
+            type: string
+        completed_at:
+          type: string
+          format: date-time
+        score_breakdown:
+          type: object
+          additionalProperties: {}
+      required:
+      - assessment_type
+      - completed_at
+      - recommendations
+      - score_breakdown
+      - severity_description
+      - severity_level
+      - total_score
+    AssessmentType908Enum:
+      enum:
+      - GAD-7
+      - PHQ-9
+      - BOTH
+      type: string
+      description: |-
+        * `GAD-7` - GAD-7 (Anxiety)
+        * `PHQ-9` - PHQ-9 (Depression)
+        * `BOTH` - Both Assessments
     Audio:
       type: object
       properties:
@@ -7781,6 +6539,10 @@ components:
         description:
           type: string
           description: What does this audio help with?
+        audio_file:
+          type: string
+          format: uri
+          nullable: true
         audio_url:
           type: string
           format: uri
@@ -7791,6 +6553,8 @@ components:
           type: string
           format: uri
           readOnly: true
+        category:
+          type: integer
         category_name:
           type: string
           readOnly: true
@@ -7809,6 +6573,7 @@ components:
           readOnly: true
       required:
       - audio_url_full
+      - category
       - category_name
       - created_at
       - description
@@ -7932,19 +6697,19 @@ components:
     ContactPerson:
       type: object
       properties:
-        firstName:
+        fullname:
           type: string
-        lastName:
-          type: string
+          maxLength: 255
         role:
           type: string
+          maxLength: 100
         email:
           type: string
           format: email
+          maxLength: 254
       required:
       - email
-      - firstName
-      - lastName
+      - fullname
       - role
     CrisisTrigger:
       type: object
@@ -8204,24 +6969,6 @@ components:
       - engagement_rate
       - id
       - month
-    EmployeeFirstLogin:
-      type: object
-      description: Serializer for first login with temporary credentials
-      properties:
-        token:
-          type: string
-          description: Invitation token from email
-        temporary_username:
-          type: string
-          description: Temporary username from invitation email
-        temporary_password:
-          type: string
-          writeOnly: true
-          description: Temporary password from invitation email
-      required:
-      - temporary_password
-      - temporary_username
-      - token
     EmployeeInvitationAccept:
       type: object
       properties:
@@ -8261,18 +7008,10 @@ components:
           type: string
           format: date-time
           readOnly: true
-        temporary_username:
-          type: string
-          readOnly: true
-        temporary_password_plain:
-          type: string
-          readOnly: true
       required:
       - created_at
       - email
       - id
-      - temporary_password_plain
-      - temporary_username
     EmployeeManagement:
       type: object
       properties:
@@ -8318,25 +7057,6 @@ components:
       - joined_date
       - name
       - status_display
-    EmployeeOnboarding:
-      type: object
-      properties:
-        username:
-          type: string
-        password:
-          type: string
-          writeOnly: true
-        confirm_password:
-          type: string
-          writeOnly: true
-        avatar:
-          type: string
-          format: uri
-      required:
-      - avatar
-      - confirm_password
-      - password
-      - username
     EmployeeProfile:
       type: object
       properties:
@@ -8369,6 +7089,49 @@ components:
       - organization
       - role
       - subscription_tier
+    EmployeeUserCreate:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        password:
+          type: string
+          writeOnly: true
+          minLength: 8
+        password_confirm:
+          type: string
+          writeOnly: true
+      required:
+      - email
+      - password
+      - password_confirm
+    Employer:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        joined_date:
+          type: string
+          format: date-time
+          readOnly: true
+        is_active:
+          type: boolean
+      required:
+      - id
+      - joined_date
+      - name
     EngagementLevelEnum:
       enum:
       - high
@@ -8442,6 +7205,28 @@ components:
       - id
       - rating
       - submitted_on
+    GoalEnum:
+      enum:
+      - reduce_stress
+      - improve_focus
+      - support_team
+      - improve_sleep
+      - manage_anxiety
+      - manage_depression
+      - self_awareness
+      - mental_fitness
+      - navigate_change
+      type: string
+      description: |-
+        * `reduce_stress` - Reduce Stress
+        * `improve_focus` - Improve Focus
+        * `support_team` - Support My Team
+        * `improve_sleep` - Improve Sleep Quality
+        * `manage_anxiety` - Manage Anxiety
+        * `manage_depression` - Manage Depression
+        * `self_awareness` - Increase Self-Awareness
+        * `mental_fitness` - Strengthen Mental Fitness
+        * `navigate_change` - Navigate Life or Work Transitions
     HotlineActivity:
       type: object
       properties:
@@ -8507,73 +7292,6 @@ components:
       required:
       - code
       - temp_token
-    Media:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        media_type:
-          $ref: '#/components/schemas/MediaTypeEnum'
-        title:
-          type: string
-          maxLength: 255
-        description:
-          type: string
-        body:
-          type: string
-        file:
-          type: string
-          format: uri
-          nullable: true
-        thumbnail:
-          type: string
-          format: uri
-          nullable: true
-        duration_seconds:
-          type: integer
-          maximum: 2147483647
-          minimum: 0
-          nullable: true
-          description: Optional duration in seconds for audio/video.
-        tags:
-          type: string
-          description: Comma-separated tags
-          maxLength: 255
-        uploaded_by:
-          type: string
-          readOnly: true
-        is_published:
-          type: boolean
-        published_at:
-          type: string
-          format: date-time
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
-      required:
-      - created_at
-      - id
-      - media_type
-      - title
-      - updated_at
-      - uploaded_by
-    MediaTypeEnum:
-      enum:
-      - article
-      - audio
-      - video
-      type: string
-      description: |-
-        * `article` - Article
-        * `audio` - Audio
-        * `video` - Video
     MeditationTechnique:
       type: object
       properties:
@@ -8632,6 +7350,75 @@ components:
       - is_saved
       - times_practiced
       - title
+    MentalHealthAssessment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+          readOnly: true
+        assessment_type:
+          $ref: '#/components/schemas/AssessmentType908Enum'
+        gad7_scores: {}
+        phq9_scores: {}
+        gad7_total:
+          type: integer
+          readOnly: true
+        phq9_total:
+          type: integer
+          readOnly: true
+        gad7_severity:
+          type: string
+          readOnly: true
+        phq9_severity:
+          type: string
+          readOnly: true
+        assessment_date:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - assessment_date
+      - assessment_type
+      - gad7_severity
+      - gad7_total
+      - id
+      - phq9_severity
+      - phq9_total
+      - user
+    MentalHealthAssessmentList:
+      type: object
+      description: Simplified serializer for listing assessments
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        assessment_type:
+          $ref: '#/components/schemas/AssessmentType908Enum'
+        gad7_total:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        phq9_total:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        gad7_severity:
+          type: string
+          maxLength: 20
+        phq9_severity:
+          type: string
+          maxLength: 20
+        assessment_date:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - assessment_date
+      - assessment_type
+      - id
     MoodTracking:
       type: object
       properties:
@@ -8671,7 +7458,6 @@ components:
           readOnly: true
         message:
           type: string
-          nullable: true
           maxLength: 255
         sent_on:
           type: string
@@ -8682,6 +7468,7 @@ components:
       required:
       - employee
       - id
+      - message
       - sent_on
     NullEnum:
       enum:
@@ -8694,6 +7481,15 @@ components:
           maxLength: 6
       required:
       - code
+    OnboardingState:
+      type: object
+      properties:
+        goal:
+          $ref: '#/components/schemas/GoalEnum'
+        completed:
+          type: boolean
+        first_action_done:
+          type: boolean
     OrganizationCreate:
       type: object
       properties:
@@ -8722,16 +7518,11 @@ components:
           writeOnly: true
         contactPerson:
           $ref: '#/components/schemas/ContactPerson'
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
       required:
       - Location
       - companyEmail
       - confirmPassword
       - contactPerson
-      - created_at
       - organisationSize
       - organizationName
       - password
@@ -8846,129 +7637,28 @@ components:
           type: string
           format: date-time
           readOnly: true
-    PatchedAdminUser:
+    PatchedAssessmentResult:
       type: object
+      description: Serializer for assessment results
       properties:
-        id:
+        assessment_type:
+          type: string
+        total_score:
           type: integer
-          readOnly: true
-        username:
+        severity_level:
           type: string
-          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
-            only.
-          pattern: ^[\w.@+-]+$
-          maxLength: 150
-        email:
+        severity_description:
           type: string
-          format: email
-          maxLength: 254
-        password:
-          type: string
-          writeOnly: true
-        role:
-          $ref: '#/components/schemas/RoleEnum'
-        organization:
-          type: integer
-          nullable: true
-        onboarding_completed:
-          type: boolean
-        is_suspended:
-          type: boolean
-        avatar:
-          type: string
-          format: uri
-          nullable: true
-        is_active:
-          type: boolean
-          readOnly: true
-          title: Active
-          description: Designates whether this user should be treated as active. Unselect
-            this instead of deleting accounts.
-    PatchedArticle:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        title:
-          type: string
-          maxLength: 200
-        slug:
-          type: string
-          readOnly: true
-          pattern: ^[-a-zA-Z0-9_]+$
-        content:
-          type: string
-        excerpt:
-          type: string
-          description: Short summary
-          maxLength: 500
-        author_name:
-          type: string
-          readOnly: true
-          nullable: true
-        category:
-          type: integer
-        category_name:
-          type: string
-          readOnly: true
-        featured_image:
-          type: string
-          format: uri
-          nullable: true
-        reading_time:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
-          description: Minutes to read
-        views:
-          type: integer
-          readOnly: true
-        is_saved:
-          type: boolean
-          readOnly: true
-        published_date:
+        recommendations:
+          type: array
+          items:
+            type: string
+        completed_at:
           type: string
           format: date-time
-          readOnly: true
-    PatchedAudio:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        title:
-          type: string
-          maxLength: 200
-        description:
-          type: string
-          description: What does this audio help with?
-        audio_url:
-          type: string
-          format: uri
-          nullable: true
-          description: External audio URL
-          maxLength: 200
-        audio_url_full:
-          type: string
-          format: uri
-          readOnly: true
-        category_name:
-          type: string
-          readOnly: true
-        duration:
-          type: string
-          maxLength: 20
-        plays:
-          type: integer
-          readOnly: true
-        is_saved:
-          type: boolean
-          readOnly: true
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
+        score_breakdown:
+          type: object
+          additionalProperties: {}
     PatchedAvatarProfile:
       type: object
       properties:
@@ -9093,12 +7783,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-        temporary_username:
-          type: string
-          readOnly: true
-        temporary_password_plain:
-          type: string
-          readOnly: true
     PatchedEmployeeManagement:
       type: object
       properties:
@@ -9164,6 +7848,21 @@ components:
         current_wellness_status:
           type: string
           maxLength: 50
+    PatchedEmployer:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        joined_date:
+          type: string
+          format: date-time
+          readOnly: true
+        is_active:
+          type: boolean
     PatchedEngagementTracker:
       type: object
       properties:
@@ -9199,99 +7898,32 @@ components:
         employee:
           type: integer
           readOnly: true
-    PatchedMedia:
+    PatchedMentalHealthAssessment:
       type: object
       properties:
         id:
           type: integer
           readOnly: true
-        media_type:
-          $ref: '#/components/schemas/MediaTypeEnum'
-        title:
-          type: string
-          maxLength: 255
-        description:
-          type: string
-        body:
-          type: string
-        file:
-          type: string
-          format: uri
-          nullable: true
-        thumbnail:
-          type: string
-          format: uri
-          nullable: true
-        duration_seconds:
-          type: integer
-          maximum: 2147483647
-          minimum: 0
-          nullable: true
-          description: Optional duration in seconds for audio/video.
-        tags:
-          type: string
-          description: Comma-separated tags
-          maxLength: 255
-        uploaded_by:
-          type: string
-          readOnly: true
-        is_published:
-          type: boolean
-        published_at:
-          type: string
-          format: date-time
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
-    PatchedMeditationTechnique:
-      type: object
-      properties:
-        id:
+        user:
           type: integer
           readOnly: true
-        title:
-          type: string
-          maxLength: 200
-        description:
-          type: string
-          description: what you want to achieve with this meditation
-        instructions:
-          type: string
-          description: Step-by-step guide
-        duration:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
-          description: Duration in minutes
-        difficulty:
-          $ref: '#/components/schemas/DifficultyEnum'
-        difficulty_display:
-          type: string
-          readOnly: true
-        category:
-          type: integer
-        category_name:
-          type: string
-          readOnly: true
-        benefits:
-          type: string
-        image:
-          type: string
-          format: uri
-          nullable: true
-        times_practiced:
+        assessment_type:
+          $ref: '#/components/schemas/AssessmentType908Enum'
+        gad7_scores: {}
+        phq9_scores: {}
+        gad7_total:
           type: integer
           readOnly: true
-        is_saved:
-          type: boolean
+        phq9_total:
+          type: integer
           readOnly: true
-        created_at:
+        gad7_severity:
+          type: string
+          readOnly: true
+        phq9_severity:
+          type: string
+          readOnly: true
+        assessment_date:
           type: string
           format: date-time
           readOnly: true
@@ -9323,13 +7955,21 @@ components:
           readOnly: true
         message:
           type: string
-          nullable: true
           maxLength: 255
         sent_on:
           type: string
           format: date-time
           readOnly: true
         read:
+          type: boolean
+    PatchedOnboardingState:
+      type: object
+      properties:
+        goal:
+          $ref: '#/components/schemas/GoalEnum'
+        completed:
+          type: boolean
+        first_action_done:
           type: boolean
     PatchedOrganizationCreate:
       type: object
@@ -9359,10 +7999,6 @@ components:
           writeOnly: true
         contactPerson:
           $ref: '#/components/schemas/ContactPerson'
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
     PatchedOrganizationSettings:
       type: object
       properties:
@@ -9430,7 +8066,6 @@ components:
         date:
           type: string
           format: date
-          readOnly: true
         mood_score:
           type: integer
           maximum: 2147483647
@@ -9479,33 +8114,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-    PatchedSubscription:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        employer:
-          type: integer
-        plan:
-          $ref: '#/components/schemas/PlanEnum'
-        amount:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
-        seats:
-          type: integer
-          maximum: 2147483647
-          minimum: 0
-        start_date:
-          type: string
-          format: date
-        end_date:
-          type: string
-          format: date
-          nullable: true
-        is_active:
-          type: boolean
     PatchedSubscriptionManagement:
       type: object
       properties:
@@ -9563,55 +8171,6 @@ components:
           type: string
           nullable: true
         updated_at:
-          type: string
-          format: date-time
-          readOnly: true
-    PatchedVideo:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        title:
-          type: string
-          maxLength: 200
-        description:
-          type: string
-          description: What will users learn?
-        youtube_url:
-          type: string
-          format: uri
-          description: YouTube video URL
-          maxLength: 200
-        is_professionally_reviewed:
-          type: boolean
-        reviewed_by:
-          type: string
-          maxLength: 100
-        review_date:
-          type: string
-          format: date
-          nullable: true
-        category_name:
-          type: string
-          readOnly: true
-        duration:
-          type: string
-          description: e.g., 10:30
-          maxLength: 20
-        views:
-          type: integer
-          readOnly: true
-        is_saved:
-          type: boolean
-          readOnly: true
-        target_mood:
-          $ref: '#/components/schemas/TargetMoodEnum'
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
-        created_at:
           type: string
           format: date-time
           readOnly: true
@@ -9694,7 +8253,6 @@ components:
         date:
           type: string
           format: date
-          readOnly: true
         mood_score:
           type: integer
           maximum: 2147483647
@@ -9707,6 +8265,7 @@ components:
       required:
       - date
       - id
+      - mood_score
       - user
     RecentActivity:
       type: object
@@ -9768,31 +8327,15 @@ components:
       - employee
       - id
       - recommended_on
-    ResetPasswordComplete:
-      type: object
-      properties:
-        email:
-          type: string
-          format: email
-        new_password:
-          type: string
-          writeOnly: true
-        confirm_password:
-          type: string
-          writeOnly: true
-      required:
-      - confirm_password
-      - email
-      - new_password
     RoleEnum:
       enum:
-      - system_admin
-      - employer
+      - systemadmin
+      - organisation
       - employee
       type: string
       description: |-
-        * `system_admin` - Systems Admin
-        * `employer` - Employer
+        * `systemadmin` - Systemadmin
+        * `organisation` - Organisation
         * `employee` - Employee
     SavedResource:
       type: object
@@ -9887,15 +8430,41 @@ components:
         * `boolean` - Boolean
         * `integer` - Integer
         * `json` - JSON
+    Signup:
+      type: object
+      properties:
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          writeOnly: true
+        confirm_password:
+          type: string
+          writeOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          default: employee
+      required:
+      - confirm_password
+      - email
+      - password
+      - username
     StatusEnum:
       enum:
-      - pending
       - active
       - inactive
       - suspended
       type: string
       description: |-
-        * `pending` - Pending
         * `active` - Active
         * `inactive` - Inactive
         * `suspended` - Suspended
@@ -9913,10 +8482,6 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
-        seats:
-          type: integer
-          maximum: 2147483647
-          minimum: 0
         start_date:
           type: string
           format: date
@@ -10173,7 +8738,6 @@ components:
       - anger
       - grief
       - general
-      - sad
       type: string
       description: |-
         * `anxiety` - Anxiety Relief
@@ -10186,7 +8750,6 @@ components:
         * `anger` - Anger Management
         * `grief` - Grief & Loss
         * `general` - General Wellness
-        * `sad` - Sadness Support
     TokenRefresh:
       type: object
       properties:
@@ -10206,36 +8769,6 @@ components:
           writeOnly: true
       required:
       - token
-    UserAchievement:
-      type: object
-      properties:
-        title:
-          type: string
-        description:
-          type: string
-        category:
-          type: string
-        progress_count:
-          type: integer
-          maximum: 2147483647
-          minimum: 0
-        target_count:
-          type: integer
-        progress_percentage:
-          type: string
-          readOnly: true
-        achieved:
-          type: boolean
-        achieved_date:
-          type: string
-          format: date
-          nullable: true
-      required:
-      - category
-      - description
-      - progress_percentage
-      - target_count
-      - title
     UserActivity:
       type: object
       properties:
@@ -10306,6 +8839,11 @@ components:
           format: uri
           description: YouTube video URL
           maxLength: 200
+        thumbnail:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
         is_professionally_reviewed:
           type: boolean
         reviewed_by:
@@ -10315,6 +8853,8 @@ components:
           type: string
           format: date
           nullable: true
+        category:
+          type: integer
         category_name:
           type: string
           readOnly: true
@@ -10339,6 +8879,7 @@ components:
           format: date-time
           readOnly: true
       required:
+      - category
       - category_name
       - created_at
       - description

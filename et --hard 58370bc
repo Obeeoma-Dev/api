@@ -1,0 +1,104 @@
+[33mbbae859[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m HEAD@{0}: pull: Fast-forward
+[33m58370bc[m HEAD@{1}: commit: corrected the otp verify in serializers.py
+[33m658eaef[m HEAD@{2}: commit: fixed the errors in the otp_verify in the serializers
+[33m49e6ca2[m HEAD@{3}: commit: Remove duplicate save() call in OTP verification
+[33m2f8b9be[m HEAD@{4}: commit: Fix OTP verification - use correct PasswordResetToken model and add AllowAny permission
+[33m639c603[m HEAD@{5}: commit: extended OTP expiry to 5 minutes and align validation logic
+[33ma27e0b0[m HEAD@{6}: commit: fixed the otp_verify in the serializer.py
+[33m61d3999[m HEAD@{7}: commit: fixed the otp_verify in views.py
+[33me5cd12a[m HEAD@{8}: pull --rebase (finish): returning to refs/heads/main
+[33me5cd12a[m HEAD@{9}: pull --rebase (pick): Fix MFA authentication - add AllowAny permission to mfa_verify and fix mfa_setup permission class
+[33m3463b2b[m HEAD@{10}: pull --rebase (start): checkout 3463b2bcbcb0bf66a7d3981db60b58c94c45b946
+[33m70248e1[m HEAD@{11}: commit: Fix MFA authentication - add AllowAny permission to mfa_verify and fix mfa_setup permission class
+[33m3abbaed[m HEAD@{12}: commit: Fix MFA verify endpoint permission
+[33m19395dc[m HEAD@{13}: commit: Fix MFA verify endpoint permission for Render
+[33m4735520[m HEAD@{14}: commit (merge): Fixing the MFA logic in the views.py
+[33md2c51b6[m HEAD@{15}: commit (merge): Added the MFA for the systemadmin
+[33m16f80fa[m HEAD@{16}: commit: Added the MFA for the systemadmin
+[33m7cb7a59[m HEAD@{17}: commit: Added in the MFA for the systems admin
+[33m7ee83fd[m HEAD@{18}: commit: Added schema support for MFA endpoints using @extend_schema
+[33mde7c3e8[m HEAD@{19}: commit: Changed the OTP expiry time from 15 minutes to 5 minutes
+[33m5ce4563[m HEAD@{20}: commit (merge): Changed the OTP expiry time in the views from 15 minutes to 60 seconds.
+[33m7f8a11c[m HEAD@{21}: commit (merge): Changed the OTP expiry time in the serializer from 15 minutes to 1 minute.
+[33m47406ea[m HEAD@{22}: commit: Changed the OTP expiry time in the serializer from 15 minutes to 1 minute.
+[33m7616147[m HEAD@{23}: commit (merge): Merge branch 'main' of https://github.com/Obeeoma-Dev/api
+[33mb0499d0[m HEAD@{24}: commit: fixed the views and the serializers
+[33m522e2db[m HEAD@{25}: commit (merge): fixed the views and the serializers
+[33m6c79f34[m HEAD@{26}: commit (merge): fixed the views and the serializers
+[33m03da11a[m HEAD@{27}: commit: fixed changes in login views
+[33mdf60515[m HEAD@{28}: commit (merge): fixed changes in login views
+[33m7afd3ef[m HEAD@{29}: commit: fixed changes in login views
+[33me0958e6[m HEAD@{30}: commit (merge): Merge branch 'main' of https://github.com/Obeeoma-Dev/api
+[33m93b9250[m HEAD@{31}: commit: fixed changes in login views
+[33mf9e4b98[m HEAD@{32}: commit (merge): modified the login serializers
+[33m0c1a814[m HEAD@{33}: commit (merge): changed login fields
+[33m23bd4a8[m HEAD@{34}: commit (merge): Merge branch 'main' of https://github.com/Obeeoma-Dev/api
+[33m4eff8b2[m HEAD@{35}: commit: changed login fields
+[33mce953a7[m HEAD@{36}: commit (merge): Corrected the login logic
+[33m806626c[m HEAD@{37}: commit: Corrected the login logic
+[33m1964b92[m HEAD@{38}: commit: Renamed User role 'employer' to 'organization' and updated the login logic
+[33m7ec2e96[m HEAD@{39}: commit: Added VerifyOTPView for OTP verification during password reset
+[33md2389a2[m HEAD@{40}: commit: Updated PasswordChangeView to fully match PasswordChangeSerializer
+[33mcae82c3[m HEAD@{41}: commit: changed and made migrations
+[33md4de92c[m HEAD@{42}: pull: Fast-forward
+[33m37e5957[m HEAD@{43}: pull: Fast-forward
+[33m751868e[m HEAD@{44}: commit (merge): Merge branch 'main' of https://github.com/Obeeoma-Dev/api
+[33m4a09432[m HEAD@{45}: commit: Adding logic to ensure email, name, and password are unique
+[33m99624cd[m HEAD@{46}: commit: added duplicate validation for username, email, and password in signup
+[33mdf39abb[m HEAD@{47}: commit: Adding in the logic for creating an organisation in views, serializers,models and urls
+[33md2436e3[m HEAD@{48}: commit: Adding in the logic for creating an organisation in views, serializers,models and urls
+[33m1f8e3be[m HEAD@{49}: commit: fixing the email serialzer
+[33m1579f2b[m HEAD@{50}: commit (merge): fixing errors in serialzers.py
+[33m4d80eda[m HEAD@{51}: commit (merge): fixing errors in views and serialzers
+[33m8a97f73[m HEAD@{52}: commit: fixing errors in views and serialzers
+[33mfaad1d5[m HEAD@{53}: pull origin main: Fast-forward
+[33m5b869c7[m HEAD@{54}: pull origin main: Fast-forward
+[33mf24be28[m HEAD@{55}: pull origin main: Fast-forward
+[33m9387edf[m HEAD@{56}: commit: fixing the error in the url
+[33mb440be5[m HEAD@{57}: commit (merge): Merge branch 'main' of https://github.com/Obeeoma-Dev/api
+[33mfca10ee[m HEAD@{58}: commit: fixing the error in the url
+[33m06bc020[m HEAD@{59}: commit: Add django-filter to fix missing module error
+[33m52afc15[m HEAD@{60}: commit: Fix dependency conflicts and update requirements.txt
+[33m0c97061[m HEAD@{61}: commit: Fix duplicate pytest version conflict
+[33mb1507bd[m HEAD@{62}: commit: Fix duplicate whitenoise version conflict
+[33mfca4727[m HEAD@{63}: commit (merge): Updating login endpoint to include all relevant user fields in the response
+[33m55d248b[m HEAD@{64}: commit (merge): Updating login endpoint to include all relevant user fields in the response
+[33m1a1e1ec[m HEAD@{65}: commit: Updating login endpoint to include all relevant user fields in the response
+[33mdec41f8[m HEAD@{66}: commit: fixing the errors in the serialzers
+[33mef1c453[m HEAD@{67}: pull: Fast-forward
+[33mb5d0c61[m HEAD@{68}: commit (merge): fixing views.py and urls.py
+[33mdee073b[m HEAD@{69}: commit (merge): modifying the email settings
+[33m062cdc5[m HEAD@{70}: commit: modifying the email settings
+[33m8119044[m HEAD@{71}: commit: Modifying FeaturesUsageView in the views.py
+[33m7ce64b2[m HEAD@{72}: commit: fixing errors in the views.py
+[33m7afdf4c[m HEAD@{73}: commit: Fix UserProfile import error
+[33ma0d649c[m HEAD@{74}: commit: Fix import order for AnxietyDistressMasteryViewSet
+[33m4a68588[m HEAD@{75}: commit (merge): Merge branch 'main' of https://github.com/Obeeoma-Dev/api
+[33m5ab5c47[m HEAD@{76}: commit: Fix import order for AnxietyDistressMasteryViewSet
+[33m4938d76[m HEAD@{77}: commit (merge): modified the login serializer and views
+[33m0d9fd68[m HEAD@{78}: commit (merge): modified the login serializer and views
+[33mcdbf760[m HEAD@{79}: commit: modified the login serializer and views
+[33mb2a4f6c[m HEAD@{80}: pull: Fast-forward
+[33m91912ee[m HEAD@{81}: commit (merge): modified email settings in the settings.py
+[33m72bca7b[m HEAD@{82}: commit (merge): modified email settings in settings.py
+[33m661358a[m HEAD@{83}: commit: modified email settings in the settings.py
+[33md7f4386[m HEAD@{84}: commit: fixing errors in the email settings
+[33m057e579[m HEAD@{85}: pull: Fast-forward
+[33mb82c3c5[m HEAD@{86}: pull: Merge made by the 'ort' strategy.
+[33mf83822f[m HEAD@{87}: commit: fixing the email settings
+[33m0522438[m HEAD@{88}: commit (merge): fixed errors in serializers.py
+[33mc67cfde[m HEAD@{89}: commit: fixed errors in the serializers.py
+[33m2bd7067[m HEAD@{90}: commit: modifying models
+[33m1633692[m HEAD@{91}: commit: fixing models
+[33m881d281[m HEAD@{92}: pull: Merge made by the 'ort' strategy.
+[33m846e16f[m HEAD@{93}: reset: moving to HEAD
+[33m846e16f[m HEAD@{94}: pull: updating HEAD
+[33m846e16f[m HEAD@{95}: commit: Remove conflicting merge migration 0006
+[33m4e5b663[m HEAD@{96}: pull: Fast-forward
+[33m06d25c8[m[33m ([m[1;31morigin/gideon[m[33m)[m HEAD@{97}: pull: Fast-forward
+[33m502045c[m HEAD@{98}: commit (merge): Removed duplicate endpoints from api/urls.py
+[33m2953b44[m HEAD@{99}: commit: removed the duplicate endpoints from api/urls.py
+[33mb4b2b7d[m HEAD@{100}: commit: server error
+[33m4d11bb2[m HEAD@{101}: commit: frontend render link
+[33ma6216d2[m HEAD@{102}: commit: email verification
+[33m6593861[m HEA
