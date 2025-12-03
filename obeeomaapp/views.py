@@ -632,87 +632,8 @@ class ResetPasswordCompleteView(viewsets.ViewSet):
             status=status.HTTP_200_OK
         )
 
-# Employee Invitation Serializers
-class EmployeeInvitationAcceptSerializer(serializers.Serializer):
-    username = serializers.CharField(
-        required=True,
-        help_text="Preferred username for the new account"
-    )
-    password = serializers.CharField(
-        required=True,
-        write_only=True,
-        min_length=8,
-        help_text="Password for the new account"
-    )
-    confirm_password = serializers.CharField(
-        required=True,
-        write_only=True,
-        help_text="Confirm your new password"
-    )
-
-    def _get_invitation(self, token: str) -> EmployeeInvitation:
-        if hasattr(self, "_invitation") and getattr(self, "_invitation").token == token:
-            return self._invitation
-
-        try:
-            self._invitation = EmployeeInvitation.objects.select_related("employer").get(
-                token=token,
-                accepted=False,
-                expires_at__gt=timezone.now()
-            )
-        except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError({"token": "Invalid or expired invitation token."})
-
-        return self._invitation
-
-    def validate_username(self, value):
-        if User.objects.filter(username=value).exists():
-            raise serializers.ValidationError("This username is already in use.")
-        return value
-
-    def validate(self, attrs):
-        invitation = self._get_invitation(attrs["token"])
-
-        if not invitation.credentials_used:
-            raise serializers.ValidationError(
-                {"token": "First login must be completed before finishing account setup."}
-            )
-
-        if attrs["password"] != attrs["confirm_password"]:
-            raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
-
-        validate_password(attrs["password"])
-        attrs["invitation"] = invitation
-        return attrs
-
-    def create(self, validated_data):
-        invitation = validated_data["invitation"]
-        password = validated_data["password"]
-        username = validated_data["username"]
-
-        user = User.objects.create_user(
-            username=username,
-            email=invitation.email,
-            password=password,
-            role="employee",
-            is_active=True
-        )
-
-        Employee.objects.create(
-            user=user,
-            employer=invitation.employer,
-            email=invitation.email,
-            first_name="",
-            last_name="",
-            status="active"
-        )
-
-        invitation.accepted = True
-        invitation.accepted_at = timezone.now()
-        invitation.credentials_used = True
-        invitation.save(update_fields=["accepted", "accepted_at", "credentials_used"])
-
-        return user
+# Employee Invitation Serializers - moved to serializers.py
+# Use EmployeeInvitationAcceptSerializer from serializers.py instead
 
 class EmployeeUserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
