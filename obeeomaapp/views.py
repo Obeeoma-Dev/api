@@ -634,10 +634,6 @@ class ResetPasswordCompleteView(viewsets.ViewSet):
 
 # Employee Invitation Serializers
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
-    token = serializers.CharField(
-        required=True,
-        help_text="Invitation token from the email link"
-    )
     username = serializers.CharField(
         required=True,
         help_text="Preferred username for the new account"
@@ -1255,19 +1251,19 @@ class CompleteAccountSetupView(APIView):
         Complete account setup after successful first login with temporary credentials.
         
         This endpoint requires:
-        - token: Invitation token from the onboarding email
-        - username: Preferred username for the permanent account
-        - new password: Your chosen permanent password
-        - confirm password: confirm permanent password
+        - email: Your email address from the invitation
+        - username: Choose your permanent username
+        - password: Your chosen permanent password (min 8 characters)
+        - confirm_password: Confirm your password
         
         The system will:
-
         - Create your permanent user account
         - Set your new credentials
         - Create your employee profile
         - Return authentication tokens for immediate login
         
         **Prerequisites:** Must have successfully completed first login with temporary credentials.
+        **NO TOKEN REQUIRED** - Just use your email, username, and password.
         """
     )
     def post(self, request):

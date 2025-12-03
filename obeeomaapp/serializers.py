@@ -548,7 +548,11 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
 
 # Complete Account Setup serializer (Employee Invitation Accept)
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
-    """Serializer for completing account setup after first login"""
+    """Serializer for completing account setup after first login - NO TOKEN REQUIRED"""
+    email = serializers.EmailField(
+        required=True,
+        help_text="Your email address from the invitation"
+    )
     username = serializers.CharField(
         required=True,
         min_length=3,
@@ -581,16 +585,8 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         # Validate password strength
         validate_password(attrs['password'])
         
-        # Get invitation from request context
-        request = self.context.get('request')
-        if not request or not hasattr(request, 'user'):
-            raise serializers.ValidationError("Invalid request context")
-        
-        # The invitation should be stored in session or passed via email link
-        # For now, we'll get it from the email parameter
-        email = request.data.get('email')
-        if not email:
-            raise serializers.ValidationError({"email": "Email is required"})
+        # Get email from validated data
+        email = attrs.get('email')
         
         # Find the invitation that has been used for first login
         try:
