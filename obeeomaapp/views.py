@@ -196,18 +196,18 @@ class LoginView(APIView):
 # LOGIN VIEW
 def _build_login_success_payload(user):
     refresh = RefreshToken.for_user(user)
-        username = serializer.validated_data['username']
-        password = serializer.validated_data['password']
+    username = serializer.validated_data['username']
+    password = serializer.validated_data['password']
 
-        user = authenticate(request=request, username=username, password=password)
+    user = authenticate(request=request, username=username, password=password)
 
-        if not user:
-            return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-        if not user.is_active:
-            return Response({"detail": "Account is disabled"}, status=status.HTTP_403_FORBIDDEN)
+    if not user:
+        return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+    if not user.is_active:
+        return Response({"detail": "Account is disabled"}, status=status.HTTP_403_FORBIDDEN)
 
-        # Generate JWT tokens
-        refresh = RefreshToken.for_user(user)
+    # Generate JWT tokens
+    refresh = RefreshToken.for_user(user)
 
     display_username = user.username
     try:

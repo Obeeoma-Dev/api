@@ -223,4 +223,4 @@ API_AUTHENTICATION_GUIDE.md
 
 
 # Dont track sana ai model files.
-sana_ai/tinyllama_model/
+sana_ai/tinyllama_modules/
