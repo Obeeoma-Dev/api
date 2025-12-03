@@ -533,5 +533,3 @@ class EducationalVideoURLTests(APITestCase):
         # Save video action
         url = reverse('obeeomaapp:videos-save-video', kwargs={'pk': 1})
         self.assertEqual(url, '/videos/1/save_video/')
-
-
