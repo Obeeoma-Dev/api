@@ -548,11 +548,7 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
 
 # Complete Account Setup serializer (Employee Invitation Accept)
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
-    """Serializer for completing account setup after first login - NO TOKEN REQUIRED"""
-    email = serializers.EmailField(
-        required=True,
-        help_text="Your email address from the invitation"
-    )
+    """Serializer for completing account setup after first login - NO TOKEN OR EMAIL REQUIRED"""
     username = serializers.CharField(
         required=True,
         min_length=3,
@@ -588,21 +584,45 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         except Exception as e:
             raise serializers.ValidationError({"password": str(e)})
         
-        # Get email from validated data
-        email = attrs.get('email')
+        # Get email from request context (stored in session after first login)
+        request = self.context.get('request')
+        email = None
         
-        # Find the invitation that has been used for first login
-        try:
-            invitation = EmployeeInvitation.objects.get(
-                email=email,
-                credentials_used=True,  # Must have completed first login
-                accepted=False,  # But not yet completed account setup
-                expires_at__gt=timezone.now()
-            )
-        except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError({
-                "email": "Invalid invitation or first login not completed. Please use your temporary credentials first."
-            })
+        # Try to get email from session (stored during first login)
+        if request and hasattr(request, 'session'):
+            email = request.session.get('invitation_email')
+        
+        # If not in session, try to find the most recent invitation that completed first login
+        if not email:
+            try:
+                # Find the most recent invitation that has completed first login but not account setup
+                invitation = EmployeeInvitation.objects.filter(
+                    credentials_used=True,  # Must have completed first login
+                    accepted=False,  # But not yet completed account setup
+                    expires_at__gt=timezone.now()
+                ).order_by('-created_at').first()
+                
+                if not invitation:
+                    raise serializers.ValidationError(
+                        "No pending invitation found. Please complete first login with your temporary credentials first."
+                    )
+            except Exception as e:
+                raise serializers.ValidationError(
+                    "Unable to find your invitation. Please complete first login with your temporary credentials first."
+                )
+        else:
+            # Find the invitation using email from session
+            try:
+                invitation = EmployeeInvitation.objects.get(
+                    email=email,
+                    credentials_used=True,  # Must have completed first login
+                    accepted=False,  # But not yet completed account setup
+                    expires_at__gt=timezone.now()
+                )
+            except EmployeeInvitation.DoesNotExist:
+                raise serializers.ValidationError(
+                    "Invalid invitation or first login not completed. Please use your temporary credentials first."
+                )
         
         attrs['invitation'] = invitation
         return attrs

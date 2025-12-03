@@ -1205,6 +1205,10 @@ class EmployeeFirstLoginView(APIView):
         invitation.credentials_used = True
         invitation.save()
         
+        # Store email in session for account setup (no need to send it again)
+        request.session['invitation_email'] = invitation.email
+        request.session['invitation_id'] = invitation.id
+        
         return Response({
             'message': 'First login successful. Please complete your account setup.',
             'email': invitation.email,
@@ -1250,20 +1254,20 @@ class CompleteAccountSetupView(APIView):
         description="""
         Complete account setup after successful first login with temporary credentials.
         
-        This endpoint requires:
-        - email: Your email address from the invitation
+        This endpoint requires ONLY:
         - username: Choose your permanent username
         - password: Your chosen permanent password (min 8 characters)
         - confirm_password: Confirm your password
         
         The system will:
+        - Automatically find your invitation (from first login session)
         - Create your permanent user account
         - Set your new credentials
         - Create your employee profile
         - Return authentication tokens for immediate login
         
         **Prerequisites:** Must have successfully completed first login with temporary credentials.
-        **NO TOKEN REQUIRED** - Just use your email, username, and password.
+        **NO TOKEN OR EMAIL REQUIRED** - The system remembers your invitation from first login!
         """
     )
     def post(self, request):
