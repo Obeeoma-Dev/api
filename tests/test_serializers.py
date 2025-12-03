@@ -10,6 +10,7 @@ import json
 
 from obeeomaapp.serializers import *
 from obeeomaapp.models import *
+from obeeomaapp.views import EmployeeInvitationAcceptSerializer
 
 User = get_user_model()
 
@@ -311,54 +312,41 @@ class EmployeeInvitationAcceptSerializerTest(TestCase):
             invited_by=self.user,
             email='new@example.com',
             token='test-token-123',
-            expires_at=timezone.now() + timedelta(days=1)
+            expires_at=timezone.now() + timedelta(days=1),
+            credentials_used=True  # Required for serializer validation
         )
 
     def test_valid_invitation_acceptance(self):
         # Test that serializer validates all required fields
         data = {
             'token': 'test-token-123',
+            'username': 'johndoe',
             'password': 'securepass123',
-            'first_name': 'John',
-            'last_name': 'Doe'
+            'confirm_password': 'securepass123'
         }
         serializer = EmployeeInvitationAcceptSerializer(data=data)
         self.assertTrue(serializer.is_valid(), serializer.errors)
         validated_data = serializer.validated_data
         self.assertEqual(validated_data['token'], 'test-token-123')
-        self.assertEqual(validated_data['first_name'], 'John')
-        self.assertEqual(validated_data['last_name'], 'Doe')
+        self.assertEqual(validated_data['username'], 'johndoe')
 
     def test_expired_invitation(self):
-        # Create an expired invitation
+        # Create an expired invitation with unique token
         expired_invitation = EmployeeInvitation.objects.create(
             employer=self.employer,
             invited_by=self.user,
             email='expired@example.com',
-            token='expired-token-123',
-            expires_at=timezone.now() - timedelta(days=1)
-        )
-        # Create an expired invitation
-        expired_invitation = EmployeeInvitation.objects.create(
-            employer=self.employer,
-            invited_by=self.user,
-            email='expired@example.com',
-            token='expired-token-123',
-            expires_at=timezone.now() - timedelta(days=1)
+            token='expired-token-unique-456',
+            expires_at=timezone.now() - timedelta(days=1),
+            credentials_used=True
         )
         data = {
-                'token': 'expired-token-123',
-                'password': 'securepass123',
-                'first_name': 'Jane',
-                'last_name': 'Doe',
-                'token': 'expired-token-123',
-                'password': 'securepass123',
-                'first_name': 'Jane',
-                'last_name': 'Doe'
+            'token': 'expired-token-unique-456',
+            'username': 'jane',
+            'password': 'securepass123',
+            'confirm_password': 'securepass123'
         }
         serializer = EmployeeInvitationAcceptSerializer(data=data)
-        self.assertFalse(serializer.is_valid())
-        self.assertIn('token', serializer.errors)
         self.assertFalse(serializer.is_valid())
         self.assertIn('token', serializer.errors)
 
@@ -366,9 +354,9 @@ class EmployeeInvitationAcceptSerializerTest(TestCase):
         # Empty token should fail
         data = {
             'token': '',
+            'username': 'johndoe',
             'password': 'securepass123',
-            'first_name': 'John',
-            'last_name': 'Doe'
+            'confirm_password': 'securepass123'
         }
         serializer = EmployeeInvitationAcceptSerializer(data=data)
         self.assertFalse(serializer.is_valid())
@@ -380,9 +368,9 @@ class EmployeeInvitationAcceptSerializerTest(TestCase):
         }
         serializer = EmployeeInvitationAcceptSerializer(data=data)
         self.assertFalse(serializer.is_valid())
+        self.assertIn('username', serializer.errors)
         self.assertIn('password', serializer.errors)
-        self.assertIn('first_name', serializer.errors)
-        self.assertIn('last_name', serializer.errors)
+        self.assertIn('confirm_password', serializer.errors)
 # DISABLED - EmployeeInvitationAcceptSerializer doesn't exist in serializers.py
 # It's defined inline in views.py
 # class EmployeeInvitationAcceptSerializerTest(TestCase):

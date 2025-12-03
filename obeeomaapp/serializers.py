@@ -78,59 +78,6 @@ User = get_user_model()
 #         return user
 
     
-    # SERIALIZER FOR CREATING AN ORGANIZATION
-class ContactPersonSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ContactPerson
-        fields = ['fullname', 'role', 'email']
-
-
-class OrganizationCreateSerializer(serializers.ModelSerializer):
-    contactPerson = ContactPersonSerializer()
-    confirmPassword = serializers.CharField(write_only=True)
-    created_at = serializers.DateTimeField(read_only=True)
-
-    class Meta:
-        model = Organization
-        fields = [
-            'organizationName',
-            'organisationSize',
-            'phoneNumber',
-            'companyEmail',
-            'Location',
-            'password',
-            'confirmPassword',
-            'contactPerson',
-        ]
-        extra_kwargs = {'password': {'write_only': True}}
-
-    def validate(self, data):
-        if data['password'] != data['confirmPassword']:
-            raise serializers.ValidationError({"confirmPassword": "Passwords do not match."})
-        validate_password(data['password'])
-        return data
-
-    def create(self, validated_data):
-        contact_data = validated_data.pop('contactPerson')
-        validated_data.pop('confirmPassword')
-        user = User.objects.create(
-            username=validated_data['companyEmail'],
-            email=validated_data['companyEmail'],
-            role='employer'
-        )
-        user.set_password(validated_data['password'])
-        user.save()
-
-        contact_person = ContactPerson.objects.create(**contact_data)
-        validated_data['password'] = make_password(validated_data['password'])
-        validated_data['owner'] = user
-        validated_data['contactPerson'] = contact_person
-
-        organization = Organization.objects.create(**validated_data)
-        return organization 
-      
-
-    
 # SERIALIZER FOR CREATING AN ORGANIZATION
 class ContactPersonSerializer(serializers.ModelSerializer):
     firstName = serializers.CharField(source='first_name')
@@ -457,14 +404,6 @@ class EmployeeSerializer(serializers.ModelSerializer):
         model = Employee
         fields = ['id', 'employer', 'employer_name', 'department', 'department_name', 'first_name', 'last_name', 'name', 'email', 'status', 'joined_date', 'last_active', 'avatar']
 
-
-class NotificationSerializer(serializers.ModelSerializer):
-    is_read = serializers.BooleanField(source='read', read_only=True)  # Add this field
-    
-    class Meta:
-        model = Notification
-        fields = ['id', 'employee', 'message', 'sent_on', 'read', 'is_read']  # Include both
-        read_only_fields = ['employee', 'sent_on']
 
 class NotificationSerializer(serializers.ModelSerializer):
     is_read = serializers.BooleanField(source='read', read_only=True)  # Add this field
@@ -1494,14 +1433,6 @@ class DynamicQuestionSerializer(serializers.ModelSerializer):
         model = DynamicQuestion
         fields = ['id', 'text', 'category', 'is_active', 'created_at']
 
-# Notification Serializer - CORRECTED: Using 'read' not 'is_read'
-class NotificationSerializer(serializers.ModelSerializer):
-    is_read = serializers.BooleanField(source='read', read_only=True)
-    class Meta:
-        model = Notification
-        fields = ['id', 'employee', 'message', 'sent_on', 'read', 'is_read']  # Use 'read' here
-        read_only_fields = ['employee', 'sent_on']
-
 
 # ===== ASSESSMENT QUESTIONNAIRE SERIALIZERS =====
 
@@ -1596,12 +1527,6 @@ class UserAchievementSerializer(serializers.ModelSerializer):
     def get_progress_percentage(self, obj):
         return obj.progress_percentage()
 
-
-# CrisisHotlineSerializer
-class CrisisHotlineSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CrisisHotline
-        fields = ['id', 'country', 'region', 'hotline_name', 'phone_number', 'is_active']
 
 # ADMIN USER MANAGEMENT SERIALIZER
 class OrganizationSerializer(serializers.ModelSerializer):
