@@ -583,7 +583,10 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
             raise serializers.ValidationError({"confirm_password": "Passwords don't match"})
         
         # Validate password strength
-        validate_password(attrs['password'])
+        try:
+            validate_password(attrs['password'])
+        except Exception as e:
+            raise serializers.ValidationError({"password": str(e)})
         
         # Get email from validated data
         email = attrs.get('email')
@@ -597,41 +600,51 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
                 expires_at__gt=timezone.now()
             )
         except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError(
-                "Invalid invitation or first login not completed. Please use your temporary credentials first."
-            )
+            raise serializers.ValidationError({
+                "email": "Invalid invitation or first login not completed. Please use your temporary credentials first."
+            })
         
         attrs['invitation'] = invitation
         return attrs
 
     def create(self, validated_data):
         """Create the permanent user account"""
+        from django.db import transaction
+        
         invitation = validated_data['invitation']
         username = validated_data['username']
         password = validated_data['password']
         
-        # Create the user account
-        user = User.objects.create(
-            username=username,
-            email=invitation.email,
-            role='employee',
-            is_active=True
-        )
-        user.set_password(password)
-        user.save()
-        
-        # Create employee profile
-        employee_profile = EmployeeProfile.objects.create(
-            user=user,
-            employer=invitation.employer
-        )
-        
-        # Mark invitation as accepted
-        invitation.accepted = True
-        invitation.accepted_at = timezone.now()
-        invitation.save()
-        
-        return user
+        try:
+            with transaction.atomic():
+                # Create the user account
+                user = User.objects.create(
+                    username=username,
+                    email=invitation.email,
+                    role='employee',
+                    is_active=True
+                )
+                user.set_password(password)
+                user.save()
+                
+                # Create employee profile
+                employee_profile = EmployeeProfile.objects.create(
+                    user=user,
+                    employer=invitation.employer
+                )
+                
+                # Mark invitation as accepted
+                invitation.accepted = True
+                invitation.accepted_at = timezone.now()
+                invitation.save()
+                
+                return user
+        except Exception as e:
+            # Log the error for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error creating user account: {str(e)}", exc_info=True)
+            raise serializers.ValidationError(f"Failed to create account: {str(e)}")
 
 
 # Legacy Complete Account Setup serializer (kept for backward compatibility)

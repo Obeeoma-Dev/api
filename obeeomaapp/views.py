@@ -1270,29 +1270,39 @@ class CompleteAccountSetupView(APIView):
         """
         Complete account setup with permanent credentials
         """
-        serializer = EmployeeInvitationAcceptSerializer(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        
-        user = serializer.save()
-        
-        # Generate tokens for immediate login
-        refresh = RefreshToken.for_user(user)
-        
-        return Response({
-            'message': 'Account created successfully. You can now login with your new credentials.',
-            'user': {
-                'id': user.id,
-                'email': user.email,
-                'username': user.username,
-                'role': user.role
-            },
-            'employee_profile': {
-                'id': user.employee_profile.id,
-                'employer': user.employee_profile.employer.name
-            },
-            'access': str(refresh.access_token),
-            'refresh': str(refresh)
-        }, status=status.HTTP_201_CREATED)
+        try:
+            serializer = EmployeeInvitationAcceptSerializer(data=request.data, context={'request': request})
+            serializer.is_valid(raise_exception=True)
+            
+            user = serializer.save()
+            
+            # Generate tokens for immediate login
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                'message': 'Account created successfully. You can now login with your new credentials.',
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'username': user.username,
+                    'role': user.role
+                },
+                'employee_profile': {
+                    'id': user.employee_profile.id,
+                    'employer': user.employee_profile.employer.name
+                },
+                'access': str(refresh.access_token),
+                'refresh': str(refresh)
+            }, status=status.HTTP_201_CREATED)
+        except ValidationError as e:
+            logger.error(f"Validation error in complete account setup: {str(e)}")
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Unexpected error in complete account setup: {str(e)}", exc_info=True)
+            return Response({
+                'error': 'An unexpected error occurred. Please try again or contact support.',
+                'detail': str(e) if settings.DEBUG else None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     
 
