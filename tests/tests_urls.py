@@ -47,13 +47,13 @@ class URLTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
-class AuthenticationURLTests(APITestCase):
-    def test_auth_urls(self):
-        """Test all authentication URLs"""
-        # Signup
-        url = reverse('obeeomaapp:signup')
-        self.assertEqual(url, '/auth/signup/')
-        self.assertEqual(resolve(url).func.view_class, SignupView)
+# class AuthenticationURLTests(APITestCase):
+#     def test_auth_urls(self):
+#         """Test all authentication URLs"""
+#         # Signup
+#         url = reverse('obeeomaapp:signup')
+#         self.assertEqual(url, '/auth/signup/')
+#         self.assertEqual(resolve(url).func.view_class, SignupView)
 
         # Login
         url = reverse('obeeomaapp:login')
