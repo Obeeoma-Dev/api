@@ -148,7 +148,7 @@ def initiate_payment_fw(amount, email, subscription_id, currency="NGN"): # Renam
         "tx_ref": tx_ref,
         "amount": str(amount), 
         "currency": currency,
-        "redirect_url": f"http://127.0.0.1:8000/api/billing/confirm_payment/?sub_ref={subscription_id}",
+        "redirect_url": f"http://64.225.122.101:8000/api/v1/billing/verify_payment/?sub_ref={subscription_id}",
         # "redirect_url": f"{FRONTEND_SUCCESS_URL}?tx_ref={tx_ref}", 
         "meta": {
           "subscription_id": subscription_id, # Pass  internal reference
@@ -634,10 +634,6 @@ class ResetPasswordCompleteView(viewsets.ViewSet):
 
 # Employee Invitation Serializers
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
-    token = serializers.CharField(
-        required=True,
-        help_text="Invitation token from the email link"
-    )
     username = serializers.CharField(
         required=True,
         help_text="Preferred username for the new account"
@@ -905,7 +901,7 @@ class InviteView(viewsets.ModelViewSet):
         
         # Send invitation email with temporary credentials
         try:
-            login_url = f"{settings.FRONTEND_URL}/auth/first-login" if hasattr(settings, 'FRONTEND_URL') else f"http://localhost:3000/auth/first-login"
+            login_url = f"{settings.FRONTEND_URL}/auth/first-login" if hasattr(settings, 'FRONTEND_URL') else f"http://64.225.122.101/auth/first-login"
             
             subject = f"🎉 Welcome to {employer.name} on Obeeoma!"
             
@@ -1080,7 +1076,7 @@ The Obeeoma Team
             </div>
             
             <div class="credentials">
-                <h3>🔑 Your One-Time Login Credentials</h3>
+                <h3>Your One-Time Login Credentials</h3>
                 <div class="cred-row">
                     <span class="cred-label">Token</span>
                     <span class="cred-value">{invitation.token}</span>
@@ -1209,6 +1205,10 @@ class EmployeeFirstLoginView(APIView):
         invitation.credentials_used = True
         invitation.save()
         
+        # Store email in session for account setup (no need to send it again)
+        request.session['invitation_email'] = invitation.email
+        request.session['invitation_id'] = invitation.id
+        
         return Response({
             'message': 'First login successful. Please complete your account setup.',
             'email': invitation.email,
@@ -1254,49 +1254,59 @@ class CompleteAccountSetupView(APIView):
         description="""
         Complete account setup after successful first login with temporary credentials.
         
-        This endpoint requires:
-        - token: Invitation token from the onboarding email
-        - username: Preferred username for the permanent account
-        - new password: Your chosen permanent password
-        - confirm password: confirm permanent password
+        This endpoint requires ONLY:
+        - username: Choose your permanent username
+        - password: Your chosen permanent password (min 8 characters)
+        - confirm_password: Confirm your password
         
         The system will:
-
+        - Automatically find your invitation (from first login session)
         - Create your permanent user account
         - Set your new credentials
         - Create your employee profile
         - Return authentication tokens for immediate login
         
         **Prerequisites:** Must have successfully completed first login with temporary credentials.
+        **NO TOKEN OR EMAIL REQUIRED** - The system remembers your invitation from first login!
         """
     )
     def post(self, request):
         """
         Complete account setup with permanent credentials
         """
-        serializer = EmployeeInvitationAcceptSerializer(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        
-        user = serializer.save()
-        
-        # Generate tokens for immediate login
-        refresh = RefreshToken.for_user(user)
-        
-        return Response({
-            'message': 'Account created successfully. You can now login with your new credentials.',
-            'user': {
-                'id': user.id,
-                'email': user.email,
-                'username': user.username,
-                'role': user.role
-            },
-            'employee_profile': {
-                'id': user.employee_profile.id,
-                'employer': user.employee_profile.employer.name
-            },
-            'access': str(refresh.access_token),
-            'refresh': str(refresh)
-        }, status=status.HTTP_201_CREATED)
+        try:
+            serializer = EmployeeInvitationAcceptSerializer(data=request.data, context={'request': request})
+            serializer.is_valid(raise_exception=True)
+            
+            user = serializer.save()
+            
+            # Generate tokens for immediate login
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                'message': 'Account created successfully. You can now login with your new credentials.',
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'username': user.username,
+                    'role': user.role
+                },
+                'employee_profile': {
+                    'id': user.employee_profile.id,
+                    'employer': user.employee_profile.employer.name
+                },
+                'access': str(refresh.access_token),
+                'refresh': str(refresh)
+            }, status=status.HTTP_201_CREATED)
+        except ValidationError as e:
+            logger.error(f"Validation error in complete account setup: {str(e)}")
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Unexpected error in complete account setup: {str(e)}", exc_info=True)
+            return Response({
+                'error': 'An unexpected error occurred. Please try again or contact support.',
+                'detail': str(e) if settings.DEBUG else None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     
 

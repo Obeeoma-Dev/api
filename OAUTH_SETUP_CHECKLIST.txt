@@ -1,0 +1,189 @@
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║     GOOGLE OAUTH EMAIL SETUP CHECKLIST                          ║
+║     For Digital Ocean Deployment                                ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────┐
+│ PREREQUISITES                                                    │
+└──────────────────────────────────────────────────────────────────┘
+
+[ ] Google Cloud Project created
+[ ] Gmail API enabled in Google Cloud Console
+[ ] credentials.json downloaded and in project root
+[ ] Python packages installed:
+    pip install google-auth-oauthlib google-auth-httplib2 google-api-python-client
+
+┌──────────────────────────────────────────────────────────────────┐
+│ STEP 1: GENERATE OAUTH TOKENS (LOCAL MACHINE)                   │
+└──────────────────────────────────────────────────────────────────┘
+
+[ ] Run: python get_oauth2_token.py
+
+[ ] Browser opens and you authorize the app
+
+[ ] Script completes successfully
+
+[ ] .env.template file created with credentials
+
+[ ] Copy these values (you'll need them):
+    - GOOGLE_CLIENT_ID
+    - GOOGLE_CLIENT_SECRET  
+    - GOOGLE_REFRESH_TOKEN
+
+┌──────────────────────────────────────────────────────────────────┐
+│ STEP 2: VERIFY LOCAL SETUP                                      │
+└──────────────────────────────────────────────────────────────────┘
+
+[ ] Check .env.template exists:
+    cat .env.template
+
+[ ] Verify credentials look correct:
+    - CLIENT_ID ends with .apps.googleusercontent.com
+    - CLIENT_SECRET starts with GOCSPX-
+    - REFRESH_TOKEN starts with 1//
+
+┌──────────────────────────────────────────────────────────────────┐
+│ STEP 3: COPY TO DIGITAL OCEAN DROPLET                           │
+└──────────────────────────────────────────────────────────────────┘
+
+Option A - Automated (Recommended):
+[ ] Run: bash copy-oauth-to-droplet.sh
+[ ] Script completes successfully
+[ ] Containers restart automatically
+
+Option B - Manual:
+[ ] SSH to droplet: ssh obeeoma@64.225.122.101
+[ ] Navigate: cd ~/api
+[ ] Edit .env: nano .env
+[ ] Add these lines:
+    GOOGLE_CLIENT_ID=your-client-id
+    GOOGLE_CLIENT_SECRET=your-client-secret
+    GOOGLE_REFRESH_TOKEN=your-refresh-token
+    EMAIL_HOST_USER=obeeoma2025@gmail.com
+    DEFAULT_FROM_EMAIL=obeeoma2025@gmail.com
+[ ] Save: Ctrl+X, Y, Enter
+[ ] Restart: docker-compose restart
+
+┌──────────────────────────────────────────────────────────────────┐
+│ STEP 4: VERIFY DROPLET CONFIGURATION                            │
+└──────────────────────────────────────────────────────────────────┘
+
+[ ] Check configuration:
+    bash check-oauth-droplet.sh
+
+[ ] All three Google variables show ✅
+
+[ ] Backend container is running
+
+[ ] No errors in recent logs
+
+┌──────────────────────────────────────────────────────────────────┐
+│ STEP 5: TEST EMAIL SENDING                                      │
+└──────────────────────────────────────────────────────────────────┘
+
+[ ] Send test invitation from your app
+
+[ ] Check logs:
+    ssh obeeoma@64.225.122.101
+    cd ~/api
+    docker-compose logs backend | grep -i email
+
+[ ] Look for success message:
+    "Email sent via Gmail API to ..."
+
+[ ] Check recipient inbox (and spam folder)
+
+[ ] Email received successfully ✅
+
+┌──────────────────────────────────────────────────────────────────┐
+│ TROUBLESHOOTING (IF NEEDED)                                     │
+└──────────────────────────────────────────────────────────────────┘
+
+If email not sent:
+
+[ ] Check logs for errors:
+    docker-compose logs backend --tail=200 | grep -i "email\|gmail\|oauth"
+
+[ ] Common issues:
+
+    ❌ "Failed to obtain OAuth2 credentials"
+    → Fix: Verify .env has all three GOOGLE_ variables
+    → Run: cat .env | grep GOOGLE
+
+    ❌ "Gmail API failed: invalid_grant"  
+    → Fix: Refresh token expired, regenerate
+    → Run: python get_oauth2_token.py (locally)
+    → Copy new token to droplet
+
+    ❌ "Gmail API failed: insufficient permissions"
+    → Fix: Delete token.json and regenerate
+    → Run: rm token.json && python get_oauth2_token.py
+
+    ❌ Email not received but no errors
+    → Check spam folder
+    → Verify Gmail API is enabled in Google Cloud Console
+    → Check from email: obeeoma2025@gmail.com
+
+[ ] After fixing, restart containers:
+    docker-compose restart
+
+┌──────────────────────────────────────────────────────────────────┐
+│ SUCCESS INDICATORS                                               │
+└──────────────────────────────────────────────────────────────────┘
+
+✅ bash check-oauth-droplet.sh shows all green checkmarks
+✅ docker-compose logs shows "Email sent via Gmail API"
+✅ Recipient receives invitation email
+✅ Email contains invitation link and credentials
+✅ No errors in logs
+
+┌──────────────────────────────────────────────────────────────────┐
+│ MAINTENANCE                                                      │
+└──────────────────────────────────────────────────────────────────┘
+
+[ ] Save OAuth credentials securely (password manager)
+
+[ ] Document where credentials are stored
+
+[ ] Set reminder to check if refresh token expires
+
+[ ] Test email sending after any deployment
+
+┌──────────────────────────────────────────────────────────────────┐
+│ QUICK REFERENCE COMMANDS                                         │
+└──────────────────────────────────────────────────────────────────┘
+
+Generate tokens:
+  python get_oauth2_token.py
+
+Copy to droplet:
+  bash copy-oauth-to-droplet.sh
+
+Check configuration:
+  bash check-oauth-droplet.sh
+
+View logs:
+  ssh obeeoma@64.225.122.101 "cd ~/api && docker-compose logs backend | grep -i email"
+
+Restart containers:
+  ssh obeeoma@64.225.122.101 "cd ~/api && docker-compose restart"
+
+SSH to droplet:
+  ssh obeeoma@64.225.122.101
+
+┌──────────────────────────────────────────────────────────────────┐
+│ DOCUMENTATION                                                    │
+└──────────────────────────────────────────────────────────────────┘
+
+📄 EMAIL_SETUP_SUMMARY.md - Overview and summary
+📄 QUICK_FIX_EMAIL.md - Quick 5-minute fix guide  
+📄 SETUP_GOOGLE_OAUTH_EMAIL.md - Detailed setup guide
+📄 DEBUG_EMAIL_ISSUE.md - General debugging guide
+
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║  Once all items are checked, your email system is ready! 🎉     ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝

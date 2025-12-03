@@ -5,6 +5,7 @@ from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from drf_spectacular.utils import extend_schema_field
 from django.utils import timezone
+from django.conf import settings
 from rest_framework import serializers
 from .models import Media
 from django.utils import timezone
@@ -137,7 +138,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
         organization = Organization.objects.create(**validated_data)
 
         # Send email via Gmail API (OAuth)
-        login_link = "https://obeeoma.onrender.com/login"
+        login_link = f"{settings.FRONTEND_URL}/login" if hasattr(settings, 'FRONTEND_URL') else "http://64.225.122.101/login"
         org_email = organization.companyEmail
         org_name = organization.organizationName
 
@@ -545,7 +546,128 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
         return attrs
 
 
-# Complete Account Setup serializer
+# Complete Account Setup serializer (Employee Invitation Accept)
+class EmployeeInvitationAcceptSerializer(serializers.Serializer):
+    """Serializer for completing account setup after first login - NO TOKEN OR EMAIL REQUIRED"""
+    username = serializers.CharField(
+        required=True,
+        min_length=3,
+        max_length=150,
+        help_text="Choose your permanent username"
+    )
+    password = serializers.CharField(
+        required=True,
+        write_only=True,
+        min_length=8,
+        help_text="Create your permanent password"
+    )
+    confirm_password = serializers.CharField(
+        required=True,
+        write_only=True,
+        help_text="Confirm your password"
+    )
+
+    def validate_username(self, value):
+        """Check if username is already taken"""
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("Username already taken. Please choose another.")
+        return value
+
+    def validate(self, attrs):
+        """Validate password match and strength"""
+        if attrs['password'] != attrs['confirm_password']:
+            raise serializers.ValidationError({"confirm_password": "Passwords don't match"})
+        
+        # Validate password strength
+        try:
+            validate_password(attrs['password'])
+        except Exception as e:
+            raise serializers.ValidationError({"password": str(e)})
+        
+        # Get email from request context (stored in session after first login)
+        request = self.context.get('request')
+        email = None
+        
+        # Try to get email from session (stored during first login)
+        if request and hasattr(request, 'session'):
+            email = request.session.get('invitation_email')
+        
+        # If not in session, try to find the most recent invitation that completed first login
+        if not email:
+            try:
+                # Find the most recent invitation that has completed first login but not account setup
+                invitation = EmployeeInvitation.objects.filter(
+                    credentials_used=True,  # Must have completed first login
+                    accepted=False,  # But not yet completed account setup
+                    expires_at__gt=timezone.now()
+                ).order_by('-created_at').first()
+                
+                if not invitation:
+                    raise serializers.ValidationError(
+                        "No pending invitation found. Please complete first login with your temporary credentials first."
+                    )
+            except Exception as e:
+                raise serializers.ValidationError(
+                    "Unable to find your invitation. Please complete first login with your temporary credentials first."
+                )
+        else:
+            # Find the invitation using email from session
+            try:
+                invitation = EmployeeInvitation.objects.get(
+                    email=email,
+                    credentials_used=True,  # Must have completed first login
+                    accepted=False,  # But not yet completed account setup
+                    expires_at__gt=timezone.now()
+                )
+            except EmployeeInvitation.DoesNotExist:
+                raise serializers.ValidationError(
+                    "Invalid invitation or first login not completed. Please use your temporary credentials first."
+                )
+        
+        attrs['invitation'] = invitation
+        return attrs
+
+    def create(self, validated_data):
+        """Create the permanent user account"""
+        from django.db import transaction
+        
+        invitation = validated_data['invitation']
+        username = validated_data['username']
+        password = validated_data['password']
+        
+        try:
+            with transaction.atomic():
+                # Create the user account
+                user = User.objects.create(
+                    username=username,
+                    email=invitation.email,
+                    role='employee',
+                    is_active=True
+                )
+                user.set_password(password)
+                user.save()
+                
+                # Create employee profile
+                employee_profile = EmployeeProfile.objects.create(
+                    user=user,
+                    employer=invitation.employer
+                )
+                
+                # Mark invitation as accepted
+                invitation.accepted = True
+                invitation.accepted_at = timezone.now()
+                invitation.save()
+                
+                return user
+        except Exception as e:
+            # Log the error for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error creating user account: {str(e)}", exc_info=True)
+            raise serializers.ValidationError(f"Failed to create account: {str(e)}")
+
+
+# Legacy Complete Account Setup serializer (kept for backward compatibility)
 class CompleteAccountSetupSerializer(serializers.Serializer):
     password = serializers.CharField(
         required=True,
