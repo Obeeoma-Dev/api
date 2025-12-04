@@ -22,4 +22,4 @@ jobs:
             docker-compose up -d
             docker-compose exec backend python manage.py migrate --noinput
             docker-compose exec backend python manage.py collectstatic --noinput
-            echo "✅ Deployment complete!"
+            echo " Deployment complete!"
