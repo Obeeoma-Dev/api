@@ -650,7 +650,10 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
                 # Create employee profile
                 employee_profile = EmployeeProfile.objects.create(
                     user=user,
-                    employer=invitation.employer
+                    organization=invitation.employer.name,
+                    role='employee',
+                    subscription_tier='freemium',
+                    is_premium_active=False
                 )
                 
                 # Mark invitation as accepted
@@ -662,7 +665,7 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         except Exception as e:
             # Log the error for debugging
             import logging
-            logger = logging.getLogger(_name_)
+            logger = logging.getLogger(__name__)
             logger.error(f"Error creating user account: {str(e)}", exc_info=True)
             raise serializers.ValidationError(f"Failed to create account: {str(e)}")
 

@@ -57,7 +57,7 @@ schema_view = get_schema_view(
 # --- Router setup ---
 router = DefaultRouter()
 
-# API FOR SIGNING UP AN ORGANIZATION
+# API routers
 router.register(r'assessments/pss10', PSS10AssessmentViewSet, basename='pss10-assessment')
 router.register(r'organization-signup', OrganizationSignupView, basename='organization-signup')
 router.register(r'payment-methods', UpdatePaymentMethodViewSet, basename='payment-method')

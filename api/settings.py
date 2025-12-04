@@ -17,7 +17,7 @@ DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 PORT = os.getenv("PORT", "8000")
 ALLOWED_HOSTS = os.getenv(
     "ALLOWED_HOSTS",
-    "127.0.0.1,localhost,64.225.122.101,api-0904.onrender.com,api-1-aro6.onrender.com"
+    "64.225.122.101,localhost",
 ).split(",")
 
 # This is  for generating the fernet key regarding MFA
@@ -25,14 +25,8 @@ FERNET_KEY = os.getenv("FERNET_KEY")
 
 # CSRF Trusted Origins
 CSRF_TRUSTED_ORIGINS = [
-    "https://api-0904.onrender.com",
-    "https://api-1-aro6.onrender.com",
-    "https://obeeoma.onrender.com",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "http://64.225.122.101:8000",
     "http://64.225.122.101",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
 ]
 
 # Database configuration
@@ -51,16 +45,14 @@ elif DATABASE_URL:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.environ.get("PGDATABASE", "neondb"),
-            "USER": os.environ.get("PGUSER", "neondb_owner"),
-            "PASSWORD": os.environ.get("PGPASSWORD"),
-            "HOST": os.environ.get("PGHOST"),
+            "NAME": os.environ.get("PGDATABASE", "neondb"),  # <-- This reads from PGDATABASE
+            "USER": os.environ.get("PGUSER", "neondb_owner"),  # <-- This reads from PGUSER
+            "PASSWORD": os.environ.get("PGPASSWORD"),  # <-- This reads from PGPASSWORD
+            "HOST": os.environ.get("PGHOST"),  # <-- This reads from PGHOST
             "PORT": os.environ.get("PGPORT", "5432"),
             "OPTIONS": {
                 "sslmode": os.environ.get("PGSSLMODE", "require"),
             },
-            "CONN_MAX_AGE": 600,
-            "CONN_HEALTH_CHECKS": True,
         }
     }
 else:
@@ -149,15 +141,9 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # CORS settings
 # Whitelist specific origins (recommended for production)
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",      # React development server (common port)
-    "http://127.0.0.1:3000",      # Alternative localhost
-    "http://localhost:5173",      # Vite development server
-    "http://127.0.0.1:5173",      # Alternative localhost for Vite
-    "http://64.225.122.101",      # Production frontend (DigitalOcean)
-    "https://obeeoma.onrender.com",  # Production frontend (Render)
-    "https://api-1-aro6.onrender.com",  # Backend Render host
-    # Add your production frontend URL here when deployed
-    # "https://your-production-frontend.com",
+    "http://64.225.122.101:8000",      # Production backend (DigitalOcean)
+    "http://64.225.122.101",           # Production frontend (DigitalOcean)
+    "http://localhost:5173",          # local host frontend 
 ]
 
 # Additional CORS settings
@@ -178,7 +164,7 @@ CORS_ALLOW_HEADERS = [
 # CORS_ALLOW_ALL_ORIGINS = True
 
 # Frontend URL for email links
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://64.225.122.101")
 
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/overview/"
@@ -214,7 +200,13 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     'ENUM_NAME_OVERRIDES': {
         'NameEnum': 'ResourceTypeEnum'
-    }
+    },
+    "SERVERS": [
+        {
+            "url": "http://64.225.122.101:8000",
+            "description": "Production server"
+        },
+    ],
 }
 
 # Logging Configuration

@@ -30,7 +30,7 @@ from rest_framework.permissions import (
     IsAuthenticated,
     BasePermission,
     IsAuthenticatedOrReadOnly,
-    AllowAny,
+    AllowAny, 
 )
 
 import django_filters
@@ -78,6 +78,7 @@ from .utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings
 from django.utils import timezone
 from datetime import datetime, timedelta
+from django.utils.timezone import now
 import secrets
 from rest_framework import filters
 import string
@@ -148,7 +149,7 @@ def initiate_payment_fw(amount, email, subscription_id, currency="NGN"): # Renam
         "tx_ref": tx_ref,
         "amount": str(amount), 
         "currency": currency,
-        "redirect_url": f"http://127.0.0.1:8000/api/billing/confirm_payment/?sub_ref={subscription_id}",
+        "redirect_url": f"http://64.225.122.101:8000/api/v1/billing/verify_payment/?sub_ref={subscription_id}",
         # "redirect_url": f"{FRONTEND_SUCCESS_URL}?tx_ref={tx_ref}", 
         "meta": {
           "subscription_id": subscription_id, # Pass  internal reference
@@ -632,91 +633,8 @@ class ResetPasswordCompleteView(viewsets.ViewSet):
             status=status.HTTP_200_OK
         )
 
-# Employee Invitation Serializers
-class EmployeeInvitationAcceptSerializer(serializers.Serializer):
-    token = serializers.CharField(
-        required=True,
-        help_text="Invitation token from the email link"
-    )
-    username = serializers.CharField(
-        required=True,
-        help_text="Preferred username for the new account"
-    )
-    password = serializers.CharField(
-        required=True,
-        write_only=True,
-        min_length=8,
-        help_text="Password for the new account"
-    )
-    confirm_password = serializers.CharField(
-        required=True,
-        write_only=True,
-        help_text="Confirm your new password"
-    )
-
-    def _get_invitation(self, token: str) -> EmployeeInvitation:
-        if hasattr(self, "_invitation") and getattr(self, "_invitation").token == token:
-            return self._invitation
-
-        try:
-            self._invitation = EmployeeInvitation.objects.select_related("employer").get(
-                token=token,
-                accepted=False,
-                expires_at__gt=timezone.now()
-            )
-        except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError({"token": "Invalid or expired invitation token."})
-
-        return self._invitation
-
-    def validate_username(self, value):
-        if User.objects.filter(username=value).exists():
-            raise serializers.ValidationError("This username is already in use.")
-        return value
-
-    def validate(self, attrs):
-        invitation = self._get_invitation(attrs["token"])
-
-        if not invitation.credentials_used:
-            raise serializers.ValidationError(
-                {"token": "First login must be completed before finishing account setup."}
-            )
-
-        if attrs["password"] != attrs["confirm_password"]:
-            raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
-
-        validate_password(attrs["password"])
-        attrs["invitation"] = invitation
-        return attrs
-
-    def create(self, validated_data):
-        invitation = validated_data["invitation"]
-        password = validated_data["password"]
-        username = validated_data["username"]
-
-        user = User.objects.create_user(
-            username=username,
-            email=invitation.email,
-            password=password,
-            role="employee",
-            is_active=True
-        )
-
-        Employee.objects.create(
-            user=user,
-            employer=invitation.employer,
-            email=invitation.email,
-            first_name="",
-            last_name="",
-            status="active"
-        )
-
-        invitation.accepted = True
-        invitation.accepted_at = timezone.now()
-        invitation.credentials_used = True
-        invitation.save(update_fields=["accepted", "accepted_at", "credentials_used"])
-
-        return user
+# Employee Invitation Serializers - moved to serializers.py
+# Use EmployeeInvitationAcceptSerializer from serializers.py instead
 
 class EmployeeUserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
@@ -905,7 +823,7 @@ class InviteView(viewsets.ModelViewSet):
         
         # Send invitation email with temporary credentials
         try:
-            login_url = f"{settings.FRONTEND_URL}/auth/first-login" if hasattr(settings, 'FRONTEND_URL') else f"http://localhost:3000/auth/first-login"
+            login_url = f"{settings.FRONTEND_URL}/auth/first-login" if hasattr(settings, 'FRONTEND_URL') else f"http://64.225.122.101/auth/first-login"
             
             subject = f"🎉 Welcome to {employer.name} on Obeeoma!"
             
@@ -1080,7 +998,7 @@ The Obeeoma Team
             </div>
             
             <div class="credentials">
-                <h3>🔑 Your One-Time Login Credentials</h3>
+                <h3>Your One-Time Login Credentials</h3>
                 <div class="cred-row">
                     <span class="cred-label">Token</span>
                     <span class="cred-value">{invitation.token}</span>
@@ -1209,6 +1127,10 @@ class EmployeeFirstLoginView(APIView):
         invitation.credentials_used = True
         invitation.save()
         
+        # Store email in session for account setup (no need to send it again)
+        request.session['invitation_email'] = invitation.email
+        request.session['invitation_id'] = invitation.id
+        
         return Response({
             'message': 'First login successful. Please complete your account setup.',
             'email': invitation.email,
@@ -1222,7 +1144,7 @@ class CompleteAccountSetupView(APIView):
     """
     Complete account setup after first login with temporary credentials
     """
-    permission_classes = [AllowAny]  # Allow unauthenticated access for signup
+    permission_classes = [AllowAny]  # Allow unauthenticated access for account setup
     
     @extend_schema(
         request=EmployeeInvitationAcceptSerializer,
@@ -1254,49 +1176,59 @@ class CompleteAccountSetupView(APIView):
         description="""
         Complete account setup after successful first login with temporary credentials.
         
-        This endpoint requires:
-        - token: Invitation token from the onboarding email
-        - username: Preferred username for the permanent account
-        - new password: Your chosen permanent password
-        - confirm password: confirm permanent password
+        This endpoint requires ONLY:
+        - username: Choose your permanent username
+        - password: Your chosen permanent password (min 8 characters)
+        - confirm_password: Confirm your password
         
         The system will:
-
+        - Automatically find your invitation (from first login session)
         - Create your permanent user account
         - Set your new credentials
         - Create your employee profile
         - Return authentication tokens for immediate login
         
         **Prerequisites:** Must have successfully completed first login with temporary credentials.
+        **NO TOKEN OR EMAIL REQUIRED** - The system remembers your invitation from first login!
         """
     )
     def post(self, request):
         """
         Complete account setup with permanent credentials
         """
-        serializer = EmployeeInvitationAcceptSerializer(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        
-        user = serializer.save()
-        
-        # Generate tokens for immediate login
-        refresh = RefreshToken.for_user(user)
-        
-        return Response({
-            'message': 'Account created successfully. You can now login with your new credentials.',
-            'user': {
-                'id': user.id,
-                'email': user.email,
-                'username': user.username,
-                'role': user.role
-            },
-            'employee_profile': {
-                'id': user.employee_profile.id,
-                'employer': user.employee_profile.employer.name
-            },
-            'access': str(refresh.access_token),
-            'refresh': str(refresh)
-        }, status=status.HTTP_201_CREATED)
+        try:
+            serializer = EmployeeInvitationAcceptSerializer(data=request.data, context={'request': request})
+            serializer.is_valid(raise_exception=True)
+            
+            user = serializer.save()
+            
+            # Generate tokens for immediate login
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                'message': 'Account created successfully. You can now login with your new credentials.',
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'username': user.username,
+                    'role': user.role
+                },
+                'employee_profile': {
+                    'id': user.employee_profile.id,
+                    'organization': user.employee_profile.organization
+                },
+                'access': str(refresh.access_token),
+                'refresh': str(refresh)
+            }, status=status.HTTP_201_CREATED)
+        except ValidationError as e:
+            logger.error(f"Validation error in complete account setup: {str(e)}")
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Unexpected error in complete account setup: {str(e)}", exc_info=True)
+            return Response({
+                'error': 'An unexpected error occurred. Please try again or contact support.',
+                'detail': str(e)  # Always show error detail for debugging
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     
 

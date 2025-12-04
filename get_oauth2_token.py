@@ -6,20 +6,18 @@ This script helps you get the correct refresh token for Gmail API
 
 import json
 import os
-
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 
 # Gmail API scopes
 SCOPES = ["https://mail.google.com/", "https://www.googleapis.com/auth/gmail.send"]
 
-
-
 def get_refresh_token():
     """
     Get OAuth2 refresh token for Gmail API
     """
-    print(" OAuth2 Token Generator for Gmail API")
+    print("=" * 50)
+    print("OAuth2 Token Generator for Gmail API")
     print("=" * 50)
 
     # Check if credentials.json exists
@@ -42,7 +40,7 @@ def get_refresh_token():
         print("   Please sign in with your Gmail account")
 
         # Run the flow
-        creds = flow.run_local_server(port=0)
+        creds = flow.run_local_server(port=0, open_browser=True)
 
         # Save credentials
         with open("token.json", "w") as token_file:
@@ -73,6 +71,6 @@ GOOGLE_REFRESH_TOKEN={creds.refresh_token}
         print(f" Error: {e}")
         return None
 
-
-if __name__ == "_main_":
+# FIXED THIS LINE - Changed "_main_" to "__main__"
+if __name__ == "__main__":
     get_refresh_token()

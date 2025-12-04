@@ -1,0 +1,137 @@
+╔══════════════════════════════════════════════════════════════════╗
+║     DIGITAL OCEAN DOCKER DEPLOYMENT CHECKLIST                    ║
+║     API URL: http://64.225.122.101:8000/api/v1/api/docs/        ║
+╚══════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────┐
+│ PHASE 1: SERVER SETUP (One-Time)                                │
+└─────────────────────────────────────────────────────────────────┘
+
+[ ] 1. Connect to droplet: ssh obeeoma@64.225.122.101
+
+[ ] 2. Run setup script:
+        curl -o setup.sh https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/setup-docker-droplet.sh
+        chmod +x setup.sh
+        ./setup.sh
+
+[ ] 3. Copy the SSH private key displayed at the end
+
+┌─────────────────────────────────────────────────────────────────┐
+│ PHASE 2: GITHUB CONFIGURATION                                    │
+└─────────────────────────────────────────────────────────────────┘
+
+[ ] 4. Go to GitHub → Settings → Secrets and variables → Actions
+
+[ ] 5. Add secret: DROPLET_HOST = 64.225.122.101
+
+[ ] 6. Add secret: DROPLET_USERNAME = obeeoma
+
+[ ] 7. Add secret: DROPLET_SSH_KEY = (paste SSH private key)
+
+┌─────────────────────────────────────────────────────────────────┐
+│ PHASE 3: APPLICATION DEPLOYMENT                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+[ ] 8. Clone repository:
+        git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git api
+        cd api
+
+[ ] 9. Create .env file: nano .env
+         (Add all production environment variables)
+
+[ ] 10. Build containers: docker-compose build
+
+[ ] 11. Start services: docker-compose up -d
+
+[ ] 12. Run migrations: 
+         docker-compose exec backend python manage.py migrate
+
+[ ] 13. Create superuser:
+         docker-compose exec backend python manage.py createsuperuser
+
+[ ] 14. Collect static files:
+         docker-compose exec backend python manage.py collectstatic --noinput
+
+┌─────────────────────────────────────────────────────────────────┐
+│ PHASE 4: VERIFICATION                                            │
+└─────────────────────────────────────────────────────────────────┘
+
+[ ] 15. Check containers: docker ps
+         (Should see django_backend and nginx_proxy running)
+
+[ ] 16. Check logs: docker-compose logs backend
+
+[ ] 17. Test API: http://64.225.122.101:8000/api/v1/api/docs/
+
+[ ] 18. Test admin: http://64.225.122.101:8000/admin/
+
+[ ] 19. Test with curl: curl http://64.225.122.101:8000/api/v1/
+
+┌─────────────────────────────────────────────────────────────────┐
+│ PHASE 5: AUTOMATIC DEPLOYMENT TEST                              │
+└─────────────────────────────────────────────────────────────────┘
+
+[ ] 20. Make a small change to your code
+
+[ ] 21. Commit and push to main branch:
+         git add .
+         git commit -m "Test automatic deployment"
+         git push origin main
+
+[ ] 22. Go to GitHub → Actions tab
+
+[ ] 23. Watch the "Deploy to DigitalOcean Droplet" workflow run
+
+[ ] 24. Verify deployment succeeded (green checkmark)
+
+[ ] 25. Check your API to see the changes reflected
+
+┌─────────────────────────────────────────────────────────────────┐
+│ TROUBLESHOOTING COMMANDS                                         │
+└─────────────────────────────────────────────────────────────────┘
+
+View logs:
+  docker-compose logs -f backend
+
+Restart services:
+  docker-compose restart
+
+Rebuild from scratch:
+  docker-compose down
+  docker-compose build --no-cache
+  docker-compose up -d
+
+Check container status:
+  docker ps
+  docker stats
+
+Run Django commands:
+  docker-compose exec backend python manage.py <command>
+
+SSH to droplet:
+  ssh obeeoma@64.225.122.101
+
+┌─────────────────────────────────────────────────────────────────┐
+│ SUCCESS INDICATORS                                               │
+└─────────────────────────────────────────────────────────────────┘
+
+✓ docker ps shows 2 containers running (backend + nginx)
+✓ API docs accessible at http://64.225.122.101:8000/api/v1/api/docs/
+✓ Admin panel accessible at http://64.225.122.101:8000/admin/
+✓ GitHub Actions shows green checkmark on deployments
+✓ Pushing to main automatically updates the server
+
+┌─────────────────────────────────────────────────────────────────┐
+│ IMPORTANT FILES                                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+📄 DEPLOYMENT_QUICK_START.md - Quick reference guide
+📄 DIGITAL_OCEAN_DOCKER_DEPLOYMENT.md - Complete documentation
+📄 setup-docker-droplet.sh - Server setup script
+📄 .github/workflows/deploy-droplet.yml - CI/CD workflow
+📄 docker-compose.yml - Docker services configuration
+📄 Dockerfile - Container build instructions
+
+╔══════════════════════════════════════════════════════════════════╗
+║  Once all items are checked, your automatic deployment is live! ║
+╚══════════════════════════════════════════════════════════════════╝
