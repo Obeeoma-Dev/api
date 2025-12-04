@@ -1656,6 +1656,7 @@ class AvatarProfileView(viewsets.ModelViewSet):
     def get_queryset(self):
         return AvatarProfile.objects.filter(employee__user=self.request.user)
 # updated mood tracking view with mood summary action
+
 @extend_schema(tags=['Employee - Mood Tracking'])
 class MoodTrackingView(viewsets.ModelViewSet):
     serializer_class = MoodTrackingSerializer
@@ -1679,20 +1680,43 @@ class MoodTrackingView(viewsets.ModelViewSet):
         # Aggregate moods per day
         mood_data = (
             MoodTracking.objects
-            .filter(employee=employee, created_at__date__gte=start_date)
-            .values('created_at__date', 'mood')
+            .filter(employee=employee, checked_in_at__date__gte=start_date)
+            .values('checked_in_at__date', 'mood')
             .annotate(count=Count('id'))
         )
 
         # Format response
         summary = {}
         for entry in mood_data:
-            day = entry['created_at__date'].strftime('%a')  # e.g. 'Mon'
+            day = entry['checked_in_at__date'].strftime('%a')  # e.g. 'Mon'
             mood = entry['mood']
             count = entry['count']
             summary.setdefault(day, {}).update({mood: count})
 
         return Response(summary)
+
+
+# Utility function for weekly mood data
+def get_weekly_mood_data(user):
+    today = datetime.today().date()
+    start_date = today - timedelta(days=6)
+    week_days = [(start_date + timedelta(days=i)) for i in range(7)]
+
+    mood_data = {day.strftime('%A'): None for day in week_days}
+
+    checkins = MoodTracking.objects.filter(
+        user=user,
+        checked_in_at__date__range=(start_date, today)
+    )
+
+    for checkin in checkins:
+        day_name = checkin.checked_in_at.strftime('%A')
+        if checkin.mood is none:
+            mood_data[day_name] = checkin.mood
+
+    return mood_data
+
+
 
 @extend_schema(tags=['Employee - Assessments'])
 @extend_schema(tags=['Resources'])
