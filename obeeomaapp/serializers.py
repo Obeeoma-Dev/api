@@ -23,7 +23,15 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.hashers import check_password
+from django.utils import timezone
+from django.contrib.auth.password_validation import validate_password
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
+from django.db import transaction
+import logging
 
+User = get_user_model()
+logger = logging.getLogger(__name__)
 
 from .models import UserAchievement
 import uuid
@@ -33,51 +41,7 @@ from django.utils.translation import gettext as _
 
 
 User = get_user_model()
-# # SIGNUP SERIALIZER
-# class SignupSerializer(serializers.ModelSerializer):
-#     password = serializers.CharField(write_only=True, validators=[validate_password])
-#     confirm_password = serializers.CharField(write_only=True)
-#     role = serializers.ChoiceField(choices=User.ROLE_CHOICES, default="employee")
-
-#     class Meta:
-#         model = User
-#         fields = ('username', 'email', 'password', 'confirm_password', 'role')
-
-#     def validate(self, attrs):
-#         username = attrs.get('username')
-#         email = attrs.get('email')
-#         password = attrs.get('password')
-#         confirm_password = attrs.get('confirm_password')
-
-#         if password != confirm_password:
-#             raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
-
-#         if User.objects.filter(username__iexact=username).exists():
-#             raise serializers.ValidationError({"username": "This username is already taken."})
-#         if User.objects.filter(email__iexact=email).exists():
-#             raise serializers.ValidationError({"email": "This email is already registered."})
-
-#         for user in User.objects.all():
-#             if check_password(password, user.password):
-#                 raise serializers.ValidationError({"password": "This password is already in use. Please choose a different one."})
-
-#         return attrs
-
-#     def create(self, validated_data):
-#         validated_data.pop('confirm_password')
-#         role = validated_data.pop('role', 'employee')
-
-#         user = User(
-#             username=validated_data['username'],
-#             email=validated_data['email'],
-#             role=role
-#         )
-#         user.set_password(validated_data['password'])
-#         user.save()
-
-#         return user
-
-    
+  
 # SERIALIZER FOR CREATING AN ORGANIZATION
 class ContactPersonSerializer(serializers.ModelSerializer):
     firstName = serializers.CharField(source='first_name')
@@ -547,8 +511,10 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
 
 
 # Complete Account Setup serializer (Employee Invitation Accept)
+
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
     """Serializer for completing account setup after first login - NO TOKEN OR EMAIL REQUIRED"""
+    
     username = serializers.CharField(
         required=True,
         min_length=3,
@@ -584,53 +550,41 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         except Exception as e:
             raise serializers.ValidationError({"password": str(e)})
         
-        # Get email from request context (stored in session after first login)
+        # Get request and email
         request = self.context.get('request')
         email = None
         
-        # Try to get email from session (stored during first login)
+        # Try to get email from session
         if request and hasattr(request, 'session'):
             email = request.session.get('invitation_email')
         
-        # If not in session, try to find the most recent invitation that completed first login
-        if not email:
-            try:
-                # Find the most recent invitation that has completed first login but not account setup
-                invitation = EmployeeInvitation.objects.filter(
-                    credentials_used=True,  # Must have completed first login
-                    accepted=False,  # But not yet completed account setup
-                    expires_at__gt=timezone.now()
-                ).order_by('-created_at').first()
-                
-                if not invitation:
-                    raise serializers.ValidationError(
-                        "No pending invitation found. Please complete first login with your temporary credentials first."
-                    )
-            except Exception as e:
-                raise serializers.ValidationError(
-                    "Unable to find your invitation. Please complete first login with your temporary credentials first."
-                )
-        else:
-            # Find the invitation using email from session
-            try:
-                invitation = EmployeeInvitation.objects.get(
-                    email=email,
-                    credentials_used=True,  # Must have completed first login
-                    accepted=False,  # But not yet completed account setup
-                    expires_at__gt=timezone.now()
-                )
-            except EmployeeInvitation.DoesNotExist:
-                raise serializers.ValidationError(
-                    "Invalid invitation or first login not completed. Please use your temporary credentials first."
-                )
+        # Fallback: get email from frontend payload
+        if not email and request:
+            email = request.data.get('email')
         
+        if not email:
+            raise serializers.ValidationError(
+                "Invitation email missing. Please log in using your temporary credentials first."
+            )
+
+        # Get the invitation by exact email
+        try:
+            invitation = EmployeeInvitation.objects.get(
+                email=email,
+                credentials_used=True,  # Must have completed first login
+                accepted=False,         # But not yet completed account setup
+                expires_at__gt=timezone.now()
+            )
+        except EmployeeInvitation.DoesNotExist:
+            raise serializers.ValidationError(
+                "No valid invitation found for this email. Please complete first login with your temporary credentials."
+            )
+
         attrs['invitation'] = invitation
         return attrs
 
     def create(self, validated_data):
         """Create the permanent user account"""
-        from django.db import transaction
-        
         invitation = validated_data['invitation']
         username = validated_data['username']
         password = validated_data['password']
@@ -650,7 +604,7 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
                 # Create employee profile
                 employee_profile = EmployeeProfile.objects.create(
                     user=user,
-                    organisation=invitation.employer,
+                    organisation=invitation.employer,  # Must be the Organisation instance
                     role='employee',
                     subscription_tier='freemium',
                     is_premium_active=False
@@ -663,11 +617,9 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
                 
                 return user
         except Exception as e:
-            # Log the error for debugging
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Error creating user account: {str(e)}", exc_info=True)
             raise serializers.ValidationError(f"Failed to create account: {str(e)}")
+
 
 
 # Legacy Complete Account Setup serializer (kept for backward compatibility)
