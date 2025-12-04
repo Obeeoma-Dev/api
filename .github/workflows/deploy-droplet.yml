@@ -15,11 +15,19 @@ jobs:
           username: ${{ secrets.DROPLET_USERNAME }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
           script: |
-            cd ~/obeeoma_project/api  # FIXED PATH HERE!
+            # Pull latest code
+            cd ~/obeeoma_project/api
             git pull origin main
+            
+            # Run Docker commands from project root
+            cd ~/obeeoma_project
             docker-compose down
             docker-compose build
             docker-compose up -d
+            
+            # Run Django commands
             docker-compose exec backend python manage.py migrate --noinput
             docker-compose exec backend python manage.py collectstatic --noinput
+            
             echo "✅ Deployment complete!"
+            docker-compose ps

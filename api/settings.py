@@ -17,7 +17,7 @@ DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 PORT = os.getenv("PORT", "8000")
 ALLOWED_HOSTS = os.getenv(
     "ALLOWED_HOSTS",
-    "64.225.122.101"
+    "64.225.122.101,localhost",
 ).split(",")
 
 # This is  for generating the fernet key regarding MFA
@@ -143,6 +143,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 CORS_ALLOWED_ORIGINS = [
     "http://64.225.122.101:8000",      # Production backend (DigitalOcean)
     "http://64.225.122.101",           # Production frontend (DigitalOcean)
+    "http://localhost:5173",          # local host frontend 
 ]
 
 # Additional CORS settings
