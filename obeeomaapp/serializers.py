@@ -5,6 +5,7 @@ from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from drf_spectacular.utils import extend_schema_field
 from django.utils import timezone
+from django.conf import settings
 from rest_framework import serializers
 from .models import Media
 from django.utils import timezone
@@ -137,7 +138,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
         organization = Organization.objects.create(**validated_data)
 
         # Send email via Gmail API (OAuth)
-        login_link = "https://obeeoma.onrender.com/login"
+        login_link = f"{settings.FRONTEND_URL}/login" if hasattr(settings, 'FRONTEND_URL') else "http://64.225.122.101/login"
         org_email = organization.companyEmail
         org_name = organization.organizationName
 
@@ -391,7 +392,7 @@ class UserSerializer(serializers.ModelSerializer):
 class EmployerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Employer
-        fields = '__all__'
+        fields = '_all_'
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
@@ -545,7 +546,128 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
         return attrs
 
 
-# Complete Account Setup serializer
+# Complete Account Setup serializer (Employee Invitation Accept)
+class EmployeeInvitationAcceptSerializer(serializers.Serializer):
+    """Serializer for completing account setup after first login - NO TOKEN OR EMAIL REQUIRED"""
+    username = serializers.CharField(
+        required=True,
+        min_length=3,
+        max_length=150,
+        help_text="Choose your permanent username"
+    )
+    password = serializers.CharField(
+        required=True,
+        write_only=True,
+        min_length=8,
+        help_text="Create your permanent password"
+    )
+    confirm_password = serializers.CharField(
+        required=True,
+        write_only=True,
+        help_text="Confirm your password"
+    )
+
+    def validate_username(self, value):
+        """Check if username is already taken"""
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("Username already taken. Please choose another.")
+        return value
+
+    def validate(self, attrs):
+        """Validate password match and strength"""
+        if attrs['password'] != attrs['confirm_password']:
+            raise serializers.ValidationError({"confirm_password": "Passwords don't match"})
+        
+        # Validate password strength
+        try:
+            validate_password(attrs['password'])
+        except Exception as e:
+            raise serializers.ValidationError({"password": str(e)})
+        
+        # Get email from request context (stored in session after first login)
+        request = self.context.get('request')
+        email = None
+        
+        # Try to get email from session (stored during first login)
+        if request and hasattr(request, 'session'):
+            email = request.session.get('invitation_email')
+        
+        # If not in session, try to find the most recent invitation that completed first login
+        if not email:
+            try:
+                # Find the most recent invitation that has completed first login but not account setup
+                invitation = EmployeeInvitation.objects.filter(
+                    credentials_used=True,  # Must have completed first login
+                    accepted=False,  # But not yet completed account setup
+                    expires_at__gt=timezone.now()
+                ).order_by('-created_at').first()
+                
+                if not invitation:
+                    raise serializers.ValidationError(
+                        "No pending invitation found. Please complete first login with your temporary credentials first."
+                    )
+            except Exception as e:
+                raise serializers.ValidationError(
+                    "Unable to find your invitation. Please complete first login with your temporary credentials first."
+                )
+        else:
+            # Find the invitation using email from session
+            try:
+                invitation = EmployeeInvitation.objects.get(
+                    email=email,
+                    credentials_used=True,  # Must have completed first login
+                    accepted=False,  # But not yet completed account setup
+                    expires_at__gt=timezone.now()
+                )
+            except EmployeeInvitation.DoesNotExist:
+                raise serializers.ValidationError(
+                    "Invalid invitation or first login not completed. Please use your temporary credentials first."
+                )
+        
+        attrs['invitation'] = invitation
+        return attrs
+
+    def create(self, validated_data):
+        """Create the permanent user account"""
+        from django.db import transaction
+        
+        invitation = validated_data['invitation']
+        username = validated_data['username']
+        password = validated_data['password']
+        
+        try:
+            with transaction.atomic():
+                # Create the user account
+                user = User.objects.create(
+                    username=username,
+                    email=invitation.email,
+                    role='employee',
+                    is_active=True
+                )
+                user.set_password(password)
+                user.save()
+                
+                # Create employee profile
+                employee_profile = EmployeeProfile.objects.create(
+                    user=user,
+                    employer=invitation.employer
+                )
+                
+                # Mark invitation as accepted
+                invitation.accepted = True
+                invitation.accepted_at = timezone.now()
+                invitation.save()
+                
+                return user
+        except Exception as e:
+            # Log the error for debugging
+            import logging
+            logger = logging.getLogger(_name_)
+            logger.error(f"Error creating user account: {str(e)}", exc_info=True)
+            raise serializers.ValidationError(f"Failed to create account: {str(e)}")
+
+
+# Legacy Complete Account Setup serializer (kept for backward compatibility)
 class CompleteAccountSetupSerializer(serializers.Serializer):
     password = serializers.CharField(
         required=True,
@@ -642,7 +764,7 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
 class AvatarProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = AvatarProfile
-        fields = '__all__'
+        fields = '_all_'
         read_only_fields = ['employee']
 
 
@@ -651,52 +773,52 @@ class AvatarProfileSerializer(serializers.ModelSerializer):
 class AssessmentResultSerializer(serializers.ModelSerializer):
     class Meta:
         model = AssessmentResult
-        fields = '__all__'
+        fields = '_all_'
         read_only_fields = ['employee', 'submitted_on']
 
 
 class EducationalResourceSerializer(serializers.ModelSerializer):
     class Meta:
         model = EducationalResource
-        fields = '__all__'
+        fields = '_all_'
 
 
 class CrisisTriggerSerializer(serializers.ModelSerializer):
     class Meta:
         model = CrisisTrigger
-        fields = '__all__'
+        fields = '_all_'
         read_only_fields = ['employee', 'triggered_on']
 
 class EngagementTrackerSerializer(serializers.ModelSerializer):
     class Meta:
         model = EngagementTracker
-        fields = '__all__'
+        fields = '_all_'
         read_only_fields = ['employee']
 
 class FeedbackSerializer(serializers.ModelSerializer):
     class Meta:
         model = Feedback
-        fields = '__all__'
+        fields = '_all_'
         read_only_fields = ['employee', 'submitted_on']
 
 
 class ChatSessionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatSession
-        fields = '__all__'
+        fields = '_all_'
         read_only_fields = ['employee', 'started_at']
 
 class ChatMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatMessage
-        fields = '__all__'
+        fields = '_all_'
         read_only_fields = ['session', 'timestamp']
 
 
 class RecommendationLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = RecommendationLog
-        fields = '__all__'
+        fields = '_all_'
         read_only_fields = ['employee', 'recommended_on']
 
 
@@ -822,14 +944,14 @@ class DepartmentSerializer(serializers.ModelSerializer):
 class OrganizationSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrganizationSettings
-        fields = '__all__'
+        fields = '_all_'
         read_only_fields = ['employer', 'updated_at']
 
 
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubscriptionPlan
-        fields = '__all__'
+        fields = '_all_'
 
 
 class BillingHistorySerializer(serializers.ModelSerializer):
@@ -843,7 +965,7 @@ class BillingHistorySerializer(serializers.ModelSerializer):
 class PaymentMethodSerializer(serializers.ModelSerializer):
     class Meta:
         model = PaymentMethod
-        fields = '__all__'
+        fields = '_all_'
         read_only_fields = ['employer', 'created_at']
 
 class ResourceEngagementSerializer(serializers.ModelSerializer):
@@ -891,7 +1013,7 @@ class OrganizationActivitySerializer(serializers.ModelSerializer):
 class ProgressSerializer(serializers.ModelSerializer):
     class Meta:
         model = Progress
-        fields = '__all__'
+        fields = '_all_'
 
 # Dashboard Overview Serializers
 class OrganizationOverviewSerializer(serializers.Serializer):
@@ -976,19 +1098,19 @@ class WellnessReportsSerializer(serializers.Serializer):
 class PlatformMetricsSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlatformMetrics
-        fields = '__all__'
+        fields = '_all_'
 
 
 class PlatformUsageSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlatformUsage
-        fields = '__all__'
+        fields = '_all_'
 
 # subscription Revenue Serializer
 class SubscriptionRevenueSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubscriptionRevenue
-        fields = '__all__'
+        fields = '_all_'
 
 
 class SystemActivitySerializer(serializers.ModelSerializer):
@@ -1048,13 +1170,13 @@ class ClientEngagementSerializer(serializers.ModelSerializer):
 class RewardProgramSerializer(serializers.ModelSerializer):
     class Meta:
         model = RewardProgram
-        fields = '__all__'
+        fields = '_all_'
 
 
 class SystemSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = SystemSettings
-        fields = '__all__'
+        fields = '_all_'
 
 
 class ReportSerializer(serializers.ModelSerializer):
@@ -1171,7 +1293,7 @@ class EducationalResourceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EducationalResource
-        fields = '__all__'
+        fields = '_all_'
 
     @extend_schema_field(serializers.IntegerField())
     def get_video_count(self, obj) -> int:
@@ -1196,7 +1318,7 @@ class VideoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Video
-        fields = '__all__'
+        fields = '_all_'
         extra_kwargs = {
             'category': {'required': False, 'allow_null': True}
         }
@@ -1250,7 +1372,7 @@ class ArticleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Article
-        fields = "__all__"
+        fields = "_all_"
         read_only_fields = ['views']
 
     @extend_schema_field(serializers.BooleanField())
@@ -1268,7 +1390,7 @@ class MeditationTechniqueSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MeditationTechnique
-        fields = "__all__"
+        fields = "_all_"
         read_only_fields = ['times_practiced']
 
     @extend_schema_field(serializers.BooleanField())
@@ -1552,6 +1674,7 @@ class MediaSerializer(serializers.ModelSerializer):
         user.set_password(self.validated_data['new_password'])
         user.save()
         return user
+
 class CBTExerciseSerializer(serializers.ModelSerializer):
     class Meta:
         model = CBTExercise
