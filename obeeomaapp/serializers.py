@@ -532,10 +532,6 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         write_only=True,
         help_text="Confirm your password"
     )
-    email = serializers.EmailField(
-        required=False,
-        help_text="Invitation email, optional if session exists"
-    )
 
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
