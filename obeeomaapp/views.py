@@ -1144,7 +1144,7 @@ class CompleteAccountSetupView(APIView):
     """
     Complete account setup after first login with temporary credentials
     """
-    permission_classes = [IsAuthenticated]  # changed this to IsAuthenticated because the user is already in with the temp crendtials so the system marks that user as authenticated
+    permission_classes = [AllowAny]  # Allow unauthenticated access for account setup
     
     @extend_schema(
         request=EmployeeInvitationAcceptSerializer,
@@ -1215,7 +1215,7 @@ class CompleteAccountSetupView(APIView):
                 },
                 'employee_profile': {
                     'id': user.employee_profile.id,
-                    'employer': user.employee_profile.employer.name
+                    'organization': user.employee_profile.organization
                 },
                 'access': str(refresh.access_token),
                 'refresh': str(refresh)
@@ -1227,7 +1227,7 @@ class CompleteAccountSetupView(APIView):
             logger.error(f"Unexpected error in complete account setup: {str(e)}", exc_info=True)
             return Response({
                 'error': 'An unexpected error occurred. Please try again or contact support.',
-                'detail': str(e) if settings.DEBUG else None
+                'detail': str(e)  # Always show error detail for debugging
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     
