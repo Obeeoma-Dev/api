@@ -513,7 +513,7 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
 # Complete Account Setup serializer (Employee Invitation Accept)
 
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
-    """Serializer for completing account setup after first login - NO TOKEN OR EMAIL REQUIRED"""
+    """Serializer for completing account setup after first login"""
     
     username = serializers.CharField(
         required=True,
@@ -532,47 +532,46 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         write_only=True,
         help_text="Confirm your password"
     )
+    email = serializers.EmailField(
+        required=False,
+        help_text="Invitation email, optional if session exists"
+    )
 
     def validate_username(self, value):
-        """Check if username is already taken"""
         if User.objects.filter(username=value).exists():
             raise serializers.ValidationError("Username already taken. Please choose another.")
         return value
 
     def validate(self, attrs):
-        """Validate password match and strength"""
         if attrs['password'] != attrs['confirm_password']:
             raise serializers.ValidationError({"confirm_password": "Passwords don't match"})
         
-        # Validate password strength
         try:
             validate_password(attrs['password'])
         except Exception as e:
             raise serializers.ValidationError({"password": str(e)})
-        
-        # Get request and email
+
         request = self.context.get('request')
-        email = None
-        
-        # Try to get email from session
-        if request and hasattr(request, 'session'):
+        email = attrs.get('email')  # email from frontend payload
+
+        # fallback to session
+        if not email and request and hasattr(request, 'session'):
             email = request.session.get('invitation_email')
-        
-        # Fallback: get email from frontend payload
-        if not email and request:
-            email = request.data.get('email')
-        
+
+        # fallback to authenticated user
+        if not email and request and hasattr(request, 'user') and request.user.is_authenticated:
+            email = request.user.email
+
         if not email:
             raise serializers.ValidationError(
                 "Invitation email missing. Please log in using your temporary credentials first."
             )
 
-        # Get the invitation by exact email
         try:
             invitation = EmployeeInvitation.objects.get(
                 email=email,
-                credentials_used=True,  # Must have completed first login
-                accepted=False,         # But not yet completed account setup
+                credentials_used=True,
+                accepted=False,
                 expires_at__gt=timezone.now()
             )
         except EmployeeInvitation.DoesNotExist:
@@ -584,14 +583,13 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
-        """Create the permanent user account"""
         invitation = validated_data['invitation']
         username = validated_data['username']
         password = validated_data['password']
-        
+
         try:
             with transaction.atomic():
-                # Create the user account
+                # create user
                 user = User.objects.create(
                     username=username,
                     email=invitation.email,
@@ -600,25 +598,27 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
                 )
                 user.set_password(password)
                 user.save()
-                
-                # Create employee profile
-                employee_profile = EmployeeProfile.objects.create(
+
+                # create profile
+                EmployeeProfile.objects.create(
                     user=user,
-                    organisation=invitation.employer,  # Must be the Organisation instance
+                    organisation=invitation.employer,
                     role='employee',
                     subscription_tier='freemium',
                     is_premium_active=False
                 )
-                
-                # Mark invitation as accepted
+
+                # mark invitation as accepted
                 invitation.accepted = True
                 invitation.accepted_at = timezone.now()
                 invitation.save()
-                
+
                 return user
+
         except Exception as e:
             logger.error(f"Error creating user account: {str(e)}", exc_info=True)
             raise serializers.ValidationError(f"Failed to create account: {str(e)}")
+
 
 
 
