@@ -4056,6 +4056,8 @@ class EmployeeFirstLoginViewSet(viewsets.ViewSet):
 
         invitation = serializer.validated_data['invitation']
         invitation.credentials_used = True
+        if hasattr(request, 'session'):
+           request.session['invitation_email'] = invitation.email
         invitation.save()
 
         return Response({
