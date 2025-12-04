@@ -650,7 +650,7 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
                 # Create employee profile
                 employee_profile = EmployeeProfile.objects.create(
                     user=user,
-                    organization=invitation.employer.name,
+                    organisation=invitation.employer,
                     role='employee',
                     subscription_tier='freemium',
                     is_premium_active=False
