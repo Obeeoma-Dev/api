@@ -1694,31 +1694,28 @@ class MoodTrackingView(viewsets.ModelViewSet):
             summary.setdefault(day, {}).update({mood: count})
 
         return Response(summary)
+@action(detail=False, methods=['get'], url_path='mood-summary')
+def mood_summary(self, request):
+    employee = get_object_or_404(EmployeeProfile, user=request.user)
+    today = now().date()
+    start_date = today - timedelta(days=6)  # Last 7 days
 
-
-# Utility function for weekly mood datafrom datetime import datetime, timedelta
-
-def get_weekly_mood_data(user):
-    today = datetime.today().date()
-    start_date = today - timedelta(days=6)
+    # Pre-fill all 7 days with "Missed"
     week_days = [(start_date + timedelta(days=i)) for i in range(7)]
-
-    # Pre-fill with "Missed"
-    mood_data = {day.strftime('%A'): "Missed" for day in week_days}
+    summary = {day.strftime('%A'): "Missed" for day in week_days}
 
     # Get actual check-ins
     checkins = MoodTracking.objects.filter(
-        user=user,
+        employee=employee,
         checked_in_at__date__range=(start_date, today)
     )
 
     for checkin in checkins:
         day_name = checkin.checked_in_at.strftime('%A')
-        if checkin.mood:  # only overwrite if mood exists
-            mood_data[day_name] = checkin.mood
+        if checkin.mood:
+            summary[day_name] = checkin.mood
 
-    return mood_data
-
+    return Response(summary)
 
 
 
