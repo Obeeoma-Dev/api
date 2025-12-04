@@ -1696,14 +1696,17 @@ class MoodTrackingView(viewsets.ModelViewSet):
         return Response(summary)
 
 
-# Utility function for weekly mood data
+# Utility function for weekly mood datafrom datetime import datetime, timedelta
+
 def get_weekly_mood_data(user):
     today = datetime.today().date()
     start_date = today - timedelta(days=6)
     week_days = [(start_date + timedelta(days=i)) for i in range(7)]
 
-    mood_data = {day.strftime('%A'): None for day in week_days}
+    # Pre-fill with "Missed"
+    mood_data = {day.strftime('%A'): "Missed" for day in week_days}
 
+    # Get actual check-ins
     checkins = MoodTracking.objects.filter(
         user=user,
         checked_in_at__date__range=(start_date, today)
@@ -1711,10 +1714,11 @@ def get_weekly_mood_data(user):
 
     for checkin in checkins:
         day_name = checkin.checked_in_at.strftime('%A')
-        if checkin.mood is none:
+        if checkin.mood:  # only overwrite if mood exists
             mood_data[day_name] = checkin.mood
 
     return mood_data
+
 
 
 
