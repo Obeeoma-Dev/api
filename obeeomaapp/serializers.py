@@ -650,7 +650,10 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
                 # Create employee profile
                 employee_profile = EmployeeProfile.objects.create(
                     user=user,
-                    employer=invitation.employer
+                    organization=invitation.employer.name,
+                    role='employee',
+                    subscription_tier='freemium',
+                    is_premium_active=False
                 )
                 
                 # Mark invitation as accepted
