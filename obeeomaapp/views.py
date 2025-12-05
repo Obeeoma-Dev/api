@@ -72,7 +72,8 @@ from rest_framework.generics import RetrieveUpdateAPIView, UpdateAPIView
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import *  
+from .serializers import *
+from .serializers import EmployeeInvitationCreateSerializer, EmployeeInvitationAcceptSerializer  # Explicit import
 from django.core.mail import send_mail, EmailMultiAlternatives
 from .utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings
@@ -4103,6 +4104,8 @@ class EmployeeFirstLoginViewSet(viewsets.ViewSet):
 
         invitation = serializer.validated_data['invitation']
         invitation.credentials_used = True
+        if hasattr(request, 'session'):
+           request.session['invitation_email'] = invitation.email
         invitation.save()
 
         return Response({
