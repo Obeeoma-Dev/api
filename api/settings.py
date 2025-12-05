@@ -20,6 +20,13 @@ ALLOWED_HOSTS = os.getenv(
     "64.225.122.101,localhost",
 ).split(",")
 
+# Required for Nginx proxy
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# If you're getting the duplicate IP issue, add this:
+USE_X_FORWARDED_PORT = True
+
 # This is  for generating the fernet key regarding MFA
 FERNET_KEY = os.getenv("FERNET_KEY")
 
