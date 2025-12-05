@@ -15,9 +15,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret-key")
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 PORT = os.getenv("PORT", "8000")
+
+ALLOWED_HOSTS=["127.0.0.1", "localhost", "64.225.122.101"]
+
 ALLOWED_HOSTS = os.getenv(
-    "ALLOWED_HOSTS",
-    "64.225.122.101", "localhost",
+    "ALLOWED_HOSTS",  
 ).split(",")
 
 # Required for Nginx proxy
