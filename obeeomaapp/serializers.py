@@ -415,7 +415,7 @@ class SelfAssessmentSerializer(serializers.ModelSerializer):
 class MoodTrackingSerializer(serializers.ModelSerializer):
     class Meta:
         model = MoodTracking
-        fields = ['id', 'mood', 'note', 'checked_in_at']
+        fields = ['id', 'mood',  'checked_in_at']
         read_only_fields = ['id', 'checked_in_at']
 
 class SelfHelpResourceSerializer(serializers.ModelSerializer):
@@ -1328,7 +1328,7 @@ class ArticleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Article
-        fields = "_all_"
+        fields = '__all__'
         read_only_fields = ['views']
 
     @extend_schema_field(serializers.BooleanField())
@@ -1346,7 +1346,7 @@ class MeditationTechniqueSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MeditationTechnique
-        fields = "__all__"
+        fields = '__all__'
         read_only_fields = ['times_practiced']
 
     @extend_schema_field(serializers.BooleanField())
