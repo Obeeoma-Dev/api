@@ -17,7 +17,7 @@ DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 PORT = os.getenv("PORT", "8000")
 ALLOWED_HOSTS = os.getenv(
     "ALLOWED_HOSTS",
-    "64.225.122.101,localhost",
+    "64.225.122.101", "localhost",
 ).split(",")
 
 # Required for Nginx proxy
