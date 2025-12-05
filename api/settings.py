@@ -18,9 +18,6 @@ PORT = os.getenv("PORT", "8000")
 
 ALLOWED_HOSTS=["127.0.0.1", "localhost", "64.225.122.101"]
 
-ALLOWED_HOSTS = os.getenv(
-    "ALLOWED_HOSTS",  
-).split(",")
 
 # Required for Nginx proxy
 USE_X_FORWARDED_HOST = True
@@ -36,6 +33,7 @@ FERNET_KEY = os.getenv("FERNET_KEY")
 CSRF_TRUSTED_ORIGINS = [
     "http://64.225.122.101:8000",
     "http://64.225.122.101",
+    "http://64.225.122.101:5173", 
 ]
 
 # Database configuration
@@ -152,7 +150,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 CORS_ALLOWED_ORIGINS = [
     "http://64.225.122.101:8000",      # Production backend (DigitalOcean)
     "http://64.225.122.101",           # Production frontend (DigitalOcean)
-    "http://localhost:5173",          # local host frontend 
+    "http://localhost:5173",           # local host frontend
+    "http://64.225.122.101:5173",          
 ]
 
 # Additional CORS settings
