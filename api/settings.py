@@ -146,16 +146,17 @@ AUTH_USER_MODEL = "obeeomaapp.User"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # CORS settings
-# Whitelist specific origins (recommended for production)
-CORS_ALLOWED_ORIGINS = [
-    "http://64.225.122.101:8000",      # Production backend (DigitalOcean)
-    "http://64.225.122.101",           # Production frontend (DigitalOcean)
-    "http://localhost:5173",           # local host frontend
-    "http://64.225.122.101:5173",          
-]
-
-# Additional CORS settings
+# Allow all origins for development (restrict in production)
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -167,9 +168,6 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
-
-# For early development only - uncomment to allow all origins (not recommended for production)
-# CORS_ALLOW_ALL_ORIGINS = True
 
 # Frontend URL for email links
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://64.225.122.101")
@@ -211,8 +209,12 @@ SPECTACULAR_SETTINGS = {
     },
     "SERVERS": [
         {
-            "url": "http://64.225.122.101:8000",
+            "url": "http://64.225.122.101",
             "description": "Production server"
+        },
+        {
+            "url": "http://127.0.0.1:8000",
+            "description": "Local development server"
         },
     ],
 }
