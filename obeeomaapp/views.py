@@ -4007,15 +4007,37 @@ class UpdatePaymentMethodViewSet(viewsets.ViewSet):
             token_id = validated_data['token_id']
             card_last_four = validated_data.get('card_last_four')
             card_type = validated_data.get('card_type')
+            expiry_month = validated_data.get('expiry_month', 12)
+            expiry_year = validated_data.get('expiry_year', 2099)
 
             try:
+                # Get employer from user's employee profile or create a default one
+                from obeeomaapp.models import Employer, Employee
+                employer = None
+                try:
+                    employee = Employee.objects.filter(user=user).first()
+                    if employee:
+                        employer = employee.employer
+                except Employee.DoesNotExist:
+                    pass
+                
+                # If no employer found, we need one for the payment method
+                if not employer:
+                    return Response(
+                        {"detail": "User must be associated with an employer to add payment methods."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
                 payment_method, created = PaymentMethod.objects.update_or_create(
                     user=user,
                     defaults={
+                        'employer': employer,
                         'token_id': token_id,
-                        'card_last_four': card_last_four,
-                        'card_type': card_type,
-                        'is_active': True
+                        'last_four_digits': card_last_four or '0000',
+                        'card_type': card_type or 'Unknown',
+                        'expiry_month': expiry_month,
+                        'expiry_year': expiry_year,
+                        'is_default': True
                     }
                 )
 

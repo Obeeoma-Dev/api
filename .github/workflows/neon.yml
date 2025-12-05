@@ -18,7 +18,7 @@ on:
     types:                       # The list of PR actions that will start this workflow
       - opened                   # When a PR is first opened
       - reopened                 # When a closed PR is reopened
-      - synchronize               # When new commits are pushed to the PR
+      - synchronize              # When new commits are pushed to the PR
       - closed                   # When the PR is closed (to delete the Neon branch)
 
 # Ensures that only one run per branch is active at a time
@@ -56,9 +56,9 @@ jobs:
     needs: setup                  # This job depends on the "setup" job to run first
     if: |
       github.event_name == 'pull_request' && (
-      github.event.action == 'synchronize'
-      || github.event.action == 'opened'
-      || github.event.action == 'reopened')
+        github.event.action == 'synchronize' ||
+        github.event.action == 'opened' ||
+        github.event.action == 'reopened')
       # Run this job only when the PR is opened, reopened, or updated
     runs-on: ubuntu-latest        # Use Ubuntu as the environment
 

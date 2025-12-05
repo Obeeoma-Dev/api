@@ -392,7 +392,7 @@ class UserSerializer(serializers.ModelSerializer):
 class EmployerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Employer
-        fields = '_all_'
+        fields = '__all__'
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
@@ -767,7 +767,7 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
 class AvatarProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = AvatarProfile
-        fields = '_all_'
+        fields = '__all__'
         read_only_fields = ['employee']
 
 
@@ -776,52 +776,52 @@ class AvatarProfileSerializer(serializers.ModelSerializer):
 class AssessmentResultSerializer(serializers.ModelSerializer):
     class Meta:
         model = AssessmentResult
-        fields = '_all_'
+        fields = '__all__'
         read_only_fields = ['employee', 'submitted_on']
 
 
 class EducationalResourceSerializer(serializers.ModelSerializer):
     class Meta:
         model = EducationalResource
-        fields = '_all_'
+        fields = '__all__'
 
 
 class CrisisTriggerSerializer(serializers.ModelSerializer):
     class Meta:
         model = CrisisTrigger
-        fields = '_all_'
+        fields = '__all__'
         read_only_fields = ['employee', 'triggered_on']
 
 class EngagementTrackerSerializer(serializers.ModelSerializer):
     class Meta:
         model = EngagementTracker
-        fields = '_all_'
+        fields = '__all__'
         read_only_fields = ['employee']
 
 class FeedbackSerializer(serializers.ModelSerializer):
     class Meta:
         model = Feedback
-        fields = '_all_'
+        fields = '__all__'
         read_only_fields = ['employee', 'submitted_on']
 
 
 class ChatSessionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatSession
-        fields = '_all_'
+        fields = '__all__'
         read_only_fields = ['employee', 'started_at']
 
 class ChatMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatMessage
-        fields = '_all_'
+        fields = '__all__'
         read_only_fields = ['session', 'timestamp']
 
 
 class RecommendationLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = RecommendationLog
-        fields = '_all_'
+        fields = '__all__'
         read_only_fields = ['employee', 'recommended_on']
 
 
@@ -947,14 +947,14 @@ class DepartmentSerializer(serializers.ModelSerializer):
 class OrganizationSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrganizationSettings
-        fields = '_all_'
+        fields = '__all__'
         read_only_fields = ['employer', 'updated_at']
 
 
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubscriptionPlan
-        fields = '_all_'
+        fields = '__all__'
 
 
 class BillingHistorySerializer(serializers.ModelSerializer):
@@ -968,7 +968,7 @@ class BillingHistorySerializer(serializers.ModelSerializer):
 class PaymentMethodSerializer(serializers.ModelSerializer):
     class Meta:
         model = PaymentMethod
-        fields = '_all_'
+        fields = '__all__'
         read_only_fields = ['employer', 'created_at']
 
 class ResourceEngagementSerializer(serializers.ModelSerializer):
@@ -1016,7 +1016,7 @@ class OrganizationActivitySerializer(serializers.ModelSerializer):
 class ProgressSerializer(serializers.ModelSerializer):
     class Meta:
         model = Progress
-        fields = '_all_'
+        fields = '__all__'
 
 # Dashboard Overview Serializers
 class OrganizationOverviewSerializer(serializers.Serializer):
@@ -1101,19 +1101,19 @@ class WellnessReportsSerializer(serializers.Serializer):
 class PlatformMetricsSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlatformMetrics
-        fields = '_all_'
+        fields = '__all__'
 
 
 class PlatformUsageSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlatformUsage
-        fields = '_all_'
+        fields = '__all__'
 
 # subscription Revenue Serializer
 class SubscriptionRevenueSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubscriptionRevenue
-        fields = '_all_'
+        fields = '__all__'
 
 
 class SystemActivitySerializer(serializers.ModelSerializer):
@@ -1173,13 +1173,13 @@ class ClientEngagementSerializer(serializers.ModelSerializer):
 class RewardProgramSerializer(serializers.ModelSerializer):
     class Meta:
         model = RewardProgram
-        fields = '_all_'
+        fields = '__all__'
 
 
 class SystemSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = SystemSettings
-        fields = '_all_'
+        fields = '__all__'
 
 
 class ReportSerializer(serializers.ModelSerializer):
@@ -1296,7 +1296,7 @@ class EducationalResourceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EducationalResource
-        fields = '_all_'
+        fields = '__all__'
 
     @extend_schema_field(serializers.IntegerField())
     def get_video_count(self, obj) -> int:
@@ -1321,7 +1321,7 @@ class VideoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Video
-        fields = '_all_'
+        fields = '__all__'
         extra_kwargs = {
             'category': {'required': False, 'allow_null': True}
         }
@@ -1393,7 +1393,7 @@ class MeditationTechniqueSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MeditationTechnique
-        fields = "_all_"
+        fields = "__all__"
         read_only_fields = ['times_practiced']
 
     @extend_schema_field(serializers.BooleanField())
@@ -1711,16 +1711,24 @@ class PaymentTokenSerializer(serializers.Serializer):
     # for better record-keeping (e.g., last_4_digits, card_type)
     card_last_four = serializers.CharField(max_length=4, required=False)
     card_type = serializers.CharField(max_length=50, required=False)
+    expiry_month = serializers.IntegerField(min_value=1, max_value=12, required=False)
+    expiry_year = serializers.IntegerField(min_value=2020, required=False)
 
     class Meta:
         pass
 
 from rest_framework import serializers
 
-class PSS10AssessmentSerializer(serializers.Serializer):
+class PSS10AssessmentSerializer(serializers.ModelSerializer):
     responses = serializers.ListField(
         child=serializers.IntegerField(min_value=0, max_value=4),
         min_length=10,
         max_length=10
     )
+    
+    class Meta:
+        model = PSS10Assessment
+        fields = ['id', 'user', 'score', 'category', 'responses', 'created_at']
+        read_only_fields = ['id', 'user', 'score', 'category', 'created_at']
+
 
