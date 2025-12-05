@@ -598,7 +598,7 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
                 # create profile
                 EmployeeProfile.objects.create(
                     user=user,
-                    organisation=invitation.employer,
+                    organization=invitation.employer.name,
                     role='employee',
                     subscription_tier='freemium',
                     is_premium_active=False
@@ -1269,11 +1269,16 @@ class VideoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Video
-        fields = '__all__'
+        fields = [
+            'id', 'title', 'category', 'category_name', 'duration', 
+            'target_mood', 'views', 'is_active', 'created_at', 'updated_at',
+            'reviewed_by', 'review_date', 'views_count', 'helpful_count', 
+            'saved_count', 'is_saved'
+        ]
         extra_kwargs = {
             'category': {'required': False, 'allow_null': True}
         }
-        read_only_fields = ['views']
+        read_only_fields = ['views', 'views_count']
 
     @extend_schema_field(serializers.BooleanField())
     def get_is_saved(self, obj) -> bool:
