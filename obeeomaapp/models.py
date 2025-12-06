@@ -267,7 +267,6 @@ class MoodTracking(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mood_checkins")
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE, null=True, blank=True, related_name="mood_checkins_employee")
     mood = models.CharField(max_length=50, blank=True, null=True)
-    note = models.TextField(blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
     checked_in_at = models.DateTimeField(auto_now_add=True)
 

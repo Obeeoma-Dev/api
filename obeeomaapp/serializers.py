@@ -415,7 +415,7 @@ class SelfAssessmentSerializer(serializers.ModelSerializer):
 class MoodTrackingSerializer(serializers.ModelSerializer):
     class Meta:
         model = MoodTracking
-        fields = ['id', 'mood', 'note', 'checked_in_at']
+        fields = ['id', 'mood',  'checked_in_at']
         read_only_fields = ['id', 'checked_in_at']
 
 class SelfHelpResourceSerializer(serializers.ModelSerializer):
@@ -1328,7 +1328,7 @@ class ArticleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Article
-        fields = "__all__"
+        fields = '__all__'
         read_only_fields = ['views']
 
     @extend_schema_field(serializers.BooleanField())
@@ -1346,7 +1346,7 @@ class MeditationTechniqueSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MeditationTechnique
-        fields = "__all__"
+        fields = '__all__'
         read_only_fields = ['times_practiced']
 
     @extend_schema_field(serializers.BooleanField())
@@ -1630,6 +1630,7 @@ class MediaSerializer(serializers.ModelSerializer):
         user.set_password(self.validated_data['new_password'])
         user.save()
         return user
+
 class CBTExerciseSerializer(serializers.ModelSerializer):
     class Meta:
         model = CBTExercise
@@ -1663,18 +1664,26 @@ class PaymentTokenSerializer(serializers.Serializer):
     # for better record-keeping (e.g., last_4_digits, card_type)
     card_last_four = serializers.CharField(max_length=4, required=False)
     card_type = serializers.CharField(max_length=50, required=False)
+    expiry_month = serializers.IntegerField(min_value=1, max_value=12, required=False)
+    expiry_year = serializers.IntegerField(min_value=2020, required=False)
 
     class Meta:
         pass
 
 from rest_framework import serializers
 
-class PSS10AssessmentSerializer(serializers.Serializer):
+class PSS10AssessmentSerializer(serializers.ModelSerializer):
     responses = serializers.ListField(
         child=serializers.IntegerField(min_value=0, max_value=4),
         min_length=10,
         max_length=10
     )
+    
+    class Meta:
+        model = PSS10Assessment
+        fields = ['id', 'user', 'score', 'category', 'responses', 'created_at']
+        read_only_fields = ['id', 'user', 'score', 'category', 'created_at']
+
 
 
 # content/serializers.py
