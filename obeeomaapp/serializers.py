@@ -590,26 +590,27 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
 
 
 
-# Legacy Complete Account Setup serializer (kept for backward compatibility)
-class CompleteAccountSetupSerializer(serializers.Serializer):
-    password = serializers.CharField(
-        required=True,
-        write_only=True,
-        min_length=8,
-        help_text="Create your permanent password"
-    )
-    confirm_password = serializers.CharField(
-        required=True,
-        write_only=True,
-        help_text="Confirm your password"
-    )
+# # Legacy Complete Account Setup serializer (kept for backward compatibility)
+# class CompleteAccountSetupSerializer(serializers.Serializer):
+#     password = serializers.CharField(
+#         required=True,
+#         write_only=True,
+#         min_length=8,
+#         help_text="Create your permanent password"
+#     )
+#     confirm_password = serializers.CharField(
+#         required=True,
+#         write_only=True,
+#         help_text="Confirm your password"
+#     )
 
-    def validate(self, attrs):
-        if attrs['password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({"confirm_password": "Passwords don't match"})
+#     def validate(self, attrs):
+#         if attrs['password'] != attrs['confirm_password']:
+#             raise serializers.ValidationError({"confirm_password": "Passwords don't match"})
         
-        validate_password(attrs['password'])
-        return attrs
+#         validate_password(attrs['password'])
+#         return attrs
+
 
 # INVITATION CREATE SERIALIZER
 class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):

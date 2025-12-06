@@ -786,7 +786,7 @@ class InviteView(viewsets.ModelViewSet):
 
         # Send email with OTP only
         try:
-            subject = f"🎉 Welcome to {employer.name} on Obeeoma!"
+            subject = f" Welcome to {employer.name} on Obeeoma!"
             otp = invitation.otp
             otp_expiry = invitation.otp_expires_at.strftime('%I:%M %p')  # e.g., 04:32 PM
 
