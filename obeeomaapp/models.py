@@ -189,8 +189,8 @@ class EmployeeInvitation(models.Model):
     message = models.TextField(blank=True)
 
     # OTP for verification
-    otp = models.CharField(max_length=6)
-    otp_expires_at = models.DateTimeField()
+    otp = models.CharField(max_length=6, null=True, blank=True)
+    otp_expires_at = models.DateTimeField(null=True, blank=True)
 
     accepted = models.BooleanField(default=False)
     accepted_at = models.DateTimeField(blank=True, null=True)
@@ -201,6 +201,7 @@ class EmployeeInvitation(models.Model):
 
     class Meta:
         indexes = [models.Index(fields=["email"])]
+
 
 
 # --- System Admin Models ---

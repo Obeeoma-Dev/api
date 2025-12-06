@@ -27,15 +27,15 @@ from obeeomaapp.views import (
     MoodTrackingView, SelfHelpResourceView,
     CrisisTriggerView, NotificationView, 
     EngagementTrackerView, FeedbackView, ChatSessionView, 
-    ChatMessageView, RecommendationLogView, CompleteAccountSetupView, 
+    ChatMessageView, RecommendationLogView, 
     InvitationVerifyView, home, OrganizationSignupView,
-    CompleteAccountSetupView, InviteView, EmployeeFirstLoginView,
+    InviteView,
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, MediaViewSet,
      CompleteOnboardingView,
     DynamicQuestionViewSet, UserAchievementViewSet,
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView, CBTExerciseViewSet, SettingsViewSet,
-    JournalEntryViewSet, UpdatePaymentMethodViewSet, EmployeeFirstLoginViewSet, PSS10AssessmentViewSet,SignupView
+    JournalEntryViewSet, UpdatePaymentMethodViewSet, PSS10AssessmentViewSet,SignupView
 )
 
 
@@ -61,7 +61,7 @@ router = DefaultRouter()
 router.register(r'assessments/pss10', PSS10AssessmentViewSet, basename='pss10-assessment')
 router.register(r'organization-signup', OrganizationSignupView, basename='organization-signup')
 router.register(r'payment-methods', UpdatePaymentMethodViewSet, basename='payment-method')
-router.register(r'employee-first-login', EmployeeFirstLoginViewSet, basename='employee-first-login')
+# router.register(r'employee-first-login', EmployeeFirstLoginViewSet, basename='employee-first-login')
 router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'progress', ProgressViewSet)
