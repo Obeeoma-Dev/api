@@ -221,26 +221,29 @@ from obeeomaapp.models import Employer, Employee
 
 class EmployeeViewSetTest(APITestCase):
     def setUp(self):
+        self.user = User.objects.create_user(username='testuser', password='testpass123', email='testuser@example.com')
+        self.client.force_authenticate(user=self.user)
+        
         self.employer = Employer.objects.create(name="TechCorp")
-        Employee.objects.create(employer=self.employer, name="Alice", email="alice@example.com", status="active")
-        Employee.objects.create(employer=self.employer, name="Bob", email="bob@example.com", status="inactive")
+        Employee.objects.create(employer=self.employer, first_name="Alice", last_name="Smith", email="alice@example.com", status="active")
+        Employee.objects.create(employer=self.employer, first_name="Bob", last_name="Jones", email="bob@example.com", status="inactive")
 
     def test_active_employees(self):
-        url = reverse('employee-active')
+        url = reverse('obeeomaapp:employee-management-active')
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['count'], 1)
-        self.assertEqual(response.data['employees'][0]['name'], "Alice")
+        self.assertEqual(response.data['employees'][0]['name'], "Alice Smith")
 
     def test_inactive_employees(self):
-        url = reverse('employee-inactive')
+        url = reverse('obeeomaapp:employee-management-inactive')
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['count'], 1)
-        self.assertEqual(response.data['employees'][0]['name'], "Bob")
+        self.assertEqual(response.data['employees'][0]['name'], "Bob Jones")
 
     def test_summary(self):
-        url = reverse('employee-summary')
+        url = reverse('obeeomaapp:employee-management-summary')
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['total'], 2)

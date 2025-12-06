@@ -1529,14 +1529,21 @@ class TrendsView(viewsets.ReadOnlyModelViewSet):
     serializer_class = HotlineActivitySerializer
     permission_classes = [IsCompanyAdmin]
 
+from rest_framework import viewsets
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from .models import EmployeeEngagement
+from .serializers import EmployeeEngagementSerializer
+
 @extend_schema_view(
     list=extend_schema(
         operation_id="engagement_list",
-        tags=["Employer Dashboard"]
+        tags=["Employer Dashboard"],
+        description="Returns a list of engagement records."
     ),
     retrieve=extend_schema(
         operation_id="engagement_detail",
-        tags=["Employer Dashboard"]
+        tags=["Employer Dashboard"],
+        description="Returns details of a single engagement record."
     ),
 )
 class EmployeeEngagementView(viewsets.ModelViewSet):
@@ -1582,11 +1589,15 @@ class EmployeeEngagementView(viewsets.ModelViewSet):
         total = Employee.objects.count()
         active = Employee.objects.filter(status='active').count()
         inactive = Employee.objects.filter(status='inactive').count()
+        suspended = Employee.objects.filter(status='suspended').count()
+        pending = Employee.objects.filter(status='pending').count()
 
         return Response({
             "total": total,
             "active": active,
             "inactive": inactive,
+            "suspended": suspended,
+            "pending": pending,
             "active_percent": round((active / total) * 100, 2) if total else 0,
             "inactive_percent": round((inactive / total) * 100, 2) if total else 0,
         })
@@ -2027,6 +2038,7 @@ class EmployerViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         invite = serializer.save()
         return Response({'message': 'Invitation created', 'token': invite.token}, status=status.HTTP_201_CREATED)
+    
 
 
 @extend_schema(tags=['Employee - Progress'])
@@ -2407,6 +2419,45 @@ class EmployeeManagementView(viewsets.ModelViewSet):
             queryset = queryset.filter(status=status)
             
         return queryset
+
+    @action(detail=False, methods=['get'], url_path='active')
+    def active(self, request):
+        """Get all active employees"""
+        active_employees = self.get_queryset().filter(status='active')
+        serializer = self.get_serializer(active_employees, many=True)
+        return Response({
+            'count': active_employees.count(),
+            'employees': serializer.data
+        })
+
+    @action(detail=False, methods=['get'], url_path='inactive')
+    def inactive(self, request):
+        """Get all inactive employees"""
+        inactive_employees = self.get_queryset().filter(status='inactive')
+        serializer = self.get_serializer(inactive_employees, many=True)
+        return Response({
+            'count': inactive_employees.count(),
+            'employees': serializer.data
+        })
+
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        """Get employee summary statistics"""
+        queryset = self.get_queryset()
+        total = queryset.count()
+        active = queryset.filter(status='active').count()
+        inactive = queryset.filter(status='inactive').count()
+        
+        active_percent = (active / total * 100) if total > 0 else 0
+        inactive_percent = (inactive / total * 100) if total > 0 else 0
+        
+        return Response({
+            'total': total,
+            'active': active,
+            'inactive': inactive,
+            'active_percent': active_percent,
+            'inactive_percent': inactive_percent
+        })
     
     def perform_create(self, serializer):
         """

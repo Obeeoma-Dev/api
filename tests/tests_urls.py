@@ -542,13 +542,13 @@ class EducationalVideoURLTests(APITestCase):
 
 class EmployeeURLTest(SimpleTestCase):
     def test_active_url_resolves(self):
-        url = reverse('employee-active')
-        self.assertEqual(resolve(url).func.__name__, EmployeeViewSet.active.__name__)
+        url = reverse('employee-management-active')
+        self.assertEqual(resolve(url).func.__name__, 'active')
 
     def test_inactive_url_resolves(self):
-        url = reverse('employee-inactive')
-        self.assertEqual(resolve(url).func.__name__, EmployeeViewSet.inactive.__name__)
+        url = reverse('employee-management-inactive')
+        self.assertEqual(resolve(url).func.__name__, 'inactive')
 
     def test_summary_url_resolves(self):
-        url = reverse('employee-summary')
-        self.assertEqual(resolve(url).func.__name__, EmployeeViewSet.summary.__name__)
+        url = reverse('employee-management-summary')
+        self.assertEqual(resolve(url).func.__name__, 'summary')
