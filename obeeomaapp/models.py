@@ -1693,3 +1693,49 @@ class PSS10Assessment(models.Model):
 
     def __str__(self):
         return f"PSS-10 ({self.user.email}) - {self.score} ({self.category})"
+
+# content/models.py
+from django.db import models
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+class ContentArticle(models.Model):
+    title = models.CharField(max_length=255)
+    body = models.TextField()
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name="content_articles")
+    published = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.title
+
+
+class ContentMedia(models.Model):
+    MEDIA_VIDEO = "video"
+    MEDIA_AUDIO = "audio"
+    MEDIA_IMAGE = "image"
+    MEDIA_OTHER = "other"
+    MEDIA_TYPE_CHOICES = [
+        (MEDIA_VIDEO, "Video"),
+        (MEDIA_AUDIO, "Audio"),
+        (MEDIA_IMAGE, "Image"),
+        (MEDIA_OTHER, "Other"),
+    ]
+
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="content_media")
+    title = models.CharField(max_length=255, blank=True)
+    description = models.TextField(blank=True)
+    media_type = models.CharField(max_length=20, choices=MEDIA_TYPE_CHOICES, default=MEDIA_OTHER)
+    # s3_key stores the object key/path inside the Space (e.g. uploads/uuid_filename.mp4)
+    s3_key = models.CharField(max_length=1024, blank=True, null=True)
+    # optional "public_url" or created FileField - optional; useful once processed
+    public_url = models.URLField(blank=True, null=True)
+    duration_seconds = models.IntegerField(blank=True, null=True)
+    uploaded = models.BooleanField(default=False)  # marked True after frontend upload + confirm
+    processed = models.BooleanField(default=False) # True after worker processing (thumbnails, transcode)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.title or self.s3_key or 'media'} ({self.media_type})"

@@ -1676,3 +1676,36 @@ class PSS10AssessmentSerializer(serializers.Serializer):
         max_length=10
     )
 
+
+# content/serializers.py
+from rest_framework import serializers
+from .models import ContentArticle, ContentMedia
+
+class ContentArticleSerializer(serializers.ModelSerializer):
+    author = serializers.StringRelatedField(read_only=True)
+
+    class Meta:
+        model = ContentArticle
+        fields = ["id", "title", "body", "author", "published", "created_at", "updated_at"]
+        read_only_fields = ["id", "author", "created_at", "updated_at"]
+
+
+class ContentMediaSerializer(serializers.ModelSerializer):
+    owner = serializers.StringRelatedField(read_only=True)
+
+    class Meta:
+        model = ContentMedia
+        fields = [
+            "id",
+            "title",
+            "description",
+            "media_type",
+            "s3_key",
+            "public_url",
+            "duration_seconds",
+            "uploaded",
+            "processed",
+            "owner",
+            "created_at",
+        ]
+        read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at"]

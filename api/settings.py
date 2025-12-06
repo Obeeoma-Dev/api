@@ -285,3 +285,11 @@ GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://developers.googl
 GMAIL_SCOPES = [
     "https://mail.google.com/",  # Full Gmail access (includes send)
 ]
+
+# settings.py (add)
+AWS_ACCESS_KEY_ID = os.environ.get("DO_SPACES_KEY")
+AWS_SECRET_ACCESS_KEY = os.environ.get("DO_SPACES_SECRET")
+AWS_STORAGE_BUCKET_NAME = os.environ.get("DO_SPACES_NAME")        # example: "my-space"
+AWS_S3_ENDPOINT_URL = os.environ.get("DO_SPACES_ENDPOINT")       # e.g. "https://nyc3.digitaloceanspaces.com"
+AWS_S3_REGION_NAME = os.environ.get("DO_SPACES_REGION")          # e.g. "nyc3"
+AWS_S3_SIGNATURE_VERSION = "s3v4"
