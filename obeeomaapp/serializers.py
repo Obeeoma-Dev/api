@@ -334,21 +334,39 @@ class ResetPasswordCompleteSerializer(serializers.Serializer):
 # SERIAILZER FOR VERIFYING OTP
 class OTPVerificationSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=6)
+    email = serializers.EmailField(required=True)
+    otp_type = serializers.ChoiceField(choices=["reset_password", "invitation"])
 
     def validate(self, attrs):
         code = attrs.get("code")
+        email = attrs.get("email")
+        otp_type = attrs.get("otp_type")
 
-        otp = PasswordResetToken.objects.filter(code=code).order_by('-created_at').first()
-        if not otp:
-            raise serializers.ValidationError("Invalid verification code.")
+        if otp_type == "reset_password":
+            otp = PasswordResetToken.objects.filter(user__email=email, code=code).order_by('-created_at').first()
+            if not otp:
+                raise serializers.ValidationError("Invalid password reset OTP.")
+            if otp.expires_at < timezone.now():
+                otp.delete()
+                raise serializers.ValidationError("This OTP has expired. Please request a new one.")
 
-        if otp.expires_at < timezone.now():
-            otp.delete()
-            raise serializers.ValidationError("This OTP has expired. Please request a new one.")
+            self.context["user"] = otp.user
+            self.context["otp"] = otp
 
-        self.context["user"] = otp.user
-        self.context["otp"] = otp
+        elif otp_type == "invitation":
+            otp = EmployeeInvitation.objects.filter(email=email, otp=code, accepted=False).order_by('-created_at').first()
+            if not otp:
+                raise serializers.ValidationError("Invalid invitation OTP.")
+            if otp.otp_expires_at < timezone.now():
+                raise serializers.ValidationError("This invitation OTP has expired.")
+
+            self.context["invitation"] = otp
+
+        else:
+            raise serializers.ValidationError("Invalid OTP type.")
+
         return attrs
+
 
 # SERIALIZERS FOR MFA SETUP AND VERIFICATION
 
@@ -501,147 +519,71 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
         )
         return user
 
-class EmployeeFirstLoginSerializer(serializers.Serializer):
-    """Serializer for first login with temporary credentials"""
-    token = serializers.CharField(
-        required=True,
-        help_text="Invitation token from email"
-    )
-    temporary_username = serializers.CharField(
-        required=True,
-        help_text="Temporary username from invitation email"
-    )
-    temporary_password = serializers.CharField(
-        required=True,
-        write_only=True,
-        help_text="Temporary password from invitation email"
-    )
+# class EmployeeFirstLoginSerializer(serializers.Serializer):
+#     """Serializer for first login with temporary credentials"""
+#     token = serializers.CharField(
+#         required=True,
+#         help_text="Invitation token from email"
+#     )
+#     temporary_username = serializers.CharField(
+#         required=True,
+#         help_text="Temporary username from invitation email"
+#     )
+#     temporary_password = serializers.CharField(
+#         required=True,
+#         write_only=True,
+#         help_text="Temporary password from invitation email"
+#     )
     
-    def validate(self, attrs):
-        from django.contrib.auth.hashers import check_password
+#     def validate(self, attrs):
+#         from django.contrib.auth.hashers import check_password
         
-        token = attrs.get('token')
-        temp_username = attrs.get('temporary_username')
-        temp_password = attrs.get('temporary_password')
+#         token = attrs.get('token')
+#         temp_username = attrs.get('temporary_username')
+#         temp_password = attrs.get('temporary_password')
         
-        # Find invitation with this token and temporary username
-        try:
-            invitation = EmployeeInvitation.objects.get(
-                token=token,
-                temporary_username=temp_username,
-                accepted=False,
-                credentials_used=False,
-                expires_at__gt=timezone.now()
-            )
-        except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError("Invalid credentials or invitation expired/used")
+#         # Find invitation with this token and temporary username
+#         try:
+#             invitation = EmployeeInvitation.objects.get(
+#                 token=token,
+#                 temporary_username=temp_username,
+#                 accepted=False,
+#                 credentials_used=False,
+#                 expires_at__gt=timezone.now()
+#             )
+#         except EmployeeInvitation.DoesNotExist:
+#             raise serializers.ValidationError("Invalid credentials or invitation expired/used")
         
-        # Verify temporary password
-        if not check_password(temp_password, invitation.temporary_password):
-            raise serializers.ValidationError("Invalid credentials")
+#         # Verify temporary password
+#         if not check_password(temp_password, invitation.temporary_password):
+#             raise serializers.ValidationError("Invalid credentials")
         
-        attrs['invitation'] = invitation
-        return attrs
+#         attrs['invitation'] = invitation
+#         return attrs
 
 
 # (Employee Invitation Accept)
 
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
-
-    email = serializers.EmailField(
-        required=True,
-        help_text="Email used for invitation"
-    )
-    otp = serializers.CharField(
-        required=True,
-        max_length=6,
-        help_text="Enter the 6-digit OTP sent to your email"
-    )
-    username = serializers.CharField(
-        required=True,
-        min_length=3,
-        max_length=150,
-        help_text="Choose your permanent username"
-    )
-    password = serializers.CharField(
-        required=True,
-        write_only=True,
-        min_length=8,
-        help_text="Create your permanent password"
-    )
-    confirm_password = serializers.CharField(
-        required=True,
-        write_only=True,
-        help_text="Confirm your password"
-    )
-
-    def validate_username(self, value):
-        if User.objects.filter(username=value).exists():
-            raise serializers.ValidationError("Username already taken. Please choose another.")
-        return value
+    otp = serializers.CharField(required=True, max_length=6)
 
     def validate(self, attrs):
-        email = attrs['email']
         otp = attrs['otp']
 
-        # Validate OTP
         try:
-            invitation = EmployeeInvitation.objects.get(email=email, otp=otp, accepted=False)
+            invitation = EmployeeInvitation.objects.get(
+                otp=otp,
+                accepted=False
+            )
         except EmployeeInvitation.DoesNotExist:
             raise serializers.ValidationError("Invalid OTP or invitation does not exist.")
 
         if timezone.now() > invitation.otp_expires_at:
             raise serializers.ValidationError("OTP has expired. Please request a new invitation.")
 
-        # Validate password confirmation
-        if attrs['password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({"confirm_password": "Passwords don't match"})
-
-        # Validate password rules
-        try:
-            validate_password(attrs['password'])
-        except Exception as e:
-            raise serializers.ValidationError({"password": str(e)})
-
+        # Attach invitation for view response
         attrs['invitation'] = invitation
         return attrs
-
-    def create(self, validated_data):
-        invitation = validated_data['invitation']
-        username = validated_data['username']
-        password = validated_data['password']
-
-        try:
-            with transaction.atomic():
-                # Create user account
-                user = User.objects.create(
-                    username=username,
-                    email=invitation.email,
-                    role='employee',
-                    is_active=True
-                )
-                user.set_password(password)
-                user.save()
-
-                # Create employee profile
-                EmployeeProfile.objects.create(
-                    user=user,
-                    organization=invitation.employer.name,
-                    role='employee',
-                    subscription_tier='freemium',
-                    is_premium_active=False
-                )
-
-                # Mark invitation as accepted
-                invitation.accepted = True
-                invitation.accepted_at = timezone.now()
-                invitation.save()
-
-                return user
-
-        except Exception as e:
-            logger.error(f"Error creating user account: {str(e)}", exc_info=True)
-            raise serializers.ValidationError(f"Failed to create account: {str(e)}")
 
 
 

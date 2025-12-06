@@ -201,8 +201,8 @@ urlpatterns = [
 
 
     # Employee invitation flow
-    path('auth/first-login/', EmployeeFirstLoginView.as_view(), name='first-login'),
-    path('auth/complete-account-setup/', CompleteAccountSetupView.as_view(), name='complete-account-setup'),
+    # path('auth/first-login/', EmployeeFirstLoginView.as_view(), name='first-login'),
+    # path('auth/complete-account-setup/', CompleteAccountSetupView.as_view(), name='complete-account-setup'),
     path('auth/verify-invite/', InvitationVerifyView.as_view(), name='verify-invite'),
 
     # Include router URLs
