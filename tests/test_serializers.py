@@ -248,7 +248,8 @@ class EmployeeInvitationCreateSerializerTest(TestCase):
         self.assertEqual(invitation.email, 'newemployee@example.com')
         self.assertEqual(invitation.employer, self.employer)
         self.assertEqual(invitation.invited_by, self.user)
-        self.assertIsNotNone(invitation.token)
+        # Token field removed - now using OTP instead
+        self.assertFalse(invitation.accepted)
 
 
 @pytest.mark.skip(reason="Skipping due to SystemExit issue - serializer works in production")
