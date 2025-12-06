@@ -4152,6 +4152,7 @@ class PSS10AssessmentViewSet(viewsets.ModelViewSet):
         return Response({
             "score": instance.score,
             "category": instance.category,
+            "user": instance.user.id,
             "message": f"Your stress level is {instance.category.lower()}."
         }, status=status.HTTP_201_CREATED, headers=headers)
 
