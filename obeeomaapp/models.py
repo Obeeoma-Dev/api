@@ -30,6 +30,7 @@ class User(AbstractUser):
         blank=True
     )
     onboarding_completed = models.BooleanField(default=False)
+    is_first_time = models.BooleanField(default=True)
     is_suspended = models.BooleanField(default=False)
 
     # These are the MFA-related fields
@@ -172,37 +173,35 @@ class Employee(models.Model):
         ordering = ['-joined_date']
 
 
-# --- Invitations ---
+from django.db import models
+from django.conf import settings
+from django.utils import timezone
+
+# EMPLOYEE INVITATION
 class EmployeeInvitation(models.Model):
-    employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="invitations")
+    employer = models.ForeignKey(
+        'Employer', on_delete=models.CASCADE, related_name="invitations"
+    )
     email = models.EmailField()
-    token = models.CharField(max_length=64, unique=True)
-    invited_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
     message = models.TextField(blank=True)
-    
-    # One-time credentials for first login
-    temporary_username = models.CharField(max_length=150, blank=True, null=True)
-    temporary_password = models.CharField(max_length=128, blank=True, null=True)  # Store hashed
-    credentials_used = models.BooleanField(default=False)
-    
-    expires_at = models.DateTimeField(blank=True, null=True)
+
+    # OTP for verification
+    otp = models.CharField(max_length=6)
+    otp_expires_at = models.DateTimeField()
+
     accepted = models.BooleanField(default=False)
     accepted_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
-    def save(self, *args, **kwargs):
-        # Automatically set expires_at to 7 days from now if not set
-        if not self.expires_at:
-            from django.utils import timezone
-            from datetime import timedelta
-            self.expires_at = timezone.now() + timedelta(days=7)
-        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Invite {self.email} -> {self.employer.name}"
 
     class Meta:
-        indexes = [models.Index(fields=["token"])]
+        indexes = [models.Index(fields=["email"])]
+
 
 # --- System Admin Models ---
 class AuthenticationEvent(models.Model):

@@ -42,49 +42,39 @@ from django.utils.translation import gettext as _
 
 User = get_user_model()
 
-    # # SIGNUP SERIALIZER
+ # SIGNUP SERIALIZER
 class SignupSerializer(serializers.ModelSerializer):
-        password = serializers.CharField(write_only=True, validators=[validate_password])
-        confirm_password = serializers.CharField(write_only=True)
-        role = serializers.ChoiceField(choices=User.ROLE_CHOICES, default="employee")
+    password = serializers.CharField(write_only=True, validators=[validate_password])
+    confirm_password = serializers.CharField(write_only=True)
 
-        class Meta:
-            model = User
-            fields = ('username',  'password', 'confirm_password',)
+    class Meta:
+        model = User
+        fields = ('username', 'password', 'confirm_password')
 
-        def validate(self, attrs):
-            username = attrs.get('username')
-            email = attrs.get('email')
-            password = attrs.get('password')
-            confirm_password = attrs.get('confirm_password')
+    def validate(self, attrs):
+        username = attrs.get('username')
+        password = attrs.get('password')
+        confirm_password = attrs.get('confirm_password')
 
-            if password != confirm_password:
-                raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
+        if password != confirm_password:
+            raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
 
-            if User.objects.filter(username__iexact=username).exists():
-                raise serializers.ValidationError({"username": "This username is already taken."})
-            if User.objects.filter(email__iexact=email).exists():
-                raise serializers.ValidationError({"email": "This email is already registered."})
+        if User.objects.filter(username__iexact=username).exists():
+            raise serializers.ValidationError({"username": "This username is already taken."})
 
-            for user in User.objects.all():
-                if check_password(password, user.password):
-                    raise serializers.ValidationError({"password": "This password is already in use. Please choose a different one."})
+        return attrs
 
-            return attrs
+    def create(self, validated_data):
+        validated_data.pop('confirm_password')
 
-        def create(self, validated_data):
-            validated_data.pop('confirm_password')
-            role = validated_data.pop('role', 'employee')
+        user = User(username=validated_data['username'])
+        user.set_password(validated_data['password'])
+        onboarding_completed=False,
+        is_first_time=True, # This allows automatic login  for first time only
+        user.role = "employee",  # default role for signup
+        user.save()
 
-            user = User(
-                username=validated_data['username'],
-                email=validated_data['email'],
-                role=role
-            )
-            user.set_password(validated_data['password'])
-            user.save()
-
-            return user
+        return user
 
   
 # SERIALIZER FOR CREATING AN ORGANIZATION
@@ -280,10 +270,9 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
         return attrs
 
     def update(self, user, validated_data):
-        user.username = validated_data["username"]
-        user.set_password(validated_data["password"])
         user.avatar = validated_data["avatar"]
         user.onboarding_completed = True
+        user.is_first_time = False   # this marks onboarding done
         user.save()
         return user
 
@@ -555,11 +544,19 @@ class EmployeeFirstLoginSerializer(serializers.Serializer):
         return attrs
 
 
-# Complete Account Setup serializer (Employee Invitation Accept)
+# (Employee Invitation Accept)
 
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
-    """Serializer for completing account setup after first login"""
-    
+
+    email = serializers.EmailField(
+        required=True,
+        help_text="Email used for invitation"
+    )
+    otp = serializers.CharField(
+        required=True,
+        max_length=6,
+        help_text="Enter the 6-digit OTP sent to your email"
+    )
     username = serializers.CharField(
         required=True,
         min_length=3,
@@ -584,41 +581,27 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
+        email = attrs['email']
+        otp = attrs['otp']
+
+        # Validate OTP
+        try:
+            invitation = EmployeeInvitation.objects.get(email=email, otp=otp, accepted=False)
+        except EmployeeInvitation.DoesNotExist:
+            raise serializers.ValidationError("Invalid OTP or invitation does not exist.")
+
+        if timezone.now() > invitation.otp_expires_at:
+            raise serializers.ValidationError("OTP has expired. Please request a new invitation.")
+
+        # Validate password confirmation
         if attrs['password'] != attrs['confirm_password']:
             raise serializers.ValidationError({"confirm_password": "Passwords don't match"})
-        
+
+        # Validate password rules
         try:
             validate_password(attrs['password'])
         except Exception as e:
             raise serializers.ValidationError({"password": str(e)})
-
-        request = self.context.get('request')
-        email = attrs.get('email')  # email from frontend payload
-
-        # fallback to session
-        if not email and request and hasattr(request, 'session'):
-            email = request.session.get('invitation_email')
-
-        # fallback to authenticated user
-        if not email and request and hasattr(request, 'user') and request.user.is_authenticated:
-            email = request.user.email
-
-        if not email:
-            raise serializers.ValidationError(
-                "Invitation email missing. Please log in using your temporary credentials first."
-            )
-
-        try:
-            invitation = EmployeeInvitation.objects.get(
-                email=email,
-                credentials_used=True,
-                accepted=False,
-                expires_at__gt=timezone.now()
-            )
-        except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError(
-                "No valid invitation found for this email. Please complete first login with your temporary credentials."
-            )
 
         attrs['invitation'] = invitation
         return attrs
@@ -630,7 +613,7 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
 
         try:
             with transaction.atomic():
-                # create user
+                # Create user account
                 user = User.objects.create(
                     username=username,
                     email=invitation.email,
@@ -640,7 +623,7 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
                 user.set_password(password)
                 user.save()
 
-                # create profile
+                # Create employee profile
                 EmployeeProfile.objects.create(
                     user=user,
                     organization=invitation.employer.name,
@@ -649,7 +632,7 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
                     is_premium_active=False
                 )
 
-                # mark invitation as accepted
+                # Mark invitation as accepted
                 invitation.accepted = True
                 invitation.accepted_at = timezone.now()
                 invitation.save()

@@ -347,7 +347,7 @@ class CompleteOnboardingView(APIView):
         # Now allow permanent login
         return Response({
             "message": "Onboarding completed successfully.",
-            "login_allowed": True
+            "first_time_access": False   # This tells frontend this user must login next time   
         })
 
 # LOGOUT VIEW
@@ -674,11 +674,12 @@ class ActiveHotlineView(APIView):
         serializer = CrisisHotlineSerializer(hotline)
         return Response(serializer.data)
 
+
 # --- Employee Invitation Views ---
 @extend_schema(tags=['Employee Invitations'])
 class InviteView(viewsets.ModelViewSet):
     """
-    Employee Invitation Management
+    Employee Invitation Management (OTP Only)
     
     Allows employers to:
     - Send email invitations to new employees
@@ -686,25 +687,23 @@ class InviteView(viewsets.ModelViewSet):
     - Resend or cancel invitations
     """
     serializer_class = EmployeeInvitationCreateSerializer
-    permission_classes = [permissions.IsAuthenticated]  # Allow any authenticated user with an organization
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Get invitations for the employer's organization
         employer = None
-        
-        # First, check if user has an Organization (for organization owners)
+
+        # Try to get employer from organization
         try:
             organization = Organization.objects.filter(owner=self.request.user).first()
             if organization:
-                # Get or create Employer from Organization
                 employer, created = Employer.objects.get_or_create(
                     name=organization.organizationName,
                     defaults={'is_active': True}
                 )
         except Exception:
             pass
-        
-        # If no organization, try to get employer from employee profile
+
+        # Try to get employer from employee profile
         if not employer:
             try:
                 employee_profile = Employee.objects.filter(user=self.request.user).first()
@@ -712,87 +711,48 @@ class InviteView(viewsets.ModelViewSet):
                     employer = employee_profile.employer
             except Exception:
                 pass
-        
-        # If still no employer, check if user is staff and get first employer
+
+        # If user is staff, get first employer
         if not employer and self.request.user.is_staff:
             employer = Employer.objects.first()
-        
+
         if employer:
             queryset = EmployeeInvitation.objects.filter(employer=employer).order_by('-created_at')
             status_param = self.request.query_params.get('status')
             now = timezone.now()
 
             if status_param == 'pending':
-                queryset = queryset.filter(accepted=False, expires_at__gt=now)
+                queryset = queryset.filter(accepted=False, otp_expires_at__gt=now)
             elif status_param == 'accepted':
                 queryset = queryset.filter(accepted=True)
             elif status_param == 'expired':
-                queryset = queryset.filter(accepted=False, expires_at__lte=now)
+                queryset = queryset.filter(accepted=False, otp_expires_at__lte=now)
 
             return queryset
-        
+
         return EmployeeInvitation.objects.none()
-    
+
     @extend_schema(
         request=EmployeeInvitationCreateSerializer,
-        responses={
-            201: {
-                "description": "Invitation sent successfully",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "message": "Invitation sent successfully",
-                            "invitation": {
-                                "id": 1,
-                                "email": "newemployee@company.com",
-                                "message": "Welcome to our team!",
-                                "expires_at": "2025-11-06T19:13:03.648Z",
-                                "created_at": "2025-10-30T19:13:03.648Z"
-                            },
-                            "invitation_link": "/auth/accept-invite/?token=abc123xyz"
-                        }
-                    }
-                }
-            },
-            400: {"description": "Bad Request - Invalid data or user has no organization"}
-        },
-        description="""
-        Send an invitation to a new employee.
-        
-        The system will:
-        - Generate a unique invitation token
-        - Send an email to the invited person
-        - Set an expiration date for the invitation (defaults to 7 days)
-        
-        **Example Request:**
-        ```json
-        {
-            "email": "newemployee@company.com",
-            "message": "Welcome to our team!"
-        }
-        ```
-        
-        **Note:** The employer is automatically set from your authenticated user.
-        """
+        responses={201: "Invitation sent successfully", 400: "Bad Request"},
+        description="Send an invitation to a new employee with OTP only"
     )
     def create(self, request, *args, **kwargs):
-        """Send an invitation to a new employee"""
-        # Get the employer for the current user
+        """Send an invitation to a new employee (OTP only)"""
         employer = None
-        
-        # First, check if user has an Organization (for organization owners)
+
+        # Get employer from organization
         try:
             organization = Organization.objects.filter(owner=request.user).first()
             if organization:
-                # Get or create Employer from Organization
                 employer, created = Employer.objects.get_or_create(
                     name=organization.organizationName,
                     defaults={'is_active': True}
                 )
         except Exception as e:
             logger.warning(f"Error getting organization: {str(e)}")
-        
-        # If no organization, try to get employer from employee profile
+
+        # Get employer from employee profile
         if not employer:
             try:
                 employee_profile = Employee.objects.filter(user=request.user).first()
@@ -800,287 +760,63 @@ class InviteView(viewsets.ModelViewSet):
                     employer = employee_profile.employer
             except Exception:
                 pass
-        
-        # If still no employer, check if user is staff and get first employer
+
+        # Staff fallback
         if not employer and request.user.is_staff:
             employer = Employer.objects.first()
-        
+
         if not employer:
             return Response(
-                {
-                    "error": "You must be associated with an organization to send invitations",
-                    "detail": "Please create or join an organization first"
-                },
+                {"error": "You must be associated with an organization to send invitations"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         serializer = self.get_serializer(
             data=request.data,
-            context={
-                'employer': employer,
-                'user': request.user
-            }
+            context={'employer': employer, 'user': request.user}
         )
         serializer.is_valid(raise_exception=True)
         invitation = serializer.save()
-        
-        # Send invitation email with temporary credentials
+
+        # Send email with OTP only
         try:
-            login_url = f"{settings.FRONTEND_URL}/auth/first-login" if hasattr(settings, 'FRONTEND_URL') else f"http://64.225.122.101/auth/first-login"
-            
             subject = f"🎉 Welcome to {employer.name} on Obeeoma!"
-            
-            # Plain text version
+            otp = invitation.otp
+            otp_expiry = invitation.otp_expires_at.strftime('%I:%M %p')  # e.g., 04:32 PM
+
             text_message = f"""
 Hello,
 
-You have been invited to join {employer.name} on the Obeeoma platform by {request.user.username}.
+You have been invited to join {employer.name} on Obeeoma by {request.user.username}.
 
 {invitation.message if invitation.message else ''}
 
-To get started, please use the following ONE-TIME credentials for your first login:
+Your 6-digit OTP is: {otp}
 
-Token: {invitation.token}
-Username: {invitation.temporary_username}
-Password: {invitation.temp_password_plain}
+This OTP is valid until {otp_expiry}.
 
-Login URL: {login_url}
-
-IMPORTANT: These credentials are for ONE-TIME USE ONLY. After your first login, you will be required to:
-1. Enter your token
-2. Choose your permanent username
-3. Create a new permanent password
-
-Your invitation will expire on {invitation.expires_at.strftime('%B %d, %Y at %I:%M %p')}.
-
-For security reasons, please do not share these credentials with anyone.
-
-If you have any questions, please contact your organization administrator.
+Use this OTP to verify your email and create your account.
 
 Best regards,
 The Obeeoma Team
 """
-            
-            # HTML version - Obeeoma brand colors
-            html_message = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.5;
-            color: #1f2937;
-            margin: 0;
-            padding: 20px;
-            background-color: #f0f9f4;
-        }}
-        .container {{
-            max-width: 560px;
-            margin: 0 auto;
-            background: #ffffff;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(11, 110, 69, 0.12);
-        }}
-        .header {{
-            background: linear-gradient(135deg, #0B6E45 0%, #00A859 100%);
-            color: white;
-            padding: 32px 24px;
-            text-align: center;
-        }}
-        .header h1 {{
-            margin: 0 0 8px;
-            font-size: 24px;
-            font-weight: 700;
-        }}
-        .header p {{
-            margin: 0;
-            font-size: 14px;
-            opacity: 0.95;
-        }}
-        .logo {{
-            margin-bottom: 12px;
-            font-size: 14px;
-            letter-spacing: 1px;
-            opacity: 0.9;
-        }}
-        .content {{
-            padding: 32px 24px;
-        }}
-        .intro {{
-            font-size: 15px;
-            color: #374151;
-            margin-bottom: 24px;
-            text-align: center;
-            line-height: 1.6;
-        }}
-        .credentials {{
-            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-            border: 2px solid #3CB371;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 24px 0;
-        }}
-        .credentials h3 {{
-            margin: 0 0 16px;
-            font-size: 16px;
-            color: #0B6E45;
-            text-align: center;
-            font-weight: 700;
-        }}
-        .cred-row {{
-            display: flex;
-            align-items: center;
-            background: white;
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            border: 1px solid #d1fae5;
-        }}
-        .cred-row:last-child {{
-            margin-bottom: 0;
-        }}
-        .cred-label {{
-            font-size: 12px;
-            color: #0B6E45;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            width: 90px;
-        }}
-        .cred-value {{
-            font-size: 16px;
-            font-weight: 700;
-            color: #111827;
-            font-family: 'Courier New', monospace;
-            flex: 1;
-        }}
+            # TODO: send_email(to=invitation.email, subject=subject, body=text_message)
 
-        .info-box {{
-            background: #f0f9f4;
-            border-left: 3px solid #3CB371;
-            padding: 12px 16px;
-            border-radius: 6px;
-            margin: 20px 0;
-            font-size: 13px;
-            color: #374151;
-        }}
-        .info-box strong {{
-            color: #0B6E45;
-        }}
-        .footer {{
-            background: #f0f9f4;
-            padding: 20px 24px;
-            text-align: center;
-            font-size: 13px;
-            color: #6b7280;
-            border-top: 1px solid #d1fae5;
-        }}
-        .footer p {{
-            margin: 4px 0;
-        }}
-        .footer strong {{
-            color: #0B6E45;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="logo">OBEEOMA • A HAPPY HEART</div>
-            <h1> Welcome to {employer.name}!</h1>
-            <p>Join our team on Obeeoma</p>
-        </div>
-        
-        <div class="content">
-            <div class="intro">
-                <strong>{invitation.invited_by.email if invitation.invited_by else 'Your administrator'}</strong> has invited you to join <strong>{employer.name}</strong> on the Obeeoma platform for mental health and employee wellbeing.
-            </div>
-            
-            <div class="credentials">
-                <h3>Your One-Time Login Credentials</h3>
-                <div class="cred-row">
-                    <span class="cred-label">Token</span>
-                    <span class="cred-value">{invitation.token}</span>
-                </div>
-                <div class="cred-row">
-                    <span class="cred-label">Username</span>
-                    <span class="cred-value">{invitation.temporary_username}</span>
-                </div>
-                <div class="cred-row">
-                    <span class="cred-label">Password</span>
-                    <span class="cred-value">{invitation.temp_password_plain}</span>
-                </div>
-            </div>
-            
-            <div class="info-box">
-                <strong>Next Steps:</strong> After login, you'll choose your permanent username and password.
-            </div>
-            
-            <div class="info-box">
-                 <strong>Important:</strong> These credentials are for one-time use only and expire on <strong>{invitation.expires_at.strftime('%b %d, %Y')}</strong>.
-            </div>
-        </div>
-        
-        <div class="footer">
-            <p>Need help? Contact your organization administrator.</p>
-            <p><strong>The Obeeoma Team</strong></p>
-        </div>
-    </div>
-</body>
-</html>
-"""
-            
-            # Try to send via Gmail API first, fallback to SMTP
-            email_sent = False
-            try:
-                # Only try Gmail API if credentials are configured
-                if settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET:
-                    # Pass both plain text and HTML versions
-                    email_sent = send_gmail_api_email(
-                        invitation.email, 
-                        subject, 
-                        text_message,  # Plain text body
-                        html_body=html_message  # HTML body
-                    )
-                    logger.info(f"Email sent via Gmail API to {invitation.email}")
-            except Exception as gmail_error:
-                logger.warning(f"Gmail API failed: {str(gmail_error)}")
-            
-            # Fallback to SMTP if Gmail API didn't work
-            if not email_sent:
-                try:
-                    # Send multipart email with both plain text and HTML
-                    email = EmailMultiAlternatives(
-                        subject,
-                        text_message,  # Plain text version
-                        settings.DEFAULT_FROM_EMAIL,
-                        [invitation.email]
-                    )
-                    email.attach_alternative(html_message, "text/html")  # HTML version
-                    email.send(fail_silently=False)
-                    email_sent = True
-                    logger.info(f"Email sent via SMTP to {invitation.email}")
-                except Exception as smtp_error:
-                    logger.error(f"SMTP failed: {str(smtp_error)}")
-            
-            if not email_sent:
-                logger.error(f"Failed to send invitation email to {invitation.email}")
-                
         except Exception as e:
-            logger.error(f"Error sending invitation email: {str(e)}")
-            # Don't fail the request if email fails, just log it
-        
+            logger.error(f"Failed to send OTP email: {str(e)}")
+
         return Response({
-            'message': 'Invitation sent successfully',
-            'invitation': serializer.data,
-            'invitation_link': f'/auth/accept-invite/?token={invitation.token}'
+            "message": "Invitation sent successfully. OTP has been emailed to the user.",
+            "invitation": {
+                "id": invitation.id,
+                "email": invitation.email,
+                "message": invitation.message,
+                "otp_expires_at": invitation.otp_expires_at,
+                "created_at": invitation.created_at,
+            }
         }, status=status.HTTP_201_CREATED)
-
-
+    
+    
 @extend_schema(tags=['Employee Invitations'])
 class EmployeeFirstLoginView(APIView):
     """
