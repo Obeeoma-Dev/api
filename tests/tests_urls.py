@@ -6,6 +6,9 @@ from rest_framework import status
 from django.contrib.auth import get_user_model
 from obeeomaapp.models import Employer, Employee, EmployeeProfile
 from obeeomaapp.views import *
+from django.test import SimpleTestCase
+from django.urls import reverse, resolve
+from obeeomaapp.views import EmployeeViewSet
 
 User = get_user_model()
 
@@ -534,3 +537,18 @@ class EducationalVideoURLTests(APITestCase):
         # Save video action
         url = reverse('obeeomaapp:videos-save-video', kwargs={'pk': 1})
         self.assertEqual(url, '/videos/1/save_video/')
+
+
+
+class EmployeeURLTest(SimpleTestCase):
+    def test_active_url_resolves(self):
+        url = reverse('employee-active')
+        self.assertEqual(resolve(url).func.__name__, EmployeeViewSet.active.__name__)
+
+    def test_inactive_url_resolves(self):
+        url = reverse('employee-inactive')
+        self.assertEqual(resolve(url).func.__name__, EmployeeViewSet.inactive.__name__)
+
+    def test_summary_url_resolves(self):
+        url = reverse('employee-summary')
+        self.assertEqual(resolve(url).func.__name__, EmployeeViewSet.summary.__name__)
