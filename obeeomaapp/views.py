@@ -4131,7 +4131,6 @@ class PSS10AssessmentViewSet(viewsets.ModelViewSet):
         return PSS10Assessment.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
-        # Calculate score and category before saving
         responses = serializer.validated_data['responses']
         score = sum(responses)
 
@@ -4142,21 +4141,19 @@ class PSS10AssessmentViewSet(viewsets.ModelViewSet):
         else:
             category = "High stress"
 
-            # Save result
-            PSS10Assessment.objects.create(
-                user=request.user,
-                score=score,
-                category=category,
-                responses=responses
-            )
+        serializer.save(user=self.request.user, score=score, category=category)
 
-            return Response({
-                "score": score,
-                "category": category,
-                "message": f"Your stress level is {category.lower()}."
-            }, status=status.HTTP_200_OK)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        instance = serializer.instance
+        return Response({
+            "score": instance.score,
+            "category": instance.category,
+            "message": f"Your stress level is {instance.category.lower()}."
+        }, status=status.HTTP_201_CREATED, headers=headers)
 
 # content/views.py
 import uuid
