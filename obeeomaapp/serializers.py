@@ -36,6 +36,8 @@ logger = logging.getLogger(__name__)
 from .models import UserAchievement
 import uuid
 import requests
+from secrets import randbelow
+
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.translation import gettext as _
 
@@ -609,60 +611,47 @@ class CompleteAccountSetupSerializer(serializers.Serializer):
         validate_password(attrs['password'])
         return attrs
 
-
-# --- Employee Invitation Serializer ---
+# INVITATION CREATE SERIALIZER
 class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(
         required=True,
-        help_text="Email address of the person to invite"
+        help_text="Email address of the employee being invited"
     )
     message = serializers.CharField(
         required=False,
         allow_blank=True,
-        help_text="Optional welcome message for the invitee"
+        help_text="Optional invitation message"
     )
-    expires_at = serializers.DateTimeField(
-        required=False,
-        help_text="Invitation expiration date (defaults to 7 days from now)"
-    )
-    temporary_username = serializers.CharField(read_only=True)
-    temporary_password_plain = serializers.CharField(read_only=True, source='temp_password_plain')
-    
+
     class Meta:
         model = EmployeeInvitation
-        fields = ['id', 'email', 'message', 'expires_at', 'created_at', 'temporary_username', 'temporary_password_plain']
-        read_only_fields = ['id', 'created_at', 'temporary_username', 'temporary_password_plain']
+        fields = [
+            'id', 'email', 'message',
+            'otp', 'otp_expires_at',
+            'accepted', 'accepted_at',
+            'created_at'
+        ]
+        read_only_fields = ['id', 'otp', 'otp_expires_at', 'accepted', 'accepted_at', 'created_at']
 
     def create(self, validated_data):
-        from django.contrib.auth.hashers import make_password
-        import secrets
-        import string
-        
         employer = self.context['employer']
         inviter = self.context['user']
-        token = token_urlsafe(32)
-        
-        # Generate temporary username (email prefix + random digits)
-        email_prefix = validated_data['email'].split('@')[0]
-        random_suffix = ''.join(secrets.choice(string.digits) for _ in range(4))
-        temp_username = f"{email_prefix}{random_suffix}"
-        
-        # Generate temporary password (12 characters: letters, digits, special chars)
-        temp_password = ''.join(secrets.choice(string.ascii_letters + string.digits + '!@#$%') for _ in range(12))
-        
-        # Create invitation with hashed temporary password
+
+        # Generate 6-digit OTP
+        otp = f"{randbelow(1000000):06d}"
+
+        # Expiry for OTP: 10 minutes from now (you can adjust)
+        expiry_time = timezone.now() + timedelta(minutes=10)
+
         invitation = EmployeeInvitation.objects.create(
             employer=employer,
             invited_by=inviter,
-            token=token,
-            temporary_username=temp_username,
-            temporary_password=make_password(temp_password),  # Store hashed
+            otp=otp,
+            otp_expires_at=expiry_time,
             **validated_data
         )
-        
-        # Store plain password temporarily for email (not saved to DB)
-        invitation.temp_password_plain = temp_password
-        
+
+        # You will send OTP via email outside this function
         return invitation
 
 # --- Employee Profile ---

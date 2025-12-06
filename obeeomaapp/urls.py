@@ -25,18 +25,18 @@ from obeeomaapp.views import (
     UsersView, ReportsView, CrisisInsightsView,
     EmployeeProfileView, AvatarProfileView,
     MoodTrackingView, SelfHelpResourceView,
-    CrisisTriggerView, NotificationView,
-    EngagementTrackerView, FeedbackView, ChatSessionView,
-    ChatMessageView, RecommendationLogView, CompleteAccountSetupView,
+    CrisisTriggerView, NotificationView, 
+    EngagementTrackerView, FeedbackView, ChatSessionView, 
+    ChatMessageView, RecommendationLogView, 
     InvitationVerifyView, home, OrganizationSignupView,
-    CompleteAccountSetupView, InviteView, EmployeeFirstLoginView,
+     InviteView,
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet,
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, MediaViewSet,
      CompleteOnboardingView,
     DynamicQuestionViewSet, UserAchievementViewSet,
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView, CBTExerciseViewSet, SettingsViewSet,
-    JournalEntryViewSet, UpdatePaymentMethodViewSet, EmployeeFirstLoginViewSet, PSS10AssessmentViewSet,
-    ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,
+    JournalEntryViewSet, UpdatePaymentMethodViewSet,  PSS10AssessmentViewSet,
+    ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView
 )
 
 

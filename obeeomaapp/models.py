@@ -173,10 +173,6 @@ class Employee(models.Model):
         ordering = ['-joined_date']
 
 
-from django.db import models
-from django.conf import settings
-from django.utils import timezone
-
 # EMPLOYEE INVITATION
 class EmployeeInvitation(models.Model):
     employer = models.ForeignKey(
