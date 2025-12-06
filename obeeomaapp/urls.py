@@ -14,28 +14,29 @@ from obeeomaapp.views import (
      OrganizationOverviewView, EmployeeManagementView,
     DepartmentManagementView, SubscriptionManagementView,
     WellnessReportsView, OrganizationSettingsView, TestsByTypeView,
-    TestsByDepartmentView, SystemAdminOverviewView, 
+    TestsByDepartmentView, SystemAdminOverviewView,
     OrganizationsManagementView, HotlineActivityView,
     AIManagementView, ClientEngagementView,
     ReportsAnalyticsView, SystemSettingsView, FeaturesUsageView,
-    MyBadgesView, MyStreaksView, ProgressViewSet, 
-    EmailConfigCheckView, LoginView, LogoutView, 
+    MyBadgesView, MyStreaksView, ProgressViewSet,
+    EmailConfigCheckView, LoginView, LogoutView,
     PasswordResetView, PasswordResetConfirmView, PasswordChangeView,
     OverviewView, TrendsView, EmployeeEngagementView, BillingView,
     UsersView, ReportsView, CrisisInsightsView,
-    EmployeeProfileView, AvatarProfileView, 
+    EmployeeProfileView, AvatarProfileView,
     MoodTrackingView, SelfHelpResourceView,
-    CrisisTriggerView, NotificationView, 
-    EngagementTrackerView, FeedbackView, ChatSessionView, 
-    ChatMessageView, RecommendationLogView, 
+    CrisisTriggerView, NotificationView,
+    EngagementTrackerView, FeedbackView, ChatSessionView,
+    ChatMessageView, RecommendationLogView, CompleteAccountSetupView,
     InvitationVerifyView, home, OrganizationSignupView,
-    InviteView,
-    VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
+    CompleteAccountSetupView, InviteView, EmployeeFirstLoginView,
+    VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet,
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, MediaViewSet,
      CompleteOnboardingView,
     DynamicQuestionViewSet, UserAchievementViewSet,
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView, CBTExerciseViewSet, SettingsViewSet,
-    JournalEntryViewSet, UpdatePaymentMethodViewSet, PSS10AssessmentViewSet,SignupView
+    JournalEntryViewSet, UpdatePaymentMethodViewSet, EmployeeFirstLoginViewSet, PSS10AssessmentViewSet,
+    ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,
 )
 
 
@@ -125,7 +126,14 @@ router.register(r'invitations', InviteView, basename='invitations')
 
 # Media uploads
 router.register(r'media', MediaViewSet, basename='media')
+
+# Content management
+router.register(r'content/articles', ContentArticleViewSet, basename='content-article')
+router.register(r'content/media', ContentMediaViewSet, basename='content-media')
 urlpatterns = [
+    # Content management
+    path("content/presign/", PresignUploadView.as_view(), name="content-presign-upload"),
+    path("content/confirm-upload/", ConfirmUploadView.as_view(), name="content-confirm-upload"),
     # Home
     path("", home, name="home"),
     # Debug endpoints

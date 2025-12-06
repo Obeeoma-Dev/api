@@ -3875,7 +3875,6 @@ class PSS10AssessmentViewSet(viewsets.ModelViewSet):
         return PSS10Assessment.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
-        # Calculate score and category before saving
         responses = serializer.validated_data['responses']
         score = sum(responses)
 
@@ -3886,15 +3885,185 @@ class PSS10AssessmentViewSet(viewsets.ModelViewSet):
         else:
             category = "High stress"
 
-        serializer.save(
-            user=self.request.user,
-            score=score,
-            category=category
+        serializer.save(user=self.request.user, score=score, category=category)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        instance = serializer.instance
+        return Response({
+            "score": instance.score,
+            "category": instance.category,
+            "user": instance.user.id,
+            "message": f"Your stress level is {instance.category.lower()}."
+        }, status=status.HTTP_201_CREATED, headers=headers)
+
+# content/views.py
+import uuid
+import boto3
+from botocore.client import Config
+from django.conf import settings
+from rest_framework import viewsets, status, permissions, views
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from .models import ContentArticle, ContentMedia
+from .serializers import ContentArticleSerializer, ContentMediaSerializer
+
+# --- Helper to create a presigned PUT URL for DO Spaces ---
+def generate_presigned_put_url(object_key: str, content_type: str, expires_in: int = 3600):
+    client = boto3.client(
+        "s3",
+        region_name=settings.AWS_S3_REGION_NAME,
+        endpoint_url=settings.AWS_S3_ENDPOINT_URL,
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        config=Config(signature_version="s3v4"),
+    )
+
+    url = client.generate_presigned_url(
+        ClientMethod="put_object",
+        Params={
+            "Bucket": settings.AWS_STORAGE_BUCKET_NAME,
+            "Key": object_key,
+            "ContentType": content_type,
+        },
+        ExpiresIn=expires_in,
+    )
+    return url
+
+
+# --- Presign upload endpoint (separate view) ---
+class PresignUploadView(views.APIView):
+    permission_classes = [IsSystemAdmin]
+
+    def post(self, request):
+        """
+        Expects JSON:
+        { "filename": "video.mp4", "content_type": "video/mp4", "media_type": "video", "title": "optional" }
+        Returns:
+        { "presigned_url": "...", "s3_key": "uploads/uuid_video.mp4", "media_id": 5 }
+        """
+        filename = request.data.get("filename")
+        content_type = request.data.get("content_type")
+        media_type = request.data.get("media_type")
+        title = request.data.get("title", "")
+
+        if not filename or not content_type:
+            return Response({"detail": "filename and content_type are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # create a safe unique object key (you can change path structure)
+        unique_name = f"{uuid.uuid4().hex}_{filename}"
+        object_key = f"uploads/{unique_name}"
+
+        try:
+            presigned_url = generate_presigned_put_url(object_key, content_type)
+        except Exception as e:
+            return Response({"detail": f"failed to generate presigned url: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # create DB record now (uploaded=False) so we can reference it
+        media = ContentMedia.objects.create(
+            owner=request.user,
+            title=title or filename,
+            media_type=media_type or ContentMedia.MEDIA_OTHER,
+            s3_key=object_key,
+            uploaded=False,
+            processed=False,
         )
 
-    @extend_schema(
-        request=PSS10AssessmentSerializer,
-        responses={200: PSS10AssessmentSerializer}
-    )
-    def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+        return Response({"presigned_url": presigned_url, "s3_key": object_key, "media_id": media.id}, status=status.HTTP_201_CREATED)
+
+
+# --- Confirm upload endpoint ---
+class ConfirmUploadView(views.APIView):
+    permission_classes = [IsSystemAdmin]
+
+    def post(self, request):
+        """
+        Body: { "media_id": 5, "public_url": "optional public url from CDN" }
+        Marks the media as uploaded=True and optionally records public_url.
+        """
+        media_id = request.data.get("media_id")
+        public_url = request.data.get("public_url")
+
+        if not media_id:
+            return Response({"detail": "media_id required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            media = ContentMedia.objects.get(id=media_id, owner=request.user)
+        except ContentMedia.DoesNotExist:
+            return Response({"detail": "media not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        media.uploaded = True
+        if public_url:
+            media.public_url = public_url
+        media.save()
+
+        # TODO: enqueue background processing task e.g. tasks.process_media.delay(media.id)
+        return Response({"detail": "upload confirmed", "media_id": media.id}, status=status.HTTP_200_OK)
+
+
+# --- ViewSets for Article and Media ---
+class ContentArticleViewSet(viewsets.ModelViewSet):
+    serializer_class = ContentArticleSerializer
+    permission_classes = [IsSystemAdminOrReadOnly]
+
+    def get_queryset(self):
+        if self.request.user and self.request.user.is_authenticated and (
+            self.request.user.is_superuser or self.request.user.role == 'system_admin'
+        ):
+            # System admin sees all articles
+            return ContentArticle.objects.all().order_by("-created_at")
+        else:
+            # Employees see only published articles
+            return ContentArticle.objects.filter(published=True).order_by("-created_at")
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+
+class ContentMediaViewSet(viewsets.ModelViewSet):
+    serializer_class = ContentMediaSerializer
+    permission_classes = [IsSystemAdminOrReadOnly]
+
+    def get_queryset(self):
+        if self.request.user and self.request.user.is_authenticated and (
+            self.request.user.is_superuser or self.request.user.role == 'system_admin'
+        ):
+            # System admin sees all media
+            return ContentMedia.objects.all().order_by("-created_at")
+        else:
+            # Employees see only uploaded and processed media
+            return ContentMedia.objects.filter(uploaded=True, processed=True).order_by("-created_at")
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+    # Provide a convenience endpoint to regenerate a presigned GET url for private serving (optional)
+    @action(detail=True, methods=["get"], permission_classes=[permissions.IsAuthenticated])
+    def get_presigned_get(self, request, pk=None):
+        media = self.get_object()
+        # Only owner or staff can request a signed GET URL
+        if media.owner != request.user and not request.user.is_staff:
+            return Response({"detail": "forbidden"}, status=status.HTTP_403_FORBIDDEN)
+
+        client = boto3.client(
+            "s3",
+            region_name=settings.AWS_S3_REGION_NAME,
+            endpoint_url=settings.AWS_S3_ENDPOINT_URL,
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            config=Config(signature_version="s3v4"),
+        )
+
+        try:
+            url = client.generate_presigned_url(
+                ClientMethod="get_object",
+                Params={"Bucket": settings.AWS_STORAGE_BUCKET_NAME, "Key": media.s3_key},
+                ExpiresIn=300,  # 5 minutes
+            )
+        except Exception as e:
+            return Response({"detail": f"failed to generate get url: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({"presigned_get_url": url})
