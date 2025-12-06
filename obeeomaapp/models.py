@@ -363,18 +363,23 @@ class HotlineActivity(models.Model):
         verbose_name_plural = "Hotline Activities"
 
 
-
-
-
 # Employee Engagement model.
 class EmployeeEngagement(models.Model):
+    STATUS_CHOICES =[
+        ('active', 'Active'), 
+        ('inactive', 'Inactive'),
+    ]
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="engagements")
     engagement_rate = models.DecimalField(max_digits=5, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)])
-    month = models.DateField()
-    notes = models.TextField(blank=True, null=True)
+    name = models.TextField(blank=True, null=True)
+    email = models.EmailField(unique=True, blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, blank=True, null=True)
+    joined_at = models.DateTimeField(auto_now_add=True, blank=True, null=True)
+    month = models.DateField(blank=True, null=True)
+    # notes = models.TextField(blank=True, null=True)
 
     def __str__(self):
-        return f"{self.employer.name} - {self.month}"
+        return f"{self.name} - ({self.status})"
 
     class Meta:
         ordering = ['-month']

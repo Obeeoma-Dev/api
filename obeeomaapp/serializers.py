@@ -392,7 +392,7 @@ class HotlineActivitySerializer(serializers.ModelSerializer):
 class EmployeeEngagementSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmployeeEngagement
-        fields = ['id', 'employer', 'engagement_rate', 'month', 'notes']
+        fields = '__all__'
 
 # subcription serializer
 class SubscriptionSerializer(serializers.ModelSerializer):

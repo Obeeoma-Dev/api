@@ -1529,27 +1529,68 @@ class TrendsView(viewsets.ReadOnlyModelViewSet):
     serializer_class = HotlineActivitySerializer
     permission_classes = [IsCompanyAdmin]
 
-
-@extend_schema(tags=['Employer Dashboard'])
+@extend_schema_view(
+    list=extend_schema(
+        operation_id="engagement_list",
+        tags=["Employer Dashboard"]
+    ),
+    retrieve=extend_schema(
+        operation_id="engagement_detail",
+        tags=["Employer Dashboard"]
+    ),
+)
 class EmployeeEngagementView(viewsets.ModelViewSet):
     queryset = EmployeeEngagement.objects.select_related("employer").order_by("-month")
     serializer_class = EmployeeEngagementSerializer
     # permission_classes = [IsCompanyAdmin]
 
-
-from drf_spectacular.utils import extend_schema, extend_schema_view
-
-@extend_schema_view(
-    list=extend_schema(
-        operation_id="features_usage_list",
-        tags=["Employer Dashboard"]
-    ),
-    by_category=extend_schema(
-        operation_id="features_usage_by_category",
+    @extend_schema(
+        operation_id="active_employees",
         tags=["Employer Dashboard"],
-        description="Returns feature usage grouped by category."
+        description="Returns all active employees with count."
     )
-)
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        employees = Employee.objects.filter(status='active')
+        serializer = EmployeeSerializer(employees, many=True)
+        return Response({
+            "count": employees.count(),
+            "employees": serializer.data
+        })
+
+    @extend_schema(
+        operation_id="inactive_employees",
+        tags=["Employer Dashboard"],
+        description="Returns all inactive employees with count."
+    )
+    @action(detail=False, methods=['get'])
+    def inactive(self, request):
+        employees = Employee.objects.filter(status='inactive')
+        serializer = EmployeeSerializer(employees, many=True)
+        return Response({
+            "count": employees.count(),
+            "employees": serializer.data
+        })
+
+    @extend_schema(
+        operation_id="employee_summary",
+        tags=["Employer Dashboard"],
+        description="Returns summary of active/inactive employees with percentages."
+    )
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        total = Employee.objects.count()
+        active = Employee.objects.filter(status='active').count()
+        inactive = Employee.objects.filter(status='inactive').count()
+
+        return Response({
+            "total": total,
+            "active": active,
+            "inactive": inactive,
+            "active_percent": round((active / total) * 100, 2) if total else 0,
+            "inactive_percent": round((inactive / total) * 100, 2) if total else 0,
+        })
+
 class FeaturesUsageView(viewsets.ModelViewSet):
     queryset = AIManagement.objects.select_related("employer").order_by("-created_at")
     serializer_class = AIManagementSerializer
