@@ -178,12 +178,14 @@ class IsCompanyAdmin(BasePermission):
 
 
 # # SIGNUP VIEW
+@extend_schema(tags=['Authentication'])
+class SignupView(viewsets.ModelViewSet):
+     queryset = User.objects.all()
+     serializer_class = SignupSerializer
+     permission_classes = [permissions.AllowAny]
+        
 
-# @extend_schema(tags=['Authentication'])
-# class SignupView(viewsets.ModelViewSet):
-#     queryset = User.objects.all()
-#     serializer_class = SignupSerializer
-#     permission_classes = [permissions.AllowAny]
+       
 
 # VIEWS FOR CREATING AN ORGANIZATION
 @extend_schema(

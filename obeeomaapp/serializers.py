@@ -41,6 +41,51 @@ from django.utils.translation import gettext as _
 
 
 User = get_user_model()
+
+    # # SIGNUP SERIALIZER
+class SignupSerializer(serializers.ModelSerializer):
+        password = serializers.CharField(write_only=True, validators=[validate_password])
+        confirm_password = serializers.CharField(write_only=True)
+        role = serializers.ChoiceField(choices=User.ROLE_CHOICES, default="employee")
+
+        class Meta:
+            model = User
+            fields = ('username',  'password', 'confirm_password',)
+
+        def validate(self, attrs):
+            username = attrs.get('username')
+            email = attrs.get('email')
+            password = attrs.get('password')
+            confirm_password = attrs.get('confirm_password')
+
+            if password != confirm_password:
+                raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
+
+            if User.objects.filter(username__iexact=username).exists():
+                raise serializers.ValidationError({"username": "This username is already taken."})
+            if User.objects.filter(email__iexact=email).exists():
+                raise serializers.ValidationError({"email": "This email is already registered."})
+
+            for user in User.objects.all():
+                if check_password(password, user.password):
+                    raise serializers.ValidationError({"password": "This password is already in use. Please choose a different one."})
+
+            return attrs
+
+        def create(self, validated_data):
+            validated_data.pop('confirm_password')
+            role = validated_data.pop('role', 'employee')
+
+            user = User(
+                username=validated_data['username'],
+                email=validated_data['email'],
+                role=role
+            )
+            user.set_password(validated_data['password'])
+            user.save()
+
+            return user
+
   
 # SERIALIZER FOR CREATING AN ORGANIZATION
 class ContactPersonSerializer(serializers.ModelSerializer):
