@@ -1659,6 +1659,7 @@ class AvatarProfileView(viewsets.ModelViewSet):
     def get_queryset(self):
         return AvatarProfile.objects.filter(employee__user=self.request.user)
 # updated mood tracking view with mood summary action
+
 @extend_schema(tags=['Employee - Mood Tracking'])
 class MoodTrackingView(viewsets.ModelViewSet):
     serializer_class = MoodTrackingSerializer
@@ -1682,20 +1683,44 @@ class MoodTrackingView(viewsets.ModelViewSet):
         # Aggregate moods per day
         mood_data = (
             MoodTracking.objects
-            .filter(employee=employee, created_at__date__gte=start_date)
-            .values('created_at__date', 'mood')
+            .filter(employee=employee, checked_in_at__date__gte=start_date)
+            .values('checked_in_at__date', 'mood')
             .annotate(count=Count('id'))
         )
 
         # Format response
         summary = {}
         for entry in mood_data:
-            day = entry['created_at__date'].strftime('%a')  # e.g. 'Mon'
+            day = entry['checked_in_at__date'].strftime('%a')  # e.g. 'Mon'
             mood = entry['mood']
             count = entry['count']
             summary.setdefault(day, {}).update({mood: count})
 
         return Response(summary)
+@action(detail=False, methods=['get'], url_path='mood-summary')
+def mood_summary(self, request):
+    employee = get_object_or_404(EmployeeProfile, user=request.user)
+    today = now().date()
+    start_date = today - timedelta(days=6)  # Last 7 days
+
+    # Pre-fill all 7 days with "Missed"
+    week_days = [(start_date + timedelta(days=i)) for i in range(7)]
+    summary = {day.strftime('%A'): "Missed" for day in week_days}
+
+    # Get actual check-ins
+    checkins = MoodTracking.objects.filter(
+        employee=employee,
+        checked_in_at__date__range=(start_date, today)
+    )
+
+    for checkin in checkins:
+        day_name = checkin.checked_in_at.strftime('%A')
+        if checkin.mood:
+            summary[day_name] = checkin.mood
+
+    return Response(summary)
+
+
 
 @extend_schema(tags=['Employee - Assessments'])
 @extend_schema(tags=['Resources'])
@@ -3985,15 +4010,37 @@ class UpdatePaymentMethodViewSet(viewsets.ViewSet):
             token_id = validated_data['token_id']
             card_last_four = validated_data.get('card_last_four')
             card_type = validated_data.get('card_type')
+            expiry_month = validated_data.get('expiry_month', 12)
+            expiry_year = validated_data.get('expiry_year', 2099)
 
             try:
+                # Get employer from user's employee profile or create a default one
+                from obeeomaapp.models import Employer, Employee
+                employer = None
+                try:
+                    employee = Employee.objects.filter(user=user).first()
+                    if employee:
+                        employer = employee.employer
+                except Employee.DoesNotExist:
+                    pass
+                
+                # If no employer found, we need one for the payment method
+                if not employer:
+                    return Response(
+                        {"detail": "User must be associated with an employer to add payment methods."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
                 payment_method, created = PaymentMethod.objects.update_or_create(
                     user=user,
                     defaults={
+                        'employer': employer,
                         'token_id': token_id,
-                        'card_last_four': card_last_four,
-                        'card_type': card_type,
-                        'is_active': True
+                        'last_four_digits': card_last_four or '0000',
+                        'card_type': card_type or 'Unknown',
+                        'expiry_month': expiry_month,
+                        'expiry_year': expiry_year,
+                        'is_default': True
                     }
                 )
 
@@ -4071,43 +4118,41 @@ class EmployeeFirstLoginViewSet(viewsets.ViewSet):
             'invited_by': invitation.invited_by.email if invitation.invited_by else 'Unknown'
         }, status=status.HTTP_200_OK)
 
-
 @extend_schema(tags=['Assessments'])
-class PSS10AssessmentViewSet(viewsets.ViewSet):
+class PSS10AssessmentViewSet(viewsets.ModelViewSet):
     """
-    API endpoint for Perceived Stress Scale (PSS-10).
+    Full CRUD API endpoint for Perceived Stress Scale (PSS-10).
+    Supports: GET, POST, PUT, PATCH, DELETE
     """
     permission_classes = [IsAuthenticated]
+    serializer_class = PSS10AssessmentSerializer
+    queryset = PSS10Assessment.objects.all()
+
+    def get_queryset(self):
+        # Return only assessments for the logged-in user
+        return PSS10Assessment.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        # Calculate score and category before saving
+        responses = serializer.validated_data['responses']
+        score = sum(responses)
+
+        if score <= 13:
+            category = "Low stress"
+        elif 14 <= score <= 26:
+            category = "Moderate stress"
+        else:
+            category = "High stress"
+
+        serializer.save(
+            user=self.request.user,
+            score=score,
+            category=category
+        )
 
     @extend_schema(
         request=PSS10AssessmentSerializer,
-        responses={200: {"description": "Assessment completed"}}
+        responses={200: PSS10AssessmentSerializer}
     )
     def create(self, request, *args, **kwargs):
-        serializer = PSS10AssessmentSerializer(data=request.data)
-        if serializer.is_valid():
-            responses = serializer.validated_data['responses']
-            score = sum(responses)
-
-            if score <= 13:
-                category = "Low stress"
-            elif 14 <= score <= 26:
-                category = "Moderate stress"
-            else:
-                category = "High stress"
-
-            # Save result
-            PSS10Assessment.objects.create(
-                user=request.user,
-                score=score,
-                category=category,
-                responses=responses
-            )
-
-            return Response({
-                "score": score,
-                "category": category,
-                "message": f"Your stress level is {category.lower()}."
-            }, status=status.HTTP_200_OK)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return super().create(request, *args, **kwargs)
