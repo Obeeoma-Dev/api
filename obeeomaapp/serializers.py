@@ -78,6 +78,8 @@ class SignupSerializer(serializers.ModelSerializer):
 
         return user
 
+        return user
+
   
 # SERIALIZER FOR CREATING AN ORGANIZATION
 class ContactPersonSerializer(serializers.ModelSerializer):
