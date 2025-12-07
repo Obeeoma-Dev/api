@@ -525,7 +525,6 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
 # (Employee Invitation Accept - After OTP Verification)
 
 class EmployeeInvitationAcceptSerializer(serializers.Serializer):
-    email = serializers.EmailField(required=True)
     username = serializers.CharField(required=True, min_length=3, max_length=150)
     password = serializers.CharField(required=True, write_only=True, min_length=8)
     confirm_password = serializers.CharField(required=True, write_only=True)
@@ -548,8 +547,12 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         except Exception as e:
             raise serializers.ValidationError({"password": list(e.messages)})
 
+        # Get email from context (passed from view after OTP verification)
+        email = self.context.get('email')
+        if not email:
+            raise serializers.ValidationError("Email not found. Please verify your OTP first.")
+
         # Find the invitation by email (OTP should already be verified)
-        email = attrs['email']
         try:
             invitation = EmployeeInvitation.objects.get(
                 email=email,

@@ -286,7 +286,10 @@ class VerifyOTPView(APIView):
 
         elif otp_type == "invitation":
             invitation = serializer.context['invitation']
-            # Don't delete the invitation yet - we need it for signup
+            # Store email in session for signup
+            request.session['verified_invitation_email'] = invitation.email
+            request.session['invitation_verified_at'] = timezone.now().isoformat()
+            
             return Response(
                 {
                     "message": "Invitation OTP verified successfully. Proceed to create your account.",
@@ -1067,11 +1070,10 @@ class AssessmentResponseViewSet(viewsets.ModelViewSet):
     
     **New Flow:**
     1. Employee receives invitation email with 6-digit OTP
-    2. Employee verifies OTP using /api/v1/verify-otp/ endpoint (otp_type: "invitation")
+    2. Employee verifies OTP using /api/v1/auth/verify-otp/ endpoint (otp_type: "invitation")
     3. After OTP verification, employee uses THIS endpoint to create account
     
-    **Required Fields:**
-    - email: The email that was invited (must match verified invitation)
+    **Required Fields (email is automatically captured from OTP verification):**
     - username: Choose a unique username
     - password: Create a password (min 8 characters)
     - confirm_password: Confirm the password
@@ -1079,12 +1081,13 @@ class AssessmentResponseViewSet(viewsets.ModelViewSet):
     **Example Request:**
     ```json
     {
-      "email": "employee@company.com",
       "username": "johndoe",
       "password": "SecurePassword123!",
       "confirm_password": "SecurePassword123!"
     }
     ```
+    
+    **Note:** You must verify your OTP first. The email is automatically retrieved from your verification session.
     
     Upon success, the user account is created and linked to the organization.
     """
@@ -1095,9 +1098,21 @@ class InvitationAcceptView(viewsets.ViewSet):
 
     def create(self, request):
         """Complete employee signup after OTP verification"""
-        serializer = self.serializer_class(data=request.data)
+        # Get verified email from session
+        email = request.session.get('verified_invitation_email')
+        if not email:
+            return Response(
+                {"error": "Please verify your OTP first before signing up."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        serializer = self.serializer_class(data=request.data, context={'email': email})
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        
+        # Clear session data after successful signup
+        request.session.pop('verified_invitation_email', None)
+        request.session.pop('invitation_verified_at', None)
         
         # Generate tokens
         refresh = RefreshToken.for_user(user)
