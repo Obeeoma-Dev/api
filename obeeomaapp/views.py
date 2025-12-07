@@ -212,6 +212,61 @@ class OrganizationDetailView(APIView):
 
 
 # VIEWS FOR VERIFYING THE OTP
+@extend_schema(
+    tags=['Authentication'],
+    request=OTPVerificationSerializer,
+    responses={
+        200: {
+            "description": "OTP verified successfully",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "password_reset": {
+                            "summary": "Password Reset OTP",
+                            "value": {
+                                "message": "OTP verified successfully. You can now reset your password."
+                            }
+                        },
+                        "invitation": {
+                            "summary": "Invitation OTP",
+                            "value": {
+                                "message": "Invitation OTP verified successfully. Proceed to create your account.",
+                                "email": "employee@company.com",
+                                "employer": "Company Name"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        400: {"description": "Invalid or expired OTP"}
+    },
+    description="""
+    Verify OTP for password reset or employee invitation.
+    
+    **OTP Types:**
+    - `reset_password`: Verify OTP for password reset
+    - `invitation`: Verify OTP for employee invitation
+    
+    **Example Request (Invitation):**
+    ```json
+    {
+      "email": "employee@company.com",
+      "code": "123456",
+      "otp_type": "invitation"
+    }
+    ```
+    
+    **Example Request (Password Reset):**
+    ```json
+    {
+      "email": "user@company.com",
+      "code": "654321",
+      "otp_type": "reset_password"
+    }
+    ```
+    """
+)
 class VerifyOTPView(APIView):
     permission_classes = [AllowAny]
 
@@ -231,8 +286,16 @@ class VerifyOTPView(APIView):
 
         elif otp_type == "invitation":
             invitation = serializer.context['invitation']
+            # Store email in session for signup
+            request.session['verified_invitation_email'] = invitation.email
+            request.session['invitation_verified_at'] = timezone.now().isoformat()
+            
             return Response(
-                {"message": "Invitation OTP verified successfully. Proceed to create your account."},
+                {
+                    "message": "Invitation OTP verified successfully. Proceed to create your account.",
+                    "email": invitation.email,
+                    "employer": invitation.employer.name
+                },
                 status=status.HTTP_200_OK
             )
 
@@ -786,9 +849,9 @@ class InviteView(viewsets.ModelViewSet):
 
         # Send email with OTP only
         try:
-            subject = f" Welcome to {employer.name} on Obeeoma!"
+            subject = f"Welcome to {employer.name} on Obeeoma!"
             otp = invitation.otp
-            otp_expiry = invitation.otp_expires_at.strftime('%I:%M %p')  # e.g., 04:32 PM
+            otp_expiry = invitation.otp_expires_at.strftime('%B %d, %Y at %I:%M %p')  # e.g., December 14, 2025 at 04:32 PM
 
             text_message = f"""
 Hello,
@@ -797,19 +860,33 @@ You have been invited to join {employer.name} on Obeeoma by {request.user.userna
 
 {invitation.message if invitation.message else ''}
 
-Your 6-digit OTP is: {otp}
+Your 6-digit verification code is: {otp}
 
-This OTP is valid until {otp_expiry}.
+This code will expire on {otp_expiry} (valid for 7 days).
 
-Use this OTP to verify your email and create your account.
+To complete your registration:
+1. Enter this OTP code to verify your email
+2. Create your username and password
+3. Start using Obeeoma
+
+If you did not expect this invitation, please ignore this email.
 
 Best regards,
 The Obeeoma Team
 """
-            # TODO: send_email(to=invitation.email, subject=subject, body=text_message)
+            # Send email using Gmail API
+            logger.info(f"Attempting to send invitation email to {invitation.email}")
+            success = send_gmail_api_email(invitation.email, subject, text_message)
+            
+            if not success:
+                logger.error(f"Gmail API failed to send invitation email to {invitation.email}")
+                # Still return success but log the failure
+            else:
+                logger.info(f"Successfully sent invitation email to {invitation.email}")
 
         except Exception as e:
             logger.error(f"Failed to send OTP email: {str(e)}")
+            logger.exception("Full email error traceback:")
 
         return Response({
             "message": "Invitation sent successfully. OTP has been emailed to the user.",
@@ -821,217 +898,6 @@ The Obeeoma Team
                 "created_at": invitation.created_at,
             }
         }, status=status.HTTP_201_CREATED)
-    
-
-# @extend_schema(tags=['Employee Invitations'])
-# class EmployeeFirstLoginView(APIView):
-#     """
-#     Handle first login with temporary credentials
-#     """
-#     permission_classes = [AllowAny]
-    
-#     @extend_schema(
-#         request=EmployeeFirstLoginSerializer,
-#         responses={
-#             200: {
-#                 "description": "First login successful",
-#                 "content": {
-#                     "application/json": {
-#                         "example": {
-#                             "message": "First login successful. Please complete your account setup.",
-#                             "email": "employee@company.com",
-#                             "employer": "Company Name"
-#                         }
-#                     }
-#                 }
-#             },
-#             400: {"description": "Invalid credentials"}
-#         },
-#         description="""
-#         First login endpoint for employees using temporary credentials from invitation email.
-        
-#         This endpoint requires:
-#         - token: Invitation token from email
-#         - temporary_username: Temporary username from email
-#         - temporary_password: Temporary password from email
-        
-#         After successful authentication:
-#         - The credentials are marked as used (cannot be reused)
-#         - User receives their email address
-#         - User can proceed to complete account setup
-#         """
-#     )
-#     def post(self, request):
-#         """Authenticate with temporary credentials"""
-#         serializer = EmployeeFirstLoginSerializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-        
-#         invitation = serializer.validated_data['invitation']
-        
-#         # Mark credentials as used
-#         invitation.credentials_used = True
-#         invitation.save()
-        
-#         # Store email in session for account setup (no need to send it again)
-#         request.session['invitation_email'] = invitation.email
-#         request.session['invitation_id'] = invitation.id
-        
-#         return Response({
-#             'message': 'First login successful. Please complete your account setup.',
-#             'email': invitation.email,
-#             'employer': invitation.employer.name,
-#             'invited_by': invitation.invited_by.email if invitation.invited_by else 'Unknown'
-#         }, status=status.HTTP_200_OK)
-
-
-# @extend_schema(tags=['Employee Invitations'])
-# class CompleteAccountSetupView(APIView):
-#     """
-#     Complete account setup after first login with temporary credentials
-#     """
-#     permission_classes = [AllowAny]  # Allow unauthenticated access for account setup
-    
-#     @extend_schema(
-#         request=EmployeeInvitationAcceptSerializer,
-#         responses={
-#             201: {
-#                 "description": "Account setup completed successfully",
-#                 "content": {
-#                     "application/json": {
-#                         "example": {
-#                             "message": "Account created successfully. You can now login with your new credentials.",
-#                             "user": {
-#                                 "id": 1,
-#                                 "email": "employee@company.com",
-#                                 "username": "john_doe",
-#                                 "role": "employee"
-#                             },
-#                             "employee_profile": {
-#                                 "id": 1,
-#                                 "employer": "Company Name"
-#                             },
-#                             "access": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-#                             "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-#                         }
-#                     }
-#                 }
-#             },
-#             400: {"description": "Invalid data or token not from first login"}
-#         },
-#         description="""
-#         Complete account setup after successful first login with temporary credentials.
-        
-#         This endpoint requires ONLY:
-#         - username: Choose your permanent username
-#         - password: Your chosen permanent password (min 8 characters)
-#         - confirm_password: Confirm your password
-        
-#         The system will:
-#         - Automatically find your invitation (from first login session)
-#         - Create your permanent user account
-#         - Set your new credentials
-#         - Create your employee profile
-#         - Return authentication tokens for immediate login
-        
-#         **Prerequisites:** Must have successfully completed first login with temporary credentials.
-#         **NO TOKEN OR EMAIL REQUIRED** - The system remembers your invitation from first login!
-#         """
-#     )
-#     def post(self, request):
-#         """
-#         Complete account setup with permanent credentials
-#         """
-#         try:
-#             serializer = EmployeeInvitationAcceptSerializer(data=request.data, context={'request': request})
-#             serializer.is_valid(raise_exception=True)
-            
-#             user = serializer.save()
-            
-#             # Generate tokens for immediate login
-#             refresh = RefreshToken.for_user(user)
-            
-#             return Response({
-#                 'message': 'Account created successfully. You can now login with your new credentials.',
-#                 'user': {
-#                     'id': user.id,
-#                     'email': user.email,
-#                     'username': user.username,
-#                     'role': user.role
-#                 },
-#                 'employee_profile': {
-#                     'id': user.employee_profile.id,
-#                     'organization': user.employee_profile.organization
-#                 },
-#                 'access': str(refresh.access_token),
-#                 'refresh': str(refresh)
-#             }, status=status.HTTP_201_CREATED)
-#         except ValidationError as e:
-#             logger.error(f"Validation error in complete account setup: {str(e)}")
-#             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-#         except Exception as e:
-#             logger.error(f"Unexpected error in complete account setup: {str(e)}", exc_info=True)
-#             return Response({
-#                 'error': 'An unexpected error occurred. Please try again or contact support.',
-#                 'detail': str(e)  # Always show error detail for debugging
-#             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    
-
-
-@extend_schema(
-    tags=['Employee Invitations'],
-    request={'token': 'string'},
-    responses={200: {'valid': 'boolean', 'invitation': 'object'}}
-)
-class InvitationVerifyView(APIView):
-    """Verify an invitation token before signup"""
-    permission_classes = [permissions.AllowAny]
-    
-    def get(self, request):
-        """
-        Verify if an invitation token is valid.
-        
-        Query parameter: ?token=abc123xyz
-        """
-        token = request.query_params.get('token')
-        
-        if not token:
-            return Response(
-                {"error": "Token parameter is required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            invitation = EmployeeInvitation.objects.get(token=token, accepted=False)
-            
-            # Check if expired
-            if invitation.expires_at < timezone.now():
-                return Response(
-                    {
-                        "valid": False,
-                        "error": "Invitation has expired",
-                        "expired_at": invitation.expires_at
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            return Response({
-                "valid": True,
-                "email": invitation.email,
-                "organization": invitation.employer.name,
-                "invited_by": invitation.invited_by.username if invitation.invited_by else "Administrator",
-                "expires_at": invitation.expires_at,
-                "message": invitation.message
-            })
-            
-        except EmployeeInvitation.DoesNotExist:
-            return Response(
-                {
-                    "valid": False,
-                    "error": "Invalid or already used invitation token"
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
 
 # ===== ASSESSMENT QUESTIONNAIRE VIEWS =====
 
@@ -1184,7 +1050,7 @@ class AssessmentResponseViewSet(viewsets.ModelViewSet):
             "content": {
                 "application/json": {
                     "example": {
-                        "message": "Account created successfully",
+                        "message": "Account created successfully. You can now login.",
                         "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                         "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                         "user": {
@@ -1197,24 +1063,31 @@ class AssessmentResponseViewSet(viewsets.ModelViewSet):
                 }
             }
         },
-        400: {"description": "Invalid token, expired invitation, or validation error"}
+        400: {"description": "Invalid data, email not verified, or validation error"}
     },
     description="""
-    Accept an employee invitation and create a new account.
+    Complete employee signup after OTP verification.
     
-    The invited person should:
-    1. Receive an email with an invitation token
-    2. Use this endpoint to create their account with the token
-    3. Provide a username and password
+    **New Flow:**
+    1. Employee receives invitation email with 6-digit OTP
+    2. Employee verifies OTP using /api/v1/auth/verify-otp/ endpoint (otp_type: "invitation")
+    3. After OTP verification, employee uses THIS endpoint to create account
+    
+    **Required Fields (email is automatically captured from OTP verification):**
+    - username: Choose a unique username
+    - password: Create a password (min 8 characters)
+    - confirm_password: Confirm the password
     
     **Example Request:**
     ```json
     {
-      "token": "abc123xyz789",
       "username": "johndoe",
-      "password": "SecurePassword123!"
+      "password": "SecurePassword123!",
+      "confirm_password": "SecurePassword123!"
     }
     ```
+    
+    **Note:** You must verify your OTP first. The email is automatically retrieved from your verification session.
     
     Upon success, the user account is created and linked to the organization.
     """
@@ -1224,10 +1097,22 @@ class InvitationAcceptView(viewsets.ViewSet):
     serializer_class = EmployeeInvitationAcceptSerializer
 
     def create(self, request):
-        """Accept invitation and create employee account"""
-        serializer = self.serializer_class(data=request.data)
+        """Complete employee signup after OTP verification"""
+        # Get verified email from session
+        email = request.session.get('verified_invitation_email')
+        if not email:
+            return Response(
+                {"error": "Please verify your OTP first before signing up."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        serializer = self.serializer_class(data=request.data, context={'email': email})
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        
+        # Clear session data after successful signup
+        request.session.pop('verified_invitation_email', None)
+        request.session.pop('invitation_verified_at', None)
         
         # Generate tokens
         refresh = RefreshToken.for_user(user)
@@ -1243,7 +1128,7 @@ class InvitationAcceptView(viewsets.ViewSet):
         }
         
         return Response({
-            'message': 'Account created successfully',
+            'message': 'Account created successfully. You can now login.',
             'access': str(refresh.access_token),
             'refresh': str(refresh),
             'user': user_data
@@ -3897,60 +3782,6 @@ class UpdatePaymentMethodViewSet(viewsets.ViewSet):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-# # --- Employee First Login ---
-# @extend_schema(tags=['Employee Invitations'])
-# class EmployeeFirstLoginViewSet(viewsets.ViewSet):
-#     """
-#     Handle first login with temporary credentials
-#     """
-#     permission_classes = [AllowAny]
-
-#     @extend_schema(
-#         request=EmployeeFirstLoginSerializer,
-#         responses={
-#             200: {
-#                 "description": "First login successful",
-#                 "content": {
-#                     "application/json": {
-#                         "example": {
-#                             "message": "First login successful. Please complete your account setup.",
-#                             "token": "abc123xyz",
-#                             "email": "employee@company.com",
-#                             "employer": "Company Name"
-#                         }
-#                     }
-#                 }
-#             },
-#             400: {"description": "Invalid credentials"}
-#         },
-#         description="""
-#         First login endpoint for employees using temporary credentials from invitation email.
-        
-#         After successful authentication with temporary credentials:
-#         - The credentials are marked as used (cannot be reused)
-#         - A token is returned for completing account setup
-#         - User must then call the account completion endpoint
-#         """
-#     )
-#     def create(self, request, *args, **kwargs):
-#         """POST /employee-first-login/"""
-#         serializer = EmployeeFirstLoginSerializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-
-#         invitation = serializer.validated_data['invitation']
-#         invitation.credentials_used = True
-#         if hasattr(request, 'session'):
-#            request.session['invitation_email'] = invitation.email
-#         invitation.save()
-
-#         return Response({
-#             'message': 'First login successful. Please complete your account setup.',
-#             'token': invitation.token,
-#             'email': invitation.email,
-#             'employer': invitation.employer.name,
-#             'invited_by': invitation.invited_by.email if invitation.invited_by else 'Unknown'
-#         }, status=status.HTTP_200_OK)
 
 @extend_schema(tags=['Assessments'])
 class PSS10AssessmentViewSet(viewsets.ModelViewSet):
