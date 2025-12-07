@@ -617,8 +617,8 @@ class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
         # Generate 6-digit OTP
         otp = f"{randbelow(1000000):06d}"
 
-        # Expiry for OTP: 10 minutes from now (you can adjust)
-        expiry_time = timezone.now() + timedelta(minutes=10)
+        # Expiry for OTP: 7 days from now
+        expiry_time = timezone.now() + timedelta(days=7)
 
         invitation = EmployeeInvitation.objects.create(
             employer=employer,

@@ -848,7 +848,7 @@ class InviteView(viewsets.ModelViewSet):
         try:
             subject = f"Welcome to {employer.name} on Obeeoma!"
             otp = invitation.otp
-            otp_expiry = invitation.otp_expires_at.strftime('%I:%M %p')  # e.g., 04:32 PM
+            otp_expiry = invitation.otp_expires_at.strftime('%B %d, %Y at %I:%M %p')  # e.g., December 14, 2025 at 04:32 PM
 
             text_message = f"""
 Hello,
@@ -859,7 +859,7 @@ You have been invited to join {employer.name} on Obeeoma by {request.user.userna
 
 Your 6-digit verification code is: {otp}
 
-This code will expire at {otp_expiry}.
+This code will expire on {otp_expiry} (valid for 7 days).
 
 To complete your registration:
 1. Enter this OTP code to verify your email
@@ -872,12 +872,18 @@ Best regards,
 The Obeeoma Team
 """
             # Send email using Gmail API
+            logger.info(f"Attempting to send invitation email to {invitation.email}")
             success = send_gmail_api_email(invitation.email, subject, text_message)
+            
             if not success:
-                logger.warning(f"Gmail API failed to send invitation email to {invitation.email}")
+                logger.error(f"Gmail API failed to send invitation email to {invitation.email}")
+                # Still return success but log the failure
+            else:
+                logger.info(f"Successfully sent invitation email to {invitation.email}")
 
         except Exception as e:
             logger.error(f"Failed to send OTP email: {str(e)}")
+            logger.exception("Full email error traceback:")
 
         return Response({
             "message": "Invitation sent successfully. OTP has been emailed to the user.",
