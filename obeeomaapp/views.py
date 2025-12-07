@@ -890,62 +890,6 @@ The Obeeoma Team
             }
         }, status=status.HTTP_201_CREATED)
 
-
-@extend_schema(
-    tags=['Employee Invitations'],
-    request={'token': 'string'},
-    responses={200: {'valid': 'boolean', 'invitation': 'object'}}
-)
-class InvitationVerifyView(APIView):
-    """Verify an invitation token before signup"""
-    permission_classes = [permissions.AllowAny]
-    
-    def get(self, request):
-        """
-        Verify if an invitation token is valid.
-        
-        Query parameter: ?token=abc123xyz
-        """
-        token = request.query_params.get('token')
-        
-        if not token:
-            return Response(
-                {"error": "Token parameter is required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            invitation = EmployeeInvitation.objects.get(token=token, accepted=False)
-            
-            # Check if expired
-            if invitation.expires_at < timezone.now():
-                return Response(
-                    {
-                        "valid": False,
-                        "error": "Invitation has expired",
-                        "expired_at": invitation.expires_at
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            return Response({
-                "valid": True,
-                "email": invitation.email,
-                "organization": invitation.employer.name,
-                "invited_by": invitation.invited_by.username if invitation.invited_by else "Administrator",
-                "expires_at": invitation.expires_at,
-                "message": invitation.message
-            })
-            
-        except EmployeeInvitation.DoesNotExist:
-            return Response(
-                {
-                    "valid": False,
-                    "error": "Invalid or already used invitation token"
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
 # ===== ASSESSMENT QUESTIONNAIRE VIEWS =====
 
 @extend_schema_view(
