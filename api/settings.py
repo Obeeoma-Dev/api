@@ -15,10 +15,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret-key")
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 PORT = os.getenv("PORT", "8000")
-ALLOWED_HOSTS = os.getenv(
-    "ALLOWED_HOSTS",
-    "64.225.122.101"
-).split(",")
+
+ALLOWED_HOSTS=["127.0.0.1", "localhost", "64.225.122.101"]
+
+
+# Required for Nginx proxy
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# If you're getting the duplicate IP issue, add this:
+USE_X_FORWARDED_PORT = True
 
 # This is  for generating the fernet key regarding MFA
 FERNET_KEY = os.getenv("FERNET_KEY")
@@ -27,6 +33,7 @@ FERNET_KEY = os.getenv("FERNET_KEY")
 CSRF_TRUSTED_ORIGINS = [
     "http://64.225.122.101:8000",
     "http://64.225.122.101",
+    "http://64.225.122.101:5173", 
 ]
 
 # Database configuration
@@ -139,14 +146,17 @@ AUTH_USER_MODEL = "obeeomaapp.User"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # CORS settings
-# Whitelist specific origins (recommended for production)
-CORS_ALLOWED_ORIGINS = [
-    "http://64.225.122.101:8000",      # Production backend (DigitalOcean)
-    "http://64.225.122.101",           # Production frontend (DigitalOcean)
-]
-
-# Additional CORS settings
+# Allow all origins for development (restrict in production)
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -158,9 +168,6 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
-
-# For early development only - uncomment to allow all origins (not recommended for production)
-# CORS_ALLOW_ALL_ORIGINS = True
 
 # Frontend URL for email links
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://64.225.122.101")
@@ -202,8 +209,12 @@ SPECTACULAR_SETTINGS = {
     },
     "SERVERS": [
         {
-            "url": "http://64.225.122.101:8000",
+            "url": "http://64.225.122.101",
             "description": "Production server"
+        },
+        {
+            "url": "http://127.0.0.1:8000",
+            "description": "Local development server"
         },
     ],
 }
@@ -274,3 +285,11 @@ GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://developers.googl
 GMAIL_SCOPES = [
     "https://mail.google.com/",  # Full Gmail access (includes send)
 ]
+
+# settings.py (add)
+AWS_ACCESS_KEY_ID = os.environ.get("DO_SPACES_KEY")
+AWS_SECRET_ACCESS_KEY = os.environ.get("DO_SPACES_SECRET")
+AWS_STORAGE_BUCKET_NAME = os.environ.get("DO_SPACES_NAME")        # example: "my-space"
+AWS_S3_ENDPOINT_URL = os.environ.get("DO_SPACES_ENDPOINT")       # e.g. "https://nyc3.digitaloceanspaces.com"
+AWS_S3_REGION_NAME = os.environ.get("DO_SPACES_REGION")          # e.g. "nyc3"
+AWS_S3_SIGNATURE_VERSION = "s3v4"

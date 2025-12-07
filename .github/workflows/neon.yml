@@ -54,13 +54,8 @@ jobs:
       db_url_with_pooler: ${{ steps.create_neon_branch_encode.outputs.db_url_with_pooler }}
       # These are output variables that hold the Neon DB connection URLs
     needs: setup                  # This job depends on the "setup" job to run first
-    if: |
-      github.event_name == 'pull_request' && (
-      github.event.action == 'synchronize'
-      || github.event.action == 'opened'
-      || github.event.action == 'reopened')
-      # Run this job only when the PR is opened, reopened, or updated
-    runs-on: ubuntu-latest        # Use Ubuntu as the environment
+    if: github.event_name == 'pull_request' && (github.event.action == 'synchronize' || github.event.action == 'opened' || github.event.action == 'reopened')
+    runs-on: ubuntu-latest     # Use Ubuntu as the environment
 
     steps:
       - name: Get branch expiration date as an env variable (2 weeks from now)
