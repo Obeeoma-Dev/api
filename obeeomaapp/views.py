@@ -178,12 +178,14 @@ class IsCompanyAdmin(BasePermission):
 
 
 # # SIGNUP VIEW
+@extend_schema(tags=['Authentication'])
+class SignupView(viewsets.ModelViewSet):
+     queryset = User.objects.all()
+     serializer_class = SignupSerializer
+     permission_classes = [permissions.AllowAny]
+        
 
-# @extend_schema(tags=['Authentication'])
-# class SignupView(viewsets.ModelViewSet):
-#     queryset = User.objects.all()
-#     serializer_class = SignupSerializer
-#     permission_classes = [permissions.AllowAny]
+       
 
 # VIEWS FOR CREATING AN ORGANIZATION
 @extend_schema(
@@ -210,24 +212,93 @@ class OrganizationDetailView(APIView):
 
 
 # VIEWS FOR VERIFYING THE OTP
+@extend_schema(
+    tags=['Authentication'],
+    request=OTPVerificationSerializer,
+    responses={
+        200: {
+            "description": "OTP verified successfully",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "password_reset": {
+                            "summary": "Password Reset OTP",
+                            "value": {
+                                "message": "OTP verified successfully. You can now reset your password."
+                            }
+                        },
+                        "invitation": {
+                            "summary": "Invitation OTP",
+                            "value": {
+                                "message": "Invitation OTP verified successfully. Proceed to create your account.",
+                                "email": "employee@company.com",
+                                "employer": "Company Name"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        400: {"description": "Invalid or expired OTP"}
+    },
+    description="""
+    Verify OTP for password reset or employee invitation.
+    
+    **OTP Types:**
+    - `reset_password`: Verify OTP for password reset
+    - `invitation`: Verify OTP for employee invitation
+    
+    **Example Request (Invitation):**
+    ```json
+    {
+      "email": "employee@company.com",
+      "code": "123456",
+      "otp_type": "invitation"
+    }
+    ```
+    
+    **Example Request (Password Reset):**
+    ```json
+    {
+      "email": "user@company.com",
+      "code": "654321",
+      "otp_type": "reset_password"
+    }
+    ```
+    """
+)
 class VerifyOTPView(APIView):
     permission_classes = [AllowAny]
 
-    @extend_schema(
-        request=OTPVerificationSerializer,
-        responses={200: OpenApiTypes.OBJECT},
-    )
     def post(self, request):
         serializer = OTPVerificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        user = serializer.context['user']
-        serializer.context['otp'].delete()  # This Deletes OTP after successful verification
+        otp_type = request.data.get("otp_type")
 
-        return Response(
-            {"message": "OTP verified successfully. You can now reset your password."},
-            status=status.HTTP_200_OK
-        )
+        if otp_type == "reset_password":
+            user = serializer.context['user']
+            serializer.context['otp'].delete()  # Remove password reset OTP
+            return Response(
+                {"message": "OTP verified successfully. You can now reset your password."},
+                status=status.HTTP_200_OK
+            )
+
+        elif otp_type == "invitation":
+            invitation = serializer.context['invitation']
+            # Store email in session for signup
+            request.session['verified_invitation_email'] = invitation.email
+            request.session['invitation_verified_at'] = timezone.now().isoformat()
+            
+            return Response(
+                {
+                    "message": "Invitation OTP verified successfully. Proceed to create your account.",
+                    "email": invitation.email,
+                    "employer": invitation.employer.name
+                },
+                status=status.HTTP_200_OK
+            )
+
 
 
 
@@ -345,7 +416,7 @@ class CompleteOnboardingView(APIView):
         # Now allow permanent login
         return Response({
             "message": "Onboarding completed successfully.",
-            "login_allowed": True
+            "first_time_access": False   # This tells frontend this user must login next time   
         })
 
 # LOGOUT VIEW
@@ -672,11 +743,12 @@ class ActiveHotlineView(APIView):
         serializer = CrisisHotlineSerializer(hotline)
         return Response(serializer.data)
 
+
 # --- Employee Invitation Views ---
 @extend_schema(tags=['Employee Invitations'])
 class InviteView(viewsets.ModelViewSet):
     """
-    Employee Invitation Management
+    Employee Invitation Management (OTP Only)
     
     Allows employers to:
     - Send email invitations to new employees
@@ -684,25 +756,23 @@ class InviteView(viewsets.ModelViewSet):
     - Resend or cancel invitations
     """
     serializer_class = EmployeeInvitationCreateSerializer
-    permission_classes = [permissions.IsAuthenticated]  # Allow any authenticated user with an organization
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Get invitations for the employer's organization
         employer = None
-        
-        # First, check if user has an Organization (for organization owners)
+
+        # Try to get employer from organization
         try:
             organization = Organization.objects.filter(owner=self.request.user).first()
             if organization:
-                # Get or create Employer from Organization
                 employer, created = Employer.objects.get_or_create(
                     name=organization.organizationName,
                     defaults={'is_active': True}
                 )
         except Exception:
             pass
-        
-        # If no organization, try to get employer from employee profile
+
+        # Try to get employer from employee profile
         if not employer:
             try:
                 employee_profile = Employee.objects.filter(user=self.request.user).first()
@@ -710,87 +780,48 @@ class InviteView(viewsets.ModelViewSet):
                     employer = employee_profile.employer
             except Exception:
                 pass
-        
-        # If still no employer, check if user is staff and get first employer
+
+        # If user is staff, get first employer
         if not employer and self.request.user.is_staff:
             employer = Employer.objects.first()
-        
+
         if employer:
             queryset = EmployeeInvitation.objects.filter(employer=employer).order_by('-created_at')
             status_param = self.request.query_params.get('status')
             now = timezone.now()
 
             if status_param == 'pending':
-                queryset = queryset.filter(accepted=False, expires_at__gt=now)
+                queryset = queryset.filter(accepted=False, otp_expires_at__gt=now)
             elif status_param == 'accepted':
                 queryset = queryset.filter(accepted=True)
             elif status_param == 'expired':
-                queryset = queryset.filter(accepted=False, expires_at__lte=now)
+                queryset = queryset.filter(accepted=False, otp_expires_at__lte=now)
 
             return queryset
-        
+
         return EmployeeInvitation.objects.none()
-    
+
     @extend_schema(
         request=EmployeeInvitationCreateSerializer,
-        responses={
-            201: {
-                "description": "Invitation sent successfully",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "message": "Invitation sent successfully",
-                            "invitation": {
-                                "id": 1,
-                                "email": "newemployee@company.com",
-                                "message": "Welcome to our team!",
-                                "expires_at": "2025-11-06T19:13:03.648Z",
-                                "created_at": "2025-10-30T19:13:03.648Z"
-                            },
-                            "invitation_link": "/auth/accept-invite/?token=abc123xyz"
-                        }
-                    }
-                }
-            },
-            400: {"description": "Bad Request - Invalid data or user has no organization"}
-        },
-        description="""
-        Send an invitation to a new employee.
-        
-        The system will:
-        - Generate a unique invitation token
-        - Send an email to the invited person
-        - Set an expiration date for the invitation (defaults to 7 days)
-        
-        **Example Request:**
-        ```json
-        {
-            "email": "newemployee@company.com",
-            "message": "Welcome to our team!"
-        }
-        ```
-        
-        **Note:** The employer is automatically set from your authenticated user.
-        """
+        responses={201: "Invitation sent successfully", 400: "Bad Request"},
+        description="Send an invitation to a new employee with OTP only"
     )
     def create(self, request, *args, **kwargs):
-        """Send an invitation to a new employee"""
-        # Get the employer for the current user
+        """Send an invitation to a new employee (OTP only)"""
         employer = None
-        
-        # First, check if user has an Organization (for organization owners)
+
+        # Get employer from organization
         try:
             organization = Organization.objects.filter(owner=request.user).first()
             if organization:
-                # Get or create Employer from Organization
                 employer, created = Employer.objects.get_or_create(
                     name=organization.organizationName,
                     defaults={'is_active': True}
                 )
         except Exception as e:
             logger.warning(f"Error getting organization: {str(e)}")
-        
-        # If no organization, try to get employer from employee profile
+
+        # Get employer from employee profile
         if not employer:
             try:
                 employee_profile = Employee.objects.filter(user=request.user).first()
@@ -798,496 +829,75 @@ class InviteView(viewsets.ModelViewSet):
                     employer = employee_profile.employer
             except Exception:
                 pass
-        
-        # If still no employer, check if user is staff and get first employer
+
+        # Staff fallback
         if not employer and request.user.is_staff:
             employer = Employer.objects.first()
-        
+
         if not employer:
             return Response(
-                {
-                    "error": "You must be associated with an organization to send invitations",
-                    "detail": "Please create or join an organization first"
-                },
+                {"error": "You must be associated with an organization to send invitations"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         serializer = self.get_serializer(
             data=request.data,
-            context={
-                'employer': employer,
-                'user': request.user
-            }
+            context={'employer': employer, 'user': request.user}
         )
         serializer.is_valid(raise_exception=True)
         invitation = serializer.save()
-        
-        # Send invitation email with temporary credentials
+
+        # Send email with OTP only
         try:
-            login_url = f"{settings.FRONTEND_URL}/auth/first-login" if hasattr(settings, 'FRONTEND_URL') else f"http://64.225.122.101/auth/first-login"
-            
-            subject = f"🎉 Welcome to {employer.name} on Obeeoma!"
-            
-            # Plain text version
+            subject = f"Welcome to {employer.name} on Obeeoma!"
+            otp = invitation.otp
+            otp_expiry = invitation.otp_expires_at.strftime('%B %d, %Y at %I:%M %p')  # e.g., December 14, 2025 at 04:32 PM
+
             text_message = f"""
 Hello,
 
-You have been invited to join {employer.name} on the Obeeoma platform by {request.user.username}.
+You have been invited to join {employer.name} on Obeeoma by {request.user.username}.
 
 {invitation.message if invitation.message else ''}
 
-To get started, please use the following ONE-TIME credentials for your first login:
+Your 6-digit verification code is: {otp}
 
-Token: {invitation.token}
-Username: {invitation.temporary_username}
-Password: {invitation.temp_password_plain}
+This code will expire on {otp_expiry} (valid for 7 days).
 
-Login URL: {login_url}
+To complete your registration:
+1. Enter this OTP code to verify your email
+2. Create your username and password
+3. Start using Obeeoma
 
-IMPORTANT: These credentials are for ONE-TIME USE ONLY. After your first login, you will be required to:
-1. Enter your token
-2. Choose your permanent username
-3. Create a new permanent password
-
-Your invitation will expire on {invitation.expires_at.strftime('%B %d, %Y at %I:%M %p')}.
-
-For security reasons, please do not share these credentials with anyone.
-
-If you have any questions, please contact your organization administrator.
+If you did not expect this invitation, please ignore this email.
 
 Best regards,
 The Obeeoma Team
 """
+            # Send email using Gmail API
+            logger.info(f"Attempting to send invitation email to {invitation.email}")
+            success = send_gmail_api_email(invitation.email, subject, text_message)
             
-            # HTML version - Obeeoma brand colors
-            html_message = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.5;
-            color: #1f2937;
-            margin: 0;
-            padding: 20px;
-            background-color: #f0f9f4;
-        }}
-        .container {{
-            max-width: 560px;
-            margin: 0 auto;
-            background: #ffffff;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(11, 110, 69, 0.12);
-        }}
-        .header {{
-            background: linear-gradient(135deg, #0B6E45 0%, #00A859 100%);
-            color: white;
-            padding: 32px 24px;
-            text-align: center;
-        }}
-        .header h1 {{
-            margin: 0 0 8px;
-            font-size: 24px;
-            font-weight: 700;
-        }}
-        .header p {{
-            margin: 0;
-            font-size: 14px;
-            opacity: 0.95;
-        }}
-        .logo {{
-            margin-bottom: 12px;
-            font-size: 14px;
-            letter-spacing: 1px;
-            opacity: 0.9;
-        }}
-        .content {{
-            padding: 32px 24px;
-        }}
-        .intro {{
-            font-size: 15px;
-            color: #374151;
-            margin-bottom: 24px;
-            text-align: center;
-            line-height: 1.6;
-        }}
-        .credentials {{
-            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-            border: 2px solid #3CB371;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 24px 0;
-        }}
-        .credentials h3 {{
-            margin: 0 0 16px;
-            font-size: 16px;
-            color: #0B6E45;
-            text-align: center;
-            font-weight: 700;
-        }}
-        .cred-row {{
-            display: flex;
-            align-items: center;
-            background: white;
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            border: 1px solid #d1fae5;
-        }}
-        .cred-row:last-child {{
-            margin-bottom: 0;
-        }}
-        .cred-label {{
-            font-size: 12px;
-            color: #0B6E45;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            width: 90px;
-        }}
-        .cred-value {{
-            font-size: 16px;
-            font-weight: 700;
-            color: #111827;
-            font-family: 'Courier New', monospace;
-            flex: 1;
-        }}
+            if not success:
+                logger.error(f"Gmail API failed to send invitation email to {invitation.email}")
+                # Still return success but log the failure
+            else:
+                logger.info(f"Successfully sent invitation email to {invitation.email}")
 
-        .info-box {{
-            background: #f0f9f4;
-            border-left: 3px solid #3CB371;
-            padding: 12px 16px;
-            border-radius: 6px;
-            margin: 20px 0;
-            font-size: 13px;
-            color: #374151;
-        }}
-        .info-box strong {{
-            color: #0B6E45;
-        }}
-        .footer {{
-            background: #f0f9f4;
-            padding: 20px 24px;
-            text-align: center;
-            font-size: 13px;
-            color: #6b7280;
-            border-top: 1px solid #d1fae5;
-        }}
-        .footer p {{
-            margin: 4px 0;
-        }}
-        .footer strong {{
-            color: #0B6E45;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="logo">OBEEOMA • A HAPPY HEART</div>
-            <h1> Welcome to {employer.name}!</h1>
-            <p>Join our team on Obeeoma</p>
-        </div>
-        
-        <div class="content">
-            <div class="intro">
-                <strong>{invitation.invited_by.email if invitation.invited_by else 'Your administrator'}</strong> has invited you to join <strong>{employer.name}</strong> on the Obeeoma platform for mental health and employee wellbeing.
-            </div>
-            
-            <div class="credentials">
-                <h3>Your One-Time Login Credentials</h3>
-                <div class="cred-row">
-                    <span class="cred-label">Token</span>
-                    <span class="cred-value">{invitation.token}</span>
-                </div>
-                <div class="cred-row">
-                    <span class="cred-label">Username</span>
-                    <span class="cred-value">{invitation.temporary_username}</span>
-                </div>
-                <div class="cred-row">
-                    <span class="cred-label">Password</span>
-                    <span class="cred-value">{invitation.temp_password_plain}</span>
-                </div>
-            </div>
-            
-            <div class="info-box">
-                <strong>Next Steps:</strong> After login, you'll choose your permanent username and password.
-            </div>
-            
-            <div class="info-box">
-                 <strong>Important:</strong> These credentials are for one-time use only and expire on <strong>{invitation.expires_at.strftime('%b %d, %Y')}</strong>.
-            </div>
-        </div>
-        
-        <div class="footer">
-            <p>Need help? Contact your organization administrator.</p>
-            <p><strong>The Obeeoma Team</strong></p>
-        </div>
-    </div>
-</body>
-</html>
-"""
-            
-            # Try to send via Gmail API first, fallback to SMTP
-            email_sent = False
-            try:
-                # Only try Gmail API if credentials are configured
-                if settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET:
-                    # Pass both plain text and HTML versions
-                    email_sent = send_gmail_api_email(
-                        invitation.email, 
-                        subject, 
-                        text_message,  # Plain text body
-                        html_body=html_message  # HTML body
-                    )
-                    logger.info(f"Email sent via Gmail API to {invitation.email}")
-            except Exception as gmail_error:
-                logger.warning(f"Gmail API failed: {str(gmail_error)}")
-            
-            # Fallback to SMTP if Gmail API didn't work
-            if not email_sent:
-                try:
-                    # Send multipart email with both plain text and HTML
-                    email = EmailMultiAlternatives(
-                        subject,
-                        text_message,  # Plain text version
-                        settings.DEFAULT_FROM_EMAIL,
-                        [invitation.email]
-                    )
-                    email.attach_alternative(html_message, "text/html")  # HTML version
-                    email.send(fail_silently=False)
-                    email_sent = True
-                    logger.info(f"Email sent via SMTP to {invitation.email}")
-                except Exception as smtp_error:
-                    logger.error(f"SMTP failed: {str(smtp_error)}")
-            
-            if not email_sent:
-                logger.error(f"Failed to send invitation email to {invitation.email}")
-                
         except Exception as e:
-            logger.error(f"Error sending invitation email: {str(e)}")
-            # Don't fail the request if email fails, just log it
-        
+            logger.error(f"Failed to send OTP email: {str(e)}")
+            logger.exception("Full email error traceback:")
+
         return Response({
-            'message': 'Invitation sent successfully',
-            'invitation': serializer.data,
-            'invitation_link': f'/auth/accept-invite/?token={invitation.token}'
-        }, status=status.HTTP_201_CREATED)
-
-
-@extend_schema(tags=['Employee Invitations'])
-class EmployeeFirstLoginView(APIView):
-    """
-    Handle first login with temporary credentials
-    """
-    permission_classes = [AllowAny]
-    
-    @extend_schema(
-        request=EmployeeFirstLoginSerializer,
-        responses={
-            200: {
-                "description": "First login successful",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "message": "First login successful. Please complete your account setup.",
-                            "email": "employee@company.com",
-                            "employer": "Company Name"
-                        }
-                    }
-                }
-            },
-            400: {"description": "Invalid credentials"}
-        },
-        description="""
-        First login endpoint for employees using temporary credentials from invitation email.
-        
-        This endpoint requires:
-        - token: Invitation token from email
-        - temporary_username: Temporary username from email
-        - temporary_password: Temporary password from email
-        
-        After successful authentication:
-        - The credentials are marked as used (cannot be reused)
-        - User receives their email address
-        - User can proceed to complete account setup
-        """
-    )
-    def post(self, request):
-        """Authenticate with temporary credentials"""
-        serializer = EmployeeFirstLoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        invitation = serializer.validated_data['invitation']
-        
-        # Mark credentials as used
-        invitation.credentials_used = True
-        invitation.save()
-        
-        # Store email in session for account setup (no need to send it again)
-        request.session['invitation_email'] = invitation.email
-        request.session['invitation_id'] = invitation.id
-        
-        return Response({
-            'message': 'First login successful. Please complete your account setup.',
-            'email': invitation.email,
-            'employer': invitation.employer.name,
-            'invited_by': invitation.invited_by.email if invitation.invited_by else 'Unknown'
-        }, status=status.HTTP_200_OK)
-
-
-@extend_schema(tags=['Employee Invitations'])
-class CompleteAccountSetupView(APIView):
-    """
-    Complete account setup after first login with temporary credentials
-    """
-    permission_classes = [AllowAny]  # Allow unauthenticated access for account setup
-    
-    @extend_schema(
-        request=EmployeeInvitationAcceptSerializer,
-        responses={
-            201: {
-                "description": "Account setup completed successfully",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "message": "Account created successfully. You can now login with your new credentials.",
-                            "user": {
-                                "id": 1,
-                                "email": "employee@company.com",
-                                "username": "john_doe",
-                                "role": "employee"
-                            },
-                            "employee_profile": {
-                                "id": 1,
-                                "employer": "Company Name"
-                            },
-                            "access": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-                            "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-                        }
-                    }
-                }
-            },
-            400: {"description": "Invalid data or token not from first login"}
-        },
-        description="""
-        Complete account setup after successful first login with temporary credentials.
-        
-        This endpoint requires ONLY:
-        - username: Choose your permanent username
-        - password: Your chosen permanent password (min 8 characters)
-        - confirm_password: Confirm your password
-        
-        The system will:
-        - Automatically find your invitation (from first login session)
-        - Create your permanent user account
-        - Set your new credentials
-        - Create your employee profile
-        - Return authentication tokens for immediate login
-        
-        **Prerequisites:** Must have successfully completed first login with temporary credentials.
-        **NO TOKEN OR EMAIL REQUIRED** - The system remembers your invitation from first login!
-        """
-    )
-    def post(self, request):
-        """
-        Complete account setup with permanent credentials
-        """
-        try:
-            serializer = EmployeeInvitationAcceptSerializer(data=request.data, context={'request': request})
-            serializer.is_valid(raise_exception=True)
-            
-            user = serializer.save()
-            
-            # Generate tokens for immediate login
-            refresh = RefreshToken.for_user(user)
-            
-            return Response({
-                'message': 'Account created successfully. You can now login with your new credentials.',
-                'user': {
-                    'id': user.id,
-                    'email': user.email,
-                    'username': user.username,
-                    'role': user.role
-                },
-                'employee_profile': {
-                    'id': user.employee_profile.id,
-                    'organization': user.employee_profile.organization
-                },
-                'access': str(refresh.access_token),
-                'refresh': str(refresh)
-            }, status=status.HTTP_201_CREATED)
-        except ValidationError as e:
-            logger.error(f"Validation error in complete account setup: {str(e)}")
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.error(f"Unexpected error in complete account setup: {str(e)}", exc_info=True)
-            return Response({
-                'error': 'An unexpected error occurred. Please try again or contact support.',
-                'detail': str(e)  # Always show error detail for debugging
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    
-
-
-@extend_schema(
-    tags=['Employee Invitations'],
-    request={'token': 'string'},
-    responses={200: {'valid': 'boolean', 'invitation': 'object'}}
-)
-class InvitationVerifyView(APIView):
-    """Verify an invitation token before signup"""
-    permission_classes = [permissions.AllowAny]
-    
-    def get(self, request):
-        """
-        Verify if an invitation token is valid.
-        
-        Query parameter: ?token=abc123xyz
-        """
-        token = request.query_params.get('token')
-        
-        if not token:
-            return Response(
-                {"error": "Token parameter is required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            invitation = EmployeeInvitation.objects.get(token=token, accepted=False)
-            
-            # Check if expired
-            if invitation.expires_at < timezone.now():
-                return Response(
-                    {
-                        "valid": False,
-                        "error": "Invitation has expired",
-                        "expired_at": invitation.expires_at
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            return Response({
-                "valid": True,
+            "message": "Invitation sent successfully. OTP has been emailed to the user.",
+            "invitation": {
+                "id": invitation.id,
                 "email": invitation.email,
-                "organization": invitation.employer.name,
-                "invited_by": invitation.invited_by.username if invitation.invited_by else "Administrator",
-                "expires_at": invitation.expires_at,
-                "message": invitation.message
-            })
-            
-        except EmployeeInvitation.DoesNotExist:
-            return Response(
-                {
-                    "valid": False,
-                    "error": "Invalid or already used invitation token"
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
+                "message": invitation.message,
+                "otp_expires_at": invitation.otp_expires_at,
+                "created_at": invitation.created_at,
+            }
+        }, status=status.HTTP_201_CREATED)
 
 # ===== ASSESSMENT QUESTIONNAIRE VIEWS =====
 
@@ -1440,7 +1050,7 @@ class AssessmentResponseViewSet(viewsets.ModelViewSet):
             "content": {
                 "application/json": {
                     "example": {
-                        "message": "Account created successfully",
+                        "message": "Account created successfully. You can now login.",
                         "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                         "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                         "user": {
@@ -1453,24 +1063,31 @@ class AssessmentResponseViewSet(viewsets.ModelViewSet):
                 }
             }
         },
-        400: {"description": "Invalid token, expired invitation, or validation error"}
+        400: {"description": "Invalid data, email not verified, or validation error"}
     },
     description="""
-    Accept an employee invitation and create a new account.
+    Complete employee signup after OTP verification.
     
-    The invited person should:
-    1. Receive an email with an invitation token
-    2. Use this endpoint to create their account with the token
-    3. Provide a username and password
+    **New Flow:**
+    1. Employee receives invitation email with 6-digit OTP
+    2. Employee verifies OTP using /api/v1/auth/verify-otp/ endpoint (otp_type: "invitation")
+    3. After OTP verification, employee uses THIS endpoint to create account
+    
+    **Required Fields (email is automatically captured from OTP verification):**
+    - username: Choose a unique username
+    - password: Create a password (min 8 characters)
+    - confirm_password: Confirm the password
     
     **Example Request:**
     ```json
     {
-      "token": "abc123xyz789",
       "username": "johndoe",
-      "password": "SecurePassword123!"
+      "password": "SecurePassword123!",
+      "confirm_password": "SecurePassword123!"
     }
     ```
+    
+    **Note:** You must verify your OTP first. The email is automatically retrieved from your verification session.
     
     Upon success, the user account is created and linked to the organization.
     """
@@ -1480,10 +1097,22 @@ class InvitationAcceptView(viewsets.ViewSet):
     serializer_class = EmployeeInvitationAcceptSerializer
 
     def create(self, request):
-        """Accept invitation and create employee account"""
-        serializer = self.serializer_class(data=request.data)
+        """Complete employee signup after OTP verification"""
+        # Get verified email from session
+        email = request.session.get('verified_invitation_email')
+        if not email:
+            return Response(
+                {"error": "Please verify your OTP first before signing up."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        serializer = self.serializer_class(data=request.data, context={'email': email})
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        
+        # Clear session data after successful signup
+        request.session.pop('verified_invitation_email', None)
+        request.session.pop('invitation_verified_at', None)
         
         # Generate tokens
         refresh = RefreshToken.for_user(user)
@@ -1499,7 +1128,7 @@ class InvitationAcceptView(viewsets.ViewSet):
         }
         
         return Response({
-            'message': 'Account created successfully',
+            'message': 'Account created successfully. You can now login.',
             'access': str(refresh.access_token),
             'refresh': str(refresh),
             'user': user_data
@@ -4103,60 +3732,6 @@ class UpdatePaymentMethodViewSet(viewsets.ViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# --- Employee First Login ---
-@extend_schema(tags=['Employee Invitations'])
-class EmployeeFirstLoginViewSet(viewsets.ViewSet):
-    """
-    Handle first login with temporary credentials
-    """
-    permission_classes = [AllowAny]
-
-    @extend_schema(
-        request=EmployeeFirstLoginSerializer,
-        responses={
-            200: {
-                "description": "First login successful",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "message": "First login successful. Please complete your account setup.",
-                            "token": "abc123xyz",
-                            "email": "employee@company.com",
-                            "employer": "Company Name"
-                        }
-                    }
-                }
-            },
-            400: {"description": "Invalid credentials"}
-        },
-        description="""
-        First login endpoint for employees using temporary credentials from invitation email.
-        
-        After successful authentication with temporary credentials:
-        - The credentials are marked as used (cannot be reused)
-        - A token is returned for completing account setup
-        - User must then call the account completion endpoint
-        """
-    )
-    def create(self, request, *args, **kwargs):
-        """POST /employee-first-login/"""
-        serializer = EmployeeFirstLoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        invitation = serializer.validated_data['invitation']
-        invitation.credentials_used = True
-        if hasattr(request, 'session'):
-           request.session['invitation_email'] = invitation.email
-        invitation.save()
-
-        return Response({
-            'message': 'First login successful. Please complete your account setup.',
-            'token': invitation.token,
-            'email': invitation.email,
-            'employer': invitation.employer.name,
-            'invited_by': invitation.invited_by.email if invitation.invited_by else 'Unknown'
-        }, status=status.HTTP_200_OK)
-
 @extend_schema(tags=['Assessments'])
 class PSS10AssessmentViewSet(viewsets.ModelViewSet):
     """
@@ -4172,7 +3747,6 @@ class PSS10AssessmentViewSet(viewsets.ModelViewSet):
         return PSS10Assessment.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
-        # Calculate score and category before saving
         responses = serializer.validated_data['responses']
         score = sum(responses)
 
@@ -4183,15 +3757,185 @@ class PSS10AssessmentViewSet(viewsets.ModelViewSet):
         else:
             category = "High stress"
 
-        serializer.save(
-            user=self.request.user,
-            score=score,
-            category=category
+        serializer.save(user=self.request.user, score=score, category=category)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        instance = serializer.instance
+        return Response({
+            "score": instance.score,
+            "category": instance.category,
+            "user": instance.user.id,
+            "message": f"Your stress level is {instance.category.lower()}."
+        }, status=status.HTTP_201_CREATED, headers=headers)
+
+# content/views.py
+import uuid
+import boto3
+from botocore.client import Config
+from django.conf import settings
+from rest_framework import viewsets, status, permissions, views
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from .models import ContentArticle, ContentMedia
+from .serializers import ContentArticleSerializer, ContentMediaSerializer
+
+# --- Helper to create a presigned PUT URL for DO Spaces ---
+def generate_presigned_put_url(object_key: str, content_type: str, expires_in: int = 3600):
+    client = boto3.client(
+        "s3",
+        region_name=settings.AWS_S3_REGION_NAME,
+        endpoint_url=settings.AWS_S3_ENDPOINT_URL,
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        config=Config(signature_version="s3v4"),
+    )
+
+    url = client.generate_presigned_url(
+        ClientMethod="put_object",
+        Params={
+            "Bucket": settings.AWS_STORAGE_BUCKET_NAME,
+            "Key": object_key,
+            "ContentType": content_type,
+        },
+        ExpiresIn=expires_in,
+    )
+    return url
+
+
+# --- Presign upload endpoint (separate view) ---
+class PresignUploadView(views.APIView):
+    permission_classes = [IsSystemAdmin]
+
+    def post(self, request):
+        """
+        Expects JSON:
+        { "filename": "video.mp4", "content_type": "video/mp4", "media_type": "video", "title": "optional" }
+        Returns:
+        { "presigned_url": "...", "s3_key": "uploads/uuid_video.mp4", "media_id": 5 }
+        """
+        filename = request.data.get("filename")
+        content_type = request.data.get("content_type")
+        media_type = request.data.get("media_type")
+        title = request.data.get("title", "")
+
+        if not filename or not content_type:
+            return Response({"detail": "filename and content_type are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # create a safe unique object key (you can change path structure)
+        unique_name = f"{uuid.uuid4().hex}_{filename}"
+        object_key = f"uploads/{unique_name}"
+
+        try:
+            presigned_url = generate_presigned_put_url(object_key, content_type)
+        except Exception as e:
+            return Response({"detail": f"failed to generate presigned url: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # create DB record now (uploaded=False) so we can reference it
+        media = ContentMedia.objects.create(
+            owner=request.user,
+            title=title or filename,
+            media_type=media_type or ContentMedia.MEDIA_OTHER,
+            s3_key=object_key,
+            uploaded=False,
+            processed=False,
         )
 
-    @extend_schema(
-        request=PSS10AssessmentSerializer,
-        responses={200: PSS10AssessmentSerializer}
-    )
-    def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+        return Response({"presigned_url": presigned_url, "s3_key": object_key, "media_id": media.id}, status=status.HTTP_201_CREATED)
+
+
+# --- Confirm upload endpoint ---
+class ConfirmUploadView(views.APIView):
+    permission_classes = [IsSystemAdmin]
+
+    def post(self, request):
+        """
+        Body: { "media_id": 5, "public_url": "optional public url from CDN" }
+        Marks the media as uploaded=True and optionally records public_url.
+        """
+        media_id = request.data.get("media_id")
+        public_url = request.data.get("public_url")
+
+        if not media_id:
+            return Response({"detail": "media_id required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            media = ContentMedia.objects.get(id=media_id, owner=request.user)
+        except ContentMedia.DoesNotExist:
+            return Response({"detail": "media not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        media.uploaded = True
+        if public_url:
+            media.public_url = public_url
+        media.save()
+
+        # TODO: enqueue background processing task e.g. tasks.process_media.delay(media.id)
+        return Response({"detail": "upload confirmed", "media_id": media.id}, status=status.HTTP_200_OK)
+
+
+# --- ViewSets for Article and Media ---
+class ContentArticleViewSet(viewsets.ModelViewSet):
+    serializer_class = ContentArticleSerializer
+    permission_classes = [IsSystemAdminOrReadOnly]
+
+    def get_queryset(self):
+        if self.request.user and self.request.user.is_authenticated and (
+            self.request.user.is_superuser or self.request.user.role == 'system_admin'
+        ):
+            # System admin sees all articles
+            return ContentArticle.objects.all().order_by("-created_at")
+        else:
+            # Employees see only published articles
+            return ContentArticle.objects.filter(published=True).order_by("-created_at")
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+
+class ContentMediaViewSet(viewsets.ModelViewSet):
+    serializer_class = ContentMediaSerializer
+    permission_classes = [IsSystemAdminOrReadOnly]
+
+    def get_queryset(self):
+        if self.request.user and self.request.user.is_authenticated and (
+            self.request.user.is_superuser or self.request.user.role == 'system_admin'
+        ):
+            # System admin sees all media
+            return ContentMedia.objects.all().order_by("-created_at")
+        else:
+            # Employees see only uploaded and processed media
+            return ContentMedia.objects.filter(uploaded=True, processed=True).order_by("-created_at")
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+    # Provide a convenience endpoint to regenerate a presigned GET url for private serving (optional)
+    @action(detail=True, methods=["get"], permission_classes=[permissions.IsAuthenticated])
+    def get_presigned_get(self, request, pk=None):
+        media = self.get_object()
+        # Only owner or staff can request a signed GET URL
+        if media.owner != request.user and not request.user.is_staff:
+            return Response({"detail": "forbidden"}, status=status.HTTP_403_FORBIDDEN)
+
+        client = boto3.client(
+            "s3",
+            region_name=settings.AWS_S3_REGION_NAME,
+            endpoint_url=settings.AWS_S3_ENDPOINT_URL,
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            config=Config(signature_version="s3v4"),
+        )
+
+        try:
+            url = client.generate_presigned_url(
+                ClientMethod="get_object",
+                Params={"Bucket": settings.AWS_STORAGE_BUCKET_NAME, "Key": media.s3_key},
+                ExpiresIn=300,  # 5 minutes
+            )
+        except Exception as e:
+            return Response({"detail": f"failed to generate get url: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({"presigned_get_url": url})
