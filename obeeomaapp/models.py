@@ -363,7 +363,7 @@ class EmployeeEngagement(models.Model):
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="engagements")
     engagement_rate = models.DecimalField(max_digits=5, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)])
     month = models.DateField()
-    # notes = models.TextField(blank=True, null=True)
+
 
     def __str__(self):
         return f"{self.employer.name} - {self.month}"
