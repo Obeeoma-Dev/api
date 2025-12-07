@@ -1020,8 +1020,7 @@ class EmployeeSerializerTest(TestCase):
         self.employer = Employer.objects.create(name="TechCorp")
         self.employee = Employee.objects.create(
             employer=self.employer,
-            first_name="Alice",
-            last_name="Smith",
+            name="Alice",
             email="alice@example.com",
             status="active"
         )
@@ -1029,11 +1028,7 @@ class EmployeeSerializerTest(TestCase):
     def test_employee_serializer_fields(self):
         serializer = EmployeeSerializer(self.employee)
         data = serializer.data
-
-        # Computed property "name" should combine first_name + last_name
-        self.assertEqual(data['first_name'], "Alice")
-        self.assertEqual(data['last_name'], "Smith")
-        self.assertEqual(data['name'], "Alice Smith")
+        self.assertEqual(data['name'], "Alice")
         self.assertEqual(data['email'], "alice@example.com")
         self.assertEqual(data['status'], "active")
         self.assertEqual(data['employer_name'], "TechCorp")
