@@ -305,7 +305,7 @@ class SystemAdminURLTests(APITestCase):
 
         # Feature Flags by Category
         url = reverse('obeeomaapp:feature-flags-by-category')
-       self.assertEqual(url, '/admin/feature-flags/by_category/')
+        self.assertEqual(url, '/admin/feature-flags/by_category/')
 
 
 

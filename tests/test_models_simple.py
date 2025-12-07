@@ -95,7 +95,6 @@ class InvitationModelTest(TestCase):
             employer=self.employer,
             email='employee@example.com',
             invited_by=self.user,
-            token='test-token-123',
             message='Welcome to our team!'
         )
         self.assertEqual(invitation.email, 'employee@example.com')

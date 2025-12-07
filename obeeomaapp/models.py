@@ -30,6 +30,7 @@ class User(AbstractUser):
         blank=True
     )
     onboarding_completed = models.BooleanField(default=False)
+    is_first_time = models.BooleanField(default=True)
     is_suspended = models.BooleanField(default=False)
 
     # These are the MFA-related fields
@@ -172,37 +173,32 @@ class Employee(models.Model):
         ordering = ['-joined_date']
 
 
-# --- Invitations ---
+# EMPLOYEE INVITATION
 class EmployeeInvitation(models.Model):
-    employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="invitations")
+    employer = models.ForeignKey(
+        'Employer', on_delete=models.CASCADE, related_name="invitations"
+    )
     email = models.EmailField()
-    token = models.CharField(max_length=64, unique=True)
-    invited_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
     message = models.TextField(blank=True)
-    
-    # One-time credentials for first login
-    temporary_username = models.CharField(max_length=150, blank=True, null=True)
-    temporary_password = models.CharField(max_length=128, blank=True, null=True)  # Store hashed
-    credentials_used = models.BooleanField(default=False)
-    
-    expires_at = models.DateTimeField(blank=True, null=True)
+
+    # OTP for verification
+    otp = models.CharField(max_length=6, null=True, blank=True)
+    otp_expires_at = models.DateTimeField(null=True, blank=True)
+
     accepted = models.BooleanField(default=False)
     accepted_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
-    def save(self, *args, **kwargs):
-        # Automatically set expires_at to 7 days from now if not set
-        if not self.expires_at:
-            from django.utils import timezone
-            from datetime import timedelta
-            self.expires_at = timezone.now() + timedelta(days=7)
-        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Invite {self.email} -> {self.employer.name}"
 
     class Meta:
-        indexes = [models.Index(fields=["token"])]
+        indexes = [models.Index(fields=["email"])]
+
+
 
 # --- System Admin Models ---
 class AuthenticationEvent(models.Model):
@@ -1688,3 +1684,49 @@ class PSS10Assessment(models.Model):
 
     def __str__(self):
         return f"PSS-10 ({self.user.email}) - {self.score} ({self.category})"
+
+# content/models.py
+from django.db import models
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+class ContentArticle(models.Model):
+    title = models.CharField(max_length=255)
+    body = models.TextField()
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name="content_articles")
+    published = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.title
+
+
+class ContentMedia(models.Model):
+    MEDIA_VIDEO = "video"
+    MEDIA_AUDIO = "audio"
+    MEDIA_IMAGE = "image"
+    MEDIA_OTHER = "other"
+    MEDIA_TYPE_CHOICES = [
+        (MEDIA_VIDEO, "Video"),
+        (MEDIA_AUDIO, "Audio"),
+        (MEDIA_IMAGE, "Image"),
+        (MEDIA_OTHER, "Other"),
+    ]
+
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="content_media")
+    title = models.CharField(max_length=255, blank=True)
+    description = models.TextField(blank=True)
+    media_type = models.CharField(max_length=20, choices=MEDIA_TYPE_CHOICES, default=MEDIA_OTHER)
+    # s3_key stores the object key/path inside the Space (e.g. uploads/uuid_filename.mp4)
+    s3_key = models.CharField(max_length=1024, blank=True, null=True)
+    # optional "public_url" or created FileField - optional; useful once processed
+    public_url = models.URLField(blank=True, null=True)
+    duration_seconds = models.IntegerField(blank=True, null=True)
+    uploaded = models.BooleanField(default=False)  # marked True after frontend upload + confirm
+    processed = models.BooleanField(default=False) # True after worker processing (thumbnails, transcode)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.title or self.s3_key or 'media'} ({self.media_type})"

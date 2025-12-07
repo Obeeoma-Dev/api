@@ -14,28 +14,29 @@ from obeeomaapp.views import (
      OrganizationOverviewView, EmployeeManagementView,
     DepartmentManagementView, SubscriptionManagementView,
     WellnessReportsView, OrganizationSettingsView, TestsByTypeView,
-    TestsByDepartmentView, SystemAdminOverviewView, 
+    TestsByDepartmentView, SystemAdminOverviewView,
     OrganizationsManagementView, HotlineActivityView,
     AIManagementView, ClientEngagementView,
     ReportsAnalyticsView, SystemSettingsView, FeaturesUsageView,
-    MyBadgesView, MyStreaksView, ProgressViewSet, 
-    EmailConfigCheckView, LoginView, LogoutView, 
+    MyBadgesView, MyStreaksView, ProgressViewSet,
+    EmailConfigCheckView, LoginView, LogoutView,
     PasswordResetView, PasswordResetConfirmView, PasswordChangeView,
     OverviewView, TrendsView, EmployeeEngagementView, BillingView,
     UsersView, ReportsView, CrisisInsightsView,
-    EmployeeProfileView, AvatarProfileView, 
+    EmployeeProfileView, AvatarProfileView,
     MoodTrackingView, SelfHelpResourceView,
     CrisisTriggerView, NotificationView, 
     EngagementTrackerView, FeedbackView, ChatSessionView, 
-    ChatMessageView, RecommendationLogView, CompleteAccountSetupView, 
+    ChatMessageView, RecommendationLogView, 
     InvitationVerifyView, home, OrganizationSignupView,
-    CompleteAccountSetupView, InviteView, EmployeeFirstLoginView,
-    VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet, 
+     InviteView,
+    VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet,
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, MediaViewSet,
      CompleteOnboardingView,
     DynamicQuestionViewSet, UserAchievementViewSet,
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView, CBTExerciseViewSet, SettingsViewSet,
-    JournalEntryViewSet, UpdatePaymentMethodViewSet, EmployeeFirstLoginViewSet, PSS10AssessmentViewSet,
+    JournalEntryViewSet, UpdatePaymentMethodViewSet,  PSS10AssessmentViewSet,
+    ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView
 )
 
 
@@ -61,7 +62,7 @@ router = DefaultRouter()
 router.register(r'assessments/pss10', PSS10AssessmentViewSet, basename='pss10-assessment')
 router.register(r'organization-signup', OrganizationSignupView, basename='organization-signup')
 router.register(r'payment-methods', UpdatePaymentMethodViewSet, basename='payment-method')
-router.register(r'employee-first-login', EmployeeFirstLoginViewSet, basename='employee-first-login')
+# router.register(r'employee-first-login', EmployeeFirstLoginViewSet, basename='employee-first-login')
 router.register(r'me/badges', MyBadgesView, basename='my-badges')
 router.register(r'me/streaks', MyStreaksView, basename='my-streaks')
 router.register(r'progress', ProgressViewSet)
@@ -125,7 +126,14 @@ router.register(r'invitations', InviteView, basename='invitations')
 
 # Media uploads
 router.register(r'media', MediaViewSet, basename='media')
+
+# Content management
+router.register(r'content/articles', ContentArticleViewSet, basename='content-article')
+router.register(r'content/media', ContentMediaViewSet, basename='content-media')
 urlpatterns = [
+    # Content management
+    path("content/presign/", PresignUploadView.as_view(), name="content-presign-upload"),
+    path("content/confirm-upload/", ConfirmUploadView.as_view(), name="content-confirm-upload"),
     # Home
     path("", home, name="home"),
     # Debug endpoints
@@ -133,7 +141,7 @@ urlpatterns = [
         "debug/email-config/", EmailConfigCheckView.as_view(), name="email-config-check"
     ),
     # Authentication
-    # path("auth/signup/", SignupView.as_view({"post": "create"}), name="signup"),
+    path("auth/signup/", SignupView.as_view({"post": "create"}), name="signup"),
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/logout/", LogoutView.as_view(), name="logout"),
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
@@ -201,8 +209,8 @@ urlpatterns = [
 
 
     # Employee invitation flow
-    path('auth/first-login/', EmployeeFirstLoginView.as_view(), name='first-login'),
-    path('auth/complete-account-setup/', CompleteAccountSetupView.as_view(), name='complete-account-setup'),
+    # path('auth/first-login/', EmployeeFirstLoginView.as_view(), name='first-login'),
+    # path('auth/complete-account-setup/', CompleteAccountSetupView.as_view(), name='complete-account-setup'),
     path('auth/verify-invite/', InvitationVerifyView.as_view(), name='verify-invite'),
 
     # Include router URLs
