@@ -212,6 +212,7 @@ urlpatterns = [
     # path('auth/first-login/', EmployeeFirstLoginView.as_view(), name='first-login'),
     # path('auth/complete-account-setup/', CompleteAccountSetupView.as_view(), name='complete-account-setup'),
     path('auth/verify-invite/', InvitationVerifyView.as_view(), name='verify-invite'),
+    path('auth/invitation-signup/', views.InvitationAcceptView.as_view({'post': 'create'}), name='invitation-signup'),
 
     # Include router URLs
     path("", include(router.urls)),
