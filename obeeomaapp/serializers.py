@@ -71,9 +71,9 @@ class SignupSerializer(serializers.ModelSerializer):
 
         user = User(username=validated_data['username'])
         user.set_password(validated_data['password'])
-        onboarding_completed=False,
-        is_first_time=True, # This allows automatic login  for first time only
-        user.role = "employee",  # default role for signup
+        user.onboarding_completed = False
+        user.is_first_time = True  # This allows automatic login for first time only
+        user.role = "employee"  # default role for signup
         user.save()
 
         return user
