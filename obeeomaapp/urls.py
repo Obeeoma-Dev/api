@@ -25,9 +25,9 @@ from obeeomaapp.views import (
     UsersView, ReportsView, CrisisInsightsView,
     EmployeeProfileView, AvatarProfileView,
     MoodTrackingView, SelfHelpResourceView,
-    CrisisTriggerView, NotificationView, 
-    EngagementTrackerView, FeedbackView, ChatSessionView, 
-    ChatMessageView, RecommendationLogView, 
+    CrisisTriggerView, NotificationView,
+    EngagementTrackerView, FeedbackView, ChatSessionView,
+    ChatMessageView, RecommendationLogView,
     home, OrganizationSignupView, InviteView,
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet,
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, MediaViewSet,
@@ -35,7 +35,8 @@ from obeeomaapp.views import (
     DynamicQuestionViewSet, UserAchievementViewSet,
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView, CBTExerciseViewSet, SettingsViewSet,
     JournalEntryViewSet, UpdatePaymentMethodViewSet,  PSS10AssessmentViewSet,
-    ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView
+    ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView,
+    EngagementLevelViewSet, CompanyMoodViewSet, WellnessGraphViewSet, AddEmployeeViewSet, EmployeeManagementViewSet, NotificationViewSet
 )
 
 
@@ -129,6 +130,14 @@ router.register(r'media', MediaViewSet, basename='media')
 # Content management
 router.register(r'content/articles', ContentArticleViewSet, basename='content-article')
 router.register(r'content/media', ContentMediaViewSet, basename='content-media')
+
+# New endpoints
+router.register(r'engagement-level', EngagementLevelViewSet, basename='engagement-level')
+router.register(r'company-mood', CompanyMoodViewSet, basename='company-mood')
+router.register(r'wellness-graph', WellnessGraphViewSet, basename='wellness-graph')
+router.register(r'add-employee', AddEmployeeViewSet, basename='add-employee')
+router.register(r'employee-management', EmployeeManagementViewSet, basename='employee-mgmt')
+router.register(r'notifications', NotificationViewSet, basename='notification-list')
 urlpatterns = [
     # Content management
     path("content/presign/", PresignUploadView.as_view(), name="content-presign-upload"),

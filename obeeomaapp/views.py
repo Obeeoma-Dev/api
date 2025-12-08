@@ -306,23 +306,15 @@ class VerifyOTPView(APIView):
 def _build_login_success_payload(user):
     refresh = RefreshToken.for_user(user)
 
-    display_username = user.username
-    try:
-        organization = user.organizations.first()
-        if organization:
-            display_username = organization.organizationName
-    except Exception:
-        pass
-
     user_data = {
         "id": user.id,
-        "username": display_username,
+        "username": user.username,
         "email": user.email,
         "role": user.role,
         "date_joined": user.date_joined,
         "is_active": user.is_active,
         "avatar": user.avatar.url if hasattr(user, "avatar") and user.avatar else None,
-        "onboarding_completed": getattr(user, 'onboarding_completed', False), 
+        "onboarding_completed": getattr(user, 'onboarding_completed', False),
     }
 
     # Redirect URL based on role
@@ -3870,6 +3862,72 @@ class ContentMediaViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
+
+# New views for the requested endpoints
+
+@extend_schema(tags=['Engagement Level'])
+class EngagementLevelViewSet(viewsets.ModelViewSet):
+    queryset = EngagementLevel.objects.all()
+    serializer_class = EngagementLevelSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+@extend_schema(tags=['Company Mood'])
+class CompanyMoodViewSet(viewsets.ModelViewSet):
+    queryset = CompanyMood.objects.all()
+    serializer_class = CompanyMoodSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+@extend_schema(tags=['Wellness Graph'])
+class WellnessGraphViewSet(viewsets.ModelViewSet):
+    queryset = WellnessGraph.objects.all()
+    serializer_class = WellnessGraphSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return WellnessGraph.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+@extend_schema(tags=['Add Employee'])
+class AddEmployeeViewSet(viewsets.ViewSet):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = AddEmployeeSerializer
+
+    def create(self, request):
+        serializer = AddEmployeeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        employee = serializer.save()
+        return Response({
+            'message': 'Employee added successfully',
+            'employee': {
+                'id': employee.id,
+                'name': employee.name,
+                'phone': employee.phone,
+                'department': employee.department.name if employee.department else None
+            }
+        }, status=status.HTTP_201_CREATED)
+
+
+@extend_schema(tags=['Employee Management'])
+class EmployeeManagementViewSet(viewsets.ModelViewSet):
+    queryset = Employee.objects.all()
+    serializer_class = EmployeeManagementSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+@extend_schema(tags=['Notifications'])
+class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Notification.objects.all()
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(employee__user=self.request.user)
 
     # Provide a convenience endpoint to regenerate a presigned GET url for private serving (optional)
     @action(detail=True, methods=["get"], permission_classes=[permissions.IsAuthenticated])

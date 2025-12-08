@@ -1660,6 +1660,85 @@ class ContentMediaSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at"]
 
+
+# New serializers for the requested endpoints
+
+class EngagementLevelSerializer(serializers.ModelSerializer):
+    activeEmployees = serializers.SerializerMethodField()
+    inactiveEmployees = serializers.SerializerMethodField()
+    totalEmployees = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EngagementLevel
+        fields = ['id', 'worker_department', 'hours_engaged', 'recorded_at', 'activeEmployees', 'inactiveEmployees', 'totalEmployees']
+
+    def get_activeEmployees(self, obj):
+        return Employee.objects.filter(status='active').count()
+
+    def get_inactiveEmployees(self, obj):
+        return Employee.objects.filter(status__in=['inactive', 'suspended']).count()
+
+    def get_totalEmployees(self, obj):
+        return Employee.objects.count()
+
+
+class CompanyMoodSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CompanyMood
+        fields = ['id', 'summary_description', 'created_at']
+
+
+class WellnessGraphSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WellnessGraph
+        fields = ['id', 'user', 'mood_score', 'mood_date']
+
+
+class AddEmployeeSerializer(serializers.ModelSerializer):
+    employeename = serializers.CharField(write_only=True)
+    employeephone = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    employeedepartment = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = Employee
+        fields = ['employeename', 'employeephone', 'employeedepartment']
+
+    def create(self, validated_data):
+        name = validated_data.pop('employeename')
+        phone = validated_data.pop('employeephone', '')
+        department_name = validated_data.pop('employeedepartment')
+
+        # Split name into first and last
+        name_parts = name.split(' ', 1)
+        first_name = name_parts[0]
+        last_name = name_parts[1] if len(name_parts) > 1 else ''
+
+        # Get or create department
+        department, created = Department.objects.get_or_create(name=department_name)
+
+        # Get employer (assuming from request user or default)
+        employer = Employer.objects.first()  # For simplicity, use first employer
+
+        # Create employee
+        employee = Employee.objects.create(
+            employer=employer,
+            department=department,
+            first_name=first_name,
+            last_name=last_name,
+            phone=phone if phone else None
+        )
+        return employee
+
+
+class EmployeeManagementSerializer(serializers.ModelSerializer):
+    empemail = serializers.EmailField(source='email')
+    empdepartment = serializers.CharField(source='department.name', read_only=True)
+    empstatus = serializers.CharField(source='status')
+
+    class Meta:
+        model = Employee
+        fields = ['id', 'empemail', 'empdepartment', 'empstatus']
+
 # content/serializers.py
 from rest_framework import serializers
 from .models import ContentArticle, ContentMedia
