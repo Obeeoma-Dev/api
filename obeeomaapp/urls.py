@@ -35,7 +35,7 @@ from obeeomaapp.views import (
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView, CBTExerciseViewSet, SettingsViewSet,
     JournalEntryViewSet, UpdatePaymentMethodViewSet,  PSS10AssessmentViewSet,
     ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView,VerifyPasswordResetOTPView,VerifyInvitationOTPView,
-    EngagementLevelViewSet, CompanyMoodViewSet, WellnessGraphViewSet, AddEmployeeViewSet, EmployeeManagementViewSet, NotificationViewSet
+    EngagementLevelViewSet, CompanyMoodViewSet, WellnessGraphViewSet, EmployeeManagementViewSet, NotificationViewSet
 )
 
 
@@ -134,7 +134,6 @@ router.register(r'content/media', ContentMediaViewSet, basename='content-media')
 router.register(r'engagement-level', EngagementLevelViewSet, basename='engagement-level')
 router.register(r'company-mood', CompanyMoodViewSet, basename='company-mood')
 router.register(r'wellness-graph', WellnessGraphViewSet, basename='wellness-graph')
-router.register(r'add-employee', AddEmployeeViewSet, basename='add-employee')
 router.register(r'employee-management', EmployeeManagementViewSet, basename='employee-mgmt')
 router.register(r'notifications', NotificationViewSet, basename='notification-list')
 urlpatterns = [

@@ -3854,24 +3854,6 @@ class WellnessGraphViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
 
-@extend_schema(tags=['Add Employee'])
-class AddEmployeeViewSet(viewsets.ViewSet):
-    permission_classes = [permissions.IsAuthenticated]
-    serializer_class = AddEmployeeSerializer
-
-    def create(self, request):
-        serializer = AddEmployeeSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        employee = serializer.save()
-        return Response({
-            'message': 'Employee added successfully',
-            'employee': {
-                'id': employee.id,
-                'name': employee.name,
-                'phone': employee.phone,
-                'department': employee.department.name if employee.department else None
-            }
-        }, status=status.HTTP_201_CREATED)
 
 
 @extend_schema(tags=['Employee Management'])

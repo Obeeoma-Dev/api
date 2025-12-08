@@ -185,6 +185,11 @@ class EmployeeInvitation(models.Model):
     )
     message = models.TextField(blank=True)
 
+    # New fields for employee details
+    employeename = models.CharField(max_length=255, blank=True, null=True)
+    employeephone = models.CharField(max_length=20, blank=True, null=True)
+    employeedepartment = models.CharField(max_length=100, blank=True, null=True)
+
     # OTP for verification
     otp = models.CharField(max_length=6, null=True, blank=True)
     otp_expires_at = models.DateTimeField(null=True, blank=True)

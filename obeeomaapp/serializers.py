@@ -649,10 +649,19 @@ class EmployeeInvitationAcceptSerializer(serializers.Serializer):
         )
 
         # Create employee profile
+        # Get or create department if employeedepartment is provided
+        department = None
+        if invitation.employeedepartment:
+            department, created = Department.objects.get_or_create(
+                name=invitation.employeedepartment,
+                defaults={'employer': invitation.employer}
+            )
+
         employee_profile = Employee.objects.create(
             user=user,
             employer=invitation.employer,
-            name=validated_data['username']
+            phone=invitation.employeephone or None,
+            department=department
         )
 
         # Mark invitation as accepted
@@ -674,11 +683,26 @@ class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
         allow_blank=True,
         help_text="Optional invitation message"
     )
+    employeename = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Employee full name"
+    )
+    employeephone = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Employee phone number"
+    )
+    employeedepartment = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Employee department"
+    )
 
     class Meta:
         model = EmployeeInvitation
         fields = [
-            'id', 'email', 'message',
+            'id', 'email', 'message', 'employeename', 'employeephone', 'employeedepartment',
             'otp', 'otp_expires_at',
             'accepted', 'accepted_at',
             'created_at'
@@ -1764,40 +1788,6 @@ class WellnessGraphSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'mood_score', 'mood_date']
 
 
-class AddEmployeeSerializer(serializers.ModelSerializer):
-    employeename = serializers.CharField(write_only=True)
-    employeephone = serializers.CharField(write_only=True, required=False, allow_blank=True)
-    employeedepartment = serializers.CharField(write_only=True)
-
-    class Meta:
-        model = Employee
-        fields = ['employeename', 'employeephone', 'employeedepartment']
-
-    def create(self, validated_data):
-        name = validated_data.pop('employeename')
-        phone = validated_data.pop('employeephone', '')
-        department_name = validated_data.pop('employeedepartment')
-
-        # Split name into first and last
-        name_parts = name.split(' ', 1)
-        first_name = name_parts[0]
-        last_name = name_parts[1] if len(name_parts) > 1 else ''
-
-        # Get or create department
-        department, created = Department.objects.get_or_create(name=department_name)
-
-        # Get employer (assuming from request user or default)
-        employer = Employer.objects.first()  # For simplicity, use first employer
-
-        # Create employee
-        employee = Employee.objects.create(
-            employer=employer,
-            department=department,
-            first_name=first_name,
-            last_name=last_name,
-            phone=phone if phone else None
-        )
-        return employee
 
 
 class EmployeeManagementSerializer(serializers.ModelSerializer):
