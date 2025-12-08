@@ -87,7 +87,7 @@ import pyotp, qrcode, io, base64
 from django.utils.crypto import get_random_string
 from django.core.cache import cache
 from .models import Organization
-from .serializers import OTPVerificationSerializer
+from .serializers import PasswordResetOTPVerificationSerializer,InvitationOTPVerificationSerializer
 from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string
 from django.contrib.auth import authenticate, login as django_login
@@ -211,6 +211,12 @@ class OrganizationDetailView(APIView):
         return Response(serializer.data)
 
 # Verify reset password otp view
+@extend_schema(
+    tags=['Authentication'],
+    request=PasswordResetOTPVerificationSerializer,
+    responses={200: "OTP verified"},
+    description="Verifies the OTP sent to the user's email for password reset"
+)
 class VerifyPasswordResetOTPView(APIView):
     permission_classes = [AllowAny]
 
@@ -227,6 +233,12 @@ class VerifyPasswordResetOTPView(APIView):
         )
 
 # Verify invitation otp view
+@extend_schema(
+    tags=['Authentication'],
+    request=InvitationOTPVerificationSerializer,
+    responses={200: "Invitation OTP verified"},
+      description="Verifies the invitation OTP before employee account creation"
+)
 class VerifyInvitationOTPView(APIView):
     permission_classes = [AllowAny]
 

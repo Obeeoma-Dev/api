@@ -5,8 +5,7 @@ from . import views
 from .views import OrganizationViewSet, AdminUserManagementViewSet
 
 from drf_yasg.views import get_schema_view
-from drf_yasg import openapi
-from .views import VerifyOTPView   
+from drf_yasg import openapi  
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 from .views import CustomTokenObtainPairView
