@@ -210,95 +210,44 @@ class OrganizationDetailView(APIView):
         serializer = OrganizationDetailSerializer(org)
         return Response(serializer.data)
 
-
-# VIEWS FOR VERIFYING THE OTP
-@extend_schema(
-    tags=['Authentication'],
-    request=OTPVerificationSerializer,
-    responses={
-        200: {
-            "description": "OTP verified successfully",
-            "content": {
-                "application/json": {
-                    "examples": {
-                        "password_reset": {
-                            "summary": "Password Reset OTP",
-                            "value": {
-                                "message": "OTP verified successfully. You can now reset your password."
-                            }
-                        },
-                        "invitation": {
-                            "summary": "Invitation OTP",
-                            "value": {
-                                "message": "Invitation OTP verified successfully. Proceed to create your account.",
-                                "email": "employee@company.com",
-                                "employer": "Company Name"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        400: {"description": "Invalid or expired OTP"}
-    },
-    description="""
-    Verify OTP for password reset or employee invitation.
-    
-    **OTP Types:**
-    - `reset_password`: Verify OTP for password reset
-    - `invitation`: Verify OTP for employee invitation
-    
-    **Example Request (Invitation):**
-    ```json
-    {
-      "email": "employee@company.com",
-      "code": "123456",
-      "otp_type": "invitation"
-    }
-    ```
-    
-    **Example Request (Password Reset):**
-    ```json
-    {
-      "email": "user@company.com",
-      "code": "654321",
-      "otp_type": "reset_password"
-    }
-    ```
-    """
-)
-class VerifyOTPView(APIView):
+# Verify reset password otp view
+class VerifyPasswordResetOTPView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = OTPVerificationSerializer(data=request.data)
+        serializer = PasswordResetOTPVerificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        otp_type = request.data.get("otp_type")
+        otp = serializer.context['otp']
+        otp.delete()  # Remove OTP so it cannot be reused
 
-        if otp_type == "reset_password":
-            user = serializer.context['user']
-            serializer.context['otp'].delete()  # Remove password reset OTP
-            return Response(
-                {"message": "OTP verified successfully. You can now reset your password."},
-                status=status.HTTP_200_OK
-            )
+        return Response(
+            {"message": "OTP verified successfully. You can now reset your password."},
+            status=status.HTTP_200_OK
+        )
 
-        elif otp_type == "invitation":
-            invitation = serializer.context['invitation']
-            # Store email in session for signup
-            request.session['verified_invitation_email'] = invitation.email
-            request.session['invitation_verified_at'] = timezone.now().isoformat()
-            
-            return Response(
-                {
-                    "message": "Invitation OTP verified successfully. Proceed to create your account.",
-                    "email": invitation.email,
-                    "employer": invitation.employer.name
-                },
-                status=status.HTTP_200_OK
-            )
+# Verify invitation otp view
+class VerifyInvitationOTPView(APIView):
+    permission_classes = [AllowAny]
 
+    def post(self, request):
+        serializer = InvitationOTPVerificationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        invitation = serializer.context['invitation']
+
+        # Save verified invitation email in session
+        request.session['verified_invitation_email'] = invitation.email
+        request.session['invitation_verified_at'] = timezone.now().isoformat()
+
+        return Response(
+            {
+                "message": "Invitation OTP verified successfully. Proceed to create your account.",
+                "email": invitation.email,
+                "employer": invitation.employer.name,
+            },
+            status=status.HTTP_200_OK
+        )
 
 
 

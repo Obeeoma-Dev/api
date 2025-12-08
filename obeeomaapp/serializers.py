@@ -394,41 +394,50 @@ class ResetPasswordCompleteSerializer(serializers.Serializer):
 
 
     
-# SERIAILZER FOR VERIFYING OTP
-class OTPVerificationSerializer(serializers.Serializer):
+# SERIAILZER FOR VERIFYING RESET PASSWORD OTP
+class PasswordResetOTPVerificationSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=6)
-    email = serializers.EmailField(required=True)
-    otp_type = serializers.ChoiceField(choices=["reset_password", "invitation"])
 
     def validate(self, attrs):
         code = attrs.get("code")
-        email = attrs.get("email")
-        otp_type = attrs.get("otp_type")
 
-        if otp_type == "reset_password":
-            otp = PasswordResetToken.objects.filter(user__email=email, code=code).order_by('-created_at').first()
-            if not otp:
-                raise serializers.ValidationError("Invalid password reset OTP.")
-            if otp.expires_at < timezone.now():
-                otp.delete()
-                raise serializers.ValidationError("This OTP has expired. Please request a new one.")
+        otp = PasswordResetToken.objects.filter(code=code).order_by('-created_at').first()
+        if not otp:
+            raise serializers.ValidationError("Invalid verification code.")
 
-            self.context["user"] = otp.user
-            self.context["otp"] = otp
+        if otp.expires_at < timezone.now():
+            otp.delete()
+            raise serializers.ValidationError("This OTP has expired. Please request a new one.")
 
-        elif otp_type == "invitation":
-            otp = EmployeeInvitation.objects.filter(email=email, otp=code, accepted=False).order_by('-created_at').first()
-            if not otp:
-                raise serializers.ValidationError("Invalid invitation OTP.")
-            if otp.otp_expires_at < timezone.now():
-                raise serializers.ValidationError("This invitation OTP has expired.")
-
-            self.context["invitation"] = otp
-
-        else:
-            raise serializers.ValidationError("Invalid OTP type.")
-
+        self.context["user"] = otp.user
+        self.context["otp"] = otp
         return attrs
+
+
+# SERIALIZER FO VERIFYING  INVITATION OTP
+class InvitationOTPVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+    code = serializers.CharField(max_length=6)
+
+    def validate(self, attrs):
+        email = attrs.get("email")
+        code = attrs.get("code")
+
+        otp = EmployeeInvitation.objects.filter(
+            email=email,
+            otp=code,
+            accepted=False
+        ).order_by('-created_at').first()
+
+        if not otp:
+            raise serializers.ValidationError("Invalid invitation OTP.")
+
+        if otp.otp_expires_at < timezone.now():
+            raise serializers.ValidationError("This invitation OTP has expired.")
+
+        self.context["invitation"] = otp
+        return attrs
+
 
 
 # SERIALIZERS FOR MFA SETUP AND VERIFICATION
