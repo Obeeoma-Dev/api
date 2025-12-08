@@ -38,7 +38,7 @@ class User(AbstractUser):
     mfa_secret = models.CharField(max_length=255, blank=True, null=True)
 
     avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
-    email = models.EmailField(unique=True)
+    email = models.EmailField(blank=True, default='')  # Override AbstractUser's email to make it optional
 
     def __str__(self):
         return f"{self.username} ({self.role})"
