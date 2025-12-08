@@ -262,6 +262,29 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, required=True)
     confirm_password = serializers.CharField(write_only=True, required=True)
     avatar = serializers.ImageField(required=True)
+    
+    # Assessment fields - all required for onboarding
+    gad7_scores = serializers.ListField(
+        child=serializers.IntegerField(min_value=0, max_value=3),
+        required=True,
+        min_length=7,
+        max_length=7,
+        help_text="GAD-7 anxiety assessment: 7 scores (0-3 each)"
+    )
+    phq9_scores = serializers.ListField(
+        child=serializers.IntegerField(min_value=0, max_value=3),
+        required=True,
+        min_length=9,
+        max_length=9,
+        help_text="PHQ-9 depression assessment: 9 scores (0-3 each)"
+    )
+    pss10_scores = serializers.ListField(
+        child=serializers.IntegerField(min_value=0, max_value=4),
+        required=True,
+        min_length=10,
+        max_length=10,
+        help_text="PSS-10 stress assessment: 10 scores (0-4 each)"
+    )
 
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
@@ -274,10 +297,48 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
         return attrs
 
     def update(self, user, validated_data):
+        # Update user profile
+        user.username = validated_data["username"]
+        user.set_password(validated_data["password"])
         user.avatar = validated_data["avatar"]
         user.onboarding_completed = True
-        user.is_first_time = False   # this marks onboarding done
+        user.is_first_time = False
         user.save()
+        
+        # Create GAD-7 assessment
+        gad7_total = sum(validated_data["gad7_scores"])
+        MentalHealthAssessment.objects.create(
+            user=user,
+            assessment_type='GAD-7',
+            gad7_scores=validated_data["gad7_scores"],
+            gad7_total=gad7_total
+        )
+        
+        # Create PHQ-9 assessment
+        phq9_total = sum(validated_data["phq9_scores"])
+        MentalHealthAssessment.objects.create(
+            user=user,
+            assessment_type='PHQ-9',
+            phq9_scores=validated_data["phq9_scores"],
+            phq9_total=phq9_total
+        )
+        
+        # Create PSS-10 assessment
+        pss10_total = sum(validated_data["pss10_scores"])
+        # Determine stress category
+        if pss10_total <= 13:
+            category = "Low stress"
+        elif pss10_total <= 26:
+            category = "Moderate stress"
+        else:
+            category = "High stress"
+            
+        PSS10Assessment.objects.create(
+            user=user,
+            score=pss10_total,
+            category=category
+        )
+        
         return user
 
 
@@ -335,41 +396,50 @@ class ResetPasswordCompleteSerializer(serializers.Serializer):
 
 
     
-# SERIAILZER FOR VERIFYING OTP
-class OTPVerificationSerializer(serializers.Serializer):
+# SERIAILZER FOR VERIFYING RESET PASSWORD OTP
+class PasswordResetOTPVerificationSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=6)
-    email = serializers.EmailField(required=True)
-    otp_type = serializers.ChoiceField(choices=["reset_password", "invitation"])
 
     def validate(self, attrs):
         code = attrs.get("code")
-        email = attrs.get("email")
-        otp_type = attrs.get("otp_type")
 
-        if otp_type == "reset_password":
-            otp = PasswordResetToken.objects.filter(user__email=email, code=code).order_by('-created_at').first()
-            if not otp:
-                raise serializers.ValidationError("Invalid password reset OTP.")
-            if otp.expires_at < timezone.now():
-                otp.delete()
-                raise serializers.ValidationError("This OTP has expired. Please request a new one.")
+        otp = PasswordResetToken.objects.filter(code=code).order_by('-created_at').first()
+        if not otp:
+            raise serializers.ValidationError("Invalid verification code.")
 
-            self.context["user"] = otp.user
-            self.context["otp"] = otp
+        if otp.expires_at < timezone.now():
+            otp.delete()
+            raise serializers.ValidationError("This OTP has expired. Please request a new one.")
 
-        elif otp_type == "invitation":
-            otp = EmployeeInvitation.objects.filter(email=email, otp=code, accepted=False).order_by('-created_at').first()
-            if not otp:
-                raise serializers.ValidationError("Invalid invitation OTP.")
-            if otp.otp_expires_at < timezone.now():
-                raise serializers.ValidationError("This invitation OTP has expired.")
-
-            self.context["invitation"] = otp
-
-        else:
-            raise serializers.ValidationError("Invalid OTP type.")
-
+        self.context["user"] = otp.user
+        self.context["otp"] = otp
         return attrs
+
+
+# SERIALIZER FO VERIFYING  INVITATION OTP
+class InvitationOTPVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+    code = serializers.CharField(max_length=6)
+
+    def validate(self, attrs):
+        email = attrs.get("email")
+        code = attrs.get("code")
+
+        otp = EmployeeInvitation.objects.filter(
+            email=email,
+            otp=code,
+            accepted=False
+        ).order_by('-created_at').first()
+
+        if not otp:
+            raise serializers.ValidationError("Invalid invitation OTP.")
+
+        if otp.otp_expires_at < timezone.now():
+            raise serializers.ValidationError("This invitation OTP has expired.")
+
+        self.context["invitation"] = otp
+        return attrs
+
 
 
 # SERIALIZERS FOR MFA SETUP AND VERIFICATION

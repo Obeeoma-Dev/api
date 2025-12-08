@@ -5,8 +5,7 @@ from . import views
 from .views import OrganizationViewSet, AdminUserManagementViewSet
 
 from drf_yasg.views import get_schema_view
-from drf_yasg import openapi
-from .views import VerifyOTPView   
+from drf_yasg import openapi  
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 from .views import CustomTokenObtainPairView
@@ -35,7 +34,7 @@ from obeeomaapp.views import (
     DynamicQuestionViewSet, UserAchievementViewSet,
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView, CBTExerciseViewSet, SettingsViewSet,
     JournalEntryViewSet, UpdatePaymentMethodViewSet,  PSS10AssessmentViewSet,
-    ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView,
+    ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView,VerifyPasswordResetOTPView,VerifyInvitationOTPView,
     EngagementLevelViewSet, CompanyMoodViewSet, WellnessGraphViewSet, AddEmployeeViewSet, EmployeeManagementViewSet, NotificationViewSet
 )
 
@@ -155,7 +154,8 @@ urlpatterns = [
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
     path("auth/reset-password/confirm/", PasswordResetConfirmView.as_view({'post': 'create'}), name="password-reset-confirm"),
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
-    path('auth/verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
+    path("auth/verify-password-reset-otp/", VerifyPasswordResetOTPView.as_view(), name="verify-password-reset-otp"),
+    path("auth/verify-invitation-otp/", VerifyInvitationOTPView.as_view(), name="verify-invitation-otp"),
     path('auth/reset-password/complete/', ResetPasswordCompleteView.as_view({'post': 'create'}), name='password-reset-complete'),
     path('auth/mfa/setup/', views.mfa_setup, name='mfa-setup'),
     path('auth/mfa/confirm/', views.mfa_confirm, name='mfa-confirm'),
