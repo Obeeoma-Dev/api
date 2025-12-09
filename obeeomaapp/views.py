@@ -392,7 +392,7 @@ class LogoutView(APIView):
             token.blacklist()
             return Response(
                 {"message": "Logged out successfully."},
-                status=status.HTTP_205_RESET_CONTENT
+                status=status.HTTP_200_RESET_CONTENT
             )
         except Exception:
             return Response(

@@ -194,7 +194,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
         organization = Organization.objects.create(**validated_data)
 
         # Send email via Gmail API (OAuth)
-        login_link = f"{settings.FRONTEND_URL}/login" if hasattr(settings, 'FRONTEND_URL') else "http://64.225.122.101/login"
+        
         org_email = organization.companyEmail
         org_name = organization.organizationName
 
@@ -202,7 +202,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
         message = (
             f"Hello {org_name},\n\n"
             f"Your organization has been successfully registered on our platform.\n\n"
-            f"You can now log in using the link below:\n{login_link}\n\n"
+            f"You can now log in using your registered organization name and password.\n\n"
             f"Thank you for registering with us!"
         )
 
