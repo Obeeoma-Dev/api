@@ -40,6 +40,8 @@ logger = logging.getLogger(__name__)
 from .models import UserAchievement
 import uuid
 import requests
+import secrets
+import string
 from secrets import randbelow
 
 from django.core.exceptions import ObjectDoesNotExist
