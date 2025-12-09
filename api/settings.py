@@ -34,7 +34,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://64.225.122.101:8000",
     "http://64.225.122.101",
     "http://64.225.122.101:5173", 
-    "http://localhost:5173"
+    "http://localhost:5173/"
 ]
 
 # Database configuration
