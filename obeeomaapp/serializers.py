@@ -683,11 +683,6 @@ class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
         allow_blank=True,
         help_text="Optional invitation message"
     )
-    employeename = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        help_text="Employee full name"
-    )
     employeephone = serializers.CharField(
         required=False,
         allow_blank=True,
@@ -702,7 +697,7 @@ class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmployeeInvitation
         fields = [
-            'id', 'email', 'message', 'employeename', 'employeephone', 'employeedepartment',
+            'id', 'email', 'message', 'employeephone', 'employeedepartment',
             'otp', 'otp_expires_at',
             'accepted', 'accepted_at',
             'created_at'
