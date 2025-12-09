@@ -35,7 +35,7 @@ from obeeomaapp.views import (
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView, CBTExerciseViewSet, SettingsViewSet,
     JournalEntryViewSet, UpdatePaymentMethodViewSet,  PSS10AssessmentViewSet,
     ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView,VerifyPasswordResetOTPView,VerifyInvitationOTPView,
-    EngagementLevelViewSet, CompanyMoodViewSet, WellnessGraphViewSet, EmployeeManagementViewSet, NotificationViewSet
+    EngagementLevelViewSet, CompanyMoodViewSet, WellnessGraphViewSet, EmployeeManagementViewSet, NotificationViewSet, InviteView
 )
 
 
@@ -134,6 +134,7 @@ router.register(r'company-mood', CompanyMoodViewSet, basename='company-mood')
 router.register(r'wellness-graph', WellnessGraphViewSet, basename='wellness-graph')
 router.register(r'employee-management', EmployeeManagementViewSet, basename='employee-mgmt')
 router.register(r'notifications', NotificationViewSet, basename='notification-list')
+router.register(r'invitations', InviteView, basename='invitation')
 urlpatterns = [
     # Content management
     path("content/presign/", PresignUploadView.as_view(), name="content-presign-upload"),

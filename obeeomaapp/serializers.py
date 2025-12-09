@@ -75,6 +75,9 @@ class InvitationOTPVerificationSerializer(serializers.Serializer):
 
 
 class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
+    employeephone = serializers.CharField(max_length=20, required=False, allow_blank=True, help_text="Employee phone number (optional)")
+    employeedepartment = serializers.CharField(max_length=100, required=False, allow_blank=True, help_text="Employee department (optional)")
+    
     class Meta:
         model = EmployeeInvitation
         fields = ['email', 'message', 'employeephone', 'employeedepartment']
