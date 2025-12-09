@@ -21,6 +21,9 @@ from .models import EmployeeInvitation
 from .models import OnboardingState
 User = get_user_model()
 from rest_framework import serializers
+import secrets
+import string
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.hashers import check_password
@@ -150,6 +153,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Organization
+
         fields = [
             'organizationName',
             'organisationSize',
