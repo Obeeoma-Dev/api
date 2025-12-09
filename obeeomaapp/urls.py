@@ -27,7 +27,7 @@ from obeeomaapp.views import (
     CrisisTriggerView, NotificationView,
     EngagementTrackerView, FeedbackView, ChatSessionView,
     ChatMessageView, RecommendationLogView,
-    home, OrganizationSignupView, InviteView,
+    home, OrganizationSignupView,
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet,
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, MediaViewSet,
      CompleteOnboardingView,
@@ -120,8 +120,6 @@ router.register(r'dashboard/billing/verify-payment', BillingView, basename='veri
 router.register(r'assessments/questions', AssessmentQuestionViewSet, basename='assessment-question')
 router.register(r'assessments/responses', AssessmentResponseViewSet, basename='assessment-response')
 
-# Employee Invitations
-router.register(r'invitations', InviteView, basename='invitations')
 
 # Media uploads
 router.register(r'media', MediaViewSet, basename='media')
@@ -215,8 +213,6 @@ urlpatterns = [
 
 
 
-    # Employee invitation flow (OTP-based)
-    path('auth/invitation-signup/', views.InvitationAcceptView.as_view({'post': 'create'}), name='invitation-signup'),
 
     # Include router URLs
     path("", include(router.urls)),

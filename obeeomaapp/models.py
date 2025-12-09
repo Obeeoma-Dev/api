@@ -89,6 +89,36 @@ class User(AbstractUser):
 
     
 
+# EMPLOYEE INVITATION
+class EmployeeInvitation(models.Model):
+    employer = models.ForeignKey(
+        'Employer', on_delete=models.CASCADE, related_name="invitations"
+    )
+    email = models.EmailField()
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    message = models.TextField(blank=True)
+
+    # New fields for employee details
+    employeephone = models.CharField(max_length=20, blank=True, null=True)
+    employeedepartment = models.CharField(max_length=100, blank=True, null=True)
+
+    # OTP for verification
+    otp = models.CharField(max_length=6, null=True, blank=True)
+    otp_expires_at = models.DateTimeField(null=True, blank=True)
+
+    accepted = models.BooleanField(default=False)
+    accepted_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Invite {self.email} -> {self.employer.name}"
+
+    class Meta:
+        indexes = [models.Index(fields=["email"])]
+
+
 #MODELS FOR CREATING AN ORGANIZATION
 class ContactPerson(models.Model):
     first_name = models.CharField(max_length=100, null=True, blank=True)
@@ -174,34 +204,6 @@ class Employee(models.Model):
         ordering = ['-joined_date']
 
 
-# EMPLOYEE INVITATION
-class EmployeeInvitation(models.Model):
-    employer = models.ForeignKey(
-        'Employer', on_delete=models.CASCADE, related_name="invitations"
-    )
-    email = models.EmailField()
-    invited_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
-    )
-    message = models.TextField(blank=True)
-
-    # New fields for employee details
-    employeephone = models.CharField(max_length=20, blank=True, null=True)
-    employeedepartment = models.CharField(max_length=100, blank=True, null=True)
-
-    # OTP for verification
-    otp = models.CharField(max_length=6, null=True, blank=True)
-    otp_expires_at = models.DateTimeField(null=True, blank=True)
-
-    accepted = models.BooleanField(default=False)
-    accepted_at = models.DateTimeField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"Invite {self.email} -> {self.employer.name}"
-
-    class Meta:
-        indexes = [models.Index(fields=["email"])]
 
 
 

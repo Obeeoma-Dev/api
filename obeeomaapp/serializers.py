@@ -17,6 +17,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from obeeomaapp.utils.gmail_http_api import send_gmail_api_email
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
+from .models import EmployeeInvitation
 from .models import OnboardingState
 User = get_user_model()
 from rest_framework import serializers
@@ -40,6 +41,56 @@ from secrets import randbelow
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.translation import gettext as _
+
+# INVITATION SERIALIZERS
+class InvitationOTPVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+
+    def validate(self, attrs):
+        email = attrs.get('email')
+        otp = attrs.get('otp')
+
+        try:
+            invitation = EmployeeInvitation.objects.get(
+                email=email,
+                otp=otp,
+                accepted=False
+            )
+
+            # Check if OTP is expired
+            if invitation.otp_expires_at < timezone.now():
+                raise serializers.ValidationError({"otp": "OTP has expired"})
+
+            self.context['invitation'] = invitation
+            return attrs
+
+        except EmployeeInvitation.DoesNotExist:
+            raise serializers.ValidationError({"otp": "Invalid OTP or email"})
+
+
+class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmployeeInvitation
+        fields = ['email', 'message', 'employeephone', 'employeedepartment']
+
+    def create(self, validated_data):
+        employer = self.context['employer']
+        user = self.context['user']
+
+        # Generate OTP
+        otp = ''.join(secrets.choice(string.digits) for _ in range(6))
+        otp_expires_at = timezone.now() + timedelta(days=7)  # 7 days validity
+
+        invitation = EmployeeInvitation.objects.create(
+            employer=employer,
+            invited_by=user,
+            otp=otp,
+            otp_expires_at=otp_expires_at,
+            **validated_data
+        )
+
+        return invitation
 
 
 User = get_user_model()
@@ -416,29 +467,6 @@ class PasswordResetOTPVerificationSerializer(serializers.Serializer):
         return attrs
 
 
-# SERIALIZER FO VERIFYING  INVITATION OTP
-class InvitationOTPVerificationSerializer(serializers.Serializer):
-    email = serializers.EmailField(required=True)
-    code = serializers.CharField(max_length=6)
-
-    def validate(self, attrs):
-        email = attrs.get("email")
-        code = attrs.get("code")
-
-        otp = EmployeeInvitation.objects.filter(
-            email=email,
-            otp=code,
-            accepted=False
-        ).order_by('-created_at').first()
-
-        if not otp:
-            raise serializers.ValidationError("Invalid invitation OTP.")
-
-        if otp.otp_expires_at < timezone.now():
-            raise serializers.ValidationError("This invitation OTP has expired.")
-
-        self.context["invitation"] = otp
-        return attrs
 
 
 
@@ -594,136 +622,8 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
         return user
 
 
-# (Employee Invitation Accept - After OTP Verification)
-
-class EmployeeInvitationAcceptSerializer(serializers.Serializer):
-    username = serializers.CharField(required=True, min_length=3, max_length=150)
-    password = serializers.CharField(required=True, write_only=True, min_length=8)
-    confirm_password = serializers.CharField(required=True, write_only=True)
-
-    def validate_username(self, value):
-        """Check if username already exists"""
-        if User.objects.filter(username=value).exists():
-            raise serializers.ValidationError("This username is already taken.")
-        return value
-
-    def validate(self, attrs):
-        # Check passwords match
-        if attrs['password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
-        
-        # Validate password strength
-        from django.contrib.auth.password_validation import validate_password
-        try:
-            validate_password(attrs['password'])
-        except Exception as e:
-            raise serializers.ValidationError({"password": list(e.messages)})
-
-        # Get email from context (passed from view after OTP verification)
-        email = self.context.get('email')
-        if not email:
-            raise serializers.ValidationError("Email not found. Please verify your OTP first.")
-
-        # Find the invitation by email (OTP should already be verified)
-        try:
-            invitation = EmployeeInvitation.objects.get(
-                email=email,
-                accepted=False
-            )
-        except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError("No valid invitation found for this email. Please verify your OTP first.")
-
-        attrs['invitation'] = invitation
-        return attrs
-
-    def create(self, validated_data):
-        invitation = validated_data['invitation']
-        
-        # Create user account
-        user = User.objects.create_user(
-            username=validated_data['username'],
-            email=invitation.email,
-            password=validated_data['password'],
-            role='employee',
-            is_active=True
-        )
-
-        # Create employee profile
-        # Get or create department if employeedepartment is provided
-        department = None
-        if invitation.employeedepartment:
-            department, created = Department.objects.get_or_create(
-                name=invitation.employeedepartment,
-                defaults={'employer': invitation.employer}
-            )
-
-        employee_profile = Employee.objects.create(
-            user=user,
-            employer=invitation.employer,
-            phone=invitation.employeephone or None,
-            department=department
-        )
-
-        # Mark invitation as accepted
-        invitation.accepted = True
-        invitation.accepted_at = timezone.now()
-        invitation.save()
-
-        return user
 
 
-# INVITATION CREATE SERIALIZER
-class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(
-        required=True,
-        help_text="Email address of the employee being invited"
-    )
-    message = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        help_text="Optional invitation message"
-    )
-    employeephone = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        help_text="Employee phone number"
-    )
-    employeedepartment = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        help_text="Employee department"
-    )
-
-    class Meta:
-        model = EmployeeInvitation
-        fields = [
-            'id', 'email', 'message', 'employeephone', 'employeedepartment',
-            'otp', 'otp_expires_at',
-            'accepted', 'accepted_at',
-            'created_at'
-        ]
-        read_only_fields = ['id', 'otp', 'otp_expires_at', 'accepted', 'accepted_at', 'created_at']
-
-    def create(self, validated_data):
-        employer = self.context['employer']
-        inviter = self.context['user']
-
-        # Generate 6-digit OTP
-        otp = f"{randbelow(1000000):06d}"
-
-        # Expiry for OTP: 7 days from now
-        expiry_time = timezone.now() + timedelta(days=7)
-
-        invitation = EmployeeInvitation.objects.create(
-            employer=employer,
-            invited_by=inviter,
-            otp=otp,
-            otp_expires_at=expiry_time,
-            **validated_data
-        )
-
-        # You will send OTP via email outside this function
-        return invitation
 
 # --- Employee Profile ---
 
