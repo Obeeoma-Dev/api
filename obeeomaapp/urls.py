@@ -24,17 +24,18 @@ from obeeomaapp.views import (
     UsersView, ReportsView, CrisisInsightsView,
     EmployeeProfileView, AvatarProfileView,
     MoodTrackingView, SelfHelpResourceView,
-    CrisisTriggerView, NotificationView, 
-    EngagementTrackerView, FeedbackView, ChatSessionView, 
-    ChatMessageView, RecommendationLogView, 
-    home, OrganizationSignupView, InviteView,
+    CrisisTriggerView, NotificationView,
+    EngagementTrackerView, FeedbackView, ChatSessionView,
+    ChatMessageView, RecommendationLogView,
+    home, OrganizationSignupView,
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet,
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, MediaViewSet,
      CompleteOnboardingView,
     DynamicQuestionViewSet, UserAchievementViewSet,
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView, CBTExerciseViewSet, SettingsViewSet,
     JournalEntryViewSet, UpdatePaymentMethodViewSet,  PSS10AssessmentViewSet,
-    ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView,VerifyPasswordResetOTPView,VerifyInvitationOTPView
+    ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView,VerifyPasswordResetOTPView,VerifyInvitationOTPView,
+    EngagementLevelViewSet, CompanyMoodViewSet, WellnessGraphViewSet, EmployeeManagementViewSet, NotificationViewSet
 )
 
 
@@ -119,8 +120,6 @@ router.register(r'dashboard/billing/verify-payment', BillingView, basename='veri
 router.register(r'assessments/questions', AssessmentQuestionViewSet, basename='assessment-question')
 router.register(r'assessments/responses', AssessmentResponseViewSet, basename='assessment-response')
 
-# Employee Invitations
-router.register(r'invitations', InviteView, basename='invitations')
 
 # Media uploads
 router.register(r'media', MediaViewSet, basename='media')
@@ -128,6 +127,13 @@ router.register(r'media', MediaViewSet, basename='media')
 # Content management
 router.register(r'content/articles', ContentArticleViewSet, basename='content-article')
 router.register(r'content/media', ContentMediaViewSet, basename='content-media')
+
+# New endpoints
+router.register(r'engagement-level', EngagementLevelViewSet, basename='engagement-level')
+router.register(r'company-mood', CompanyMoodViewSet, basename='company-mood')
+router.register(r'wellness-graph', WellnessGraphViewSet, basename='wellness-graph')
+router.register(r'employee-management', EmployeeManagementViewSet, basename='employee-mgmt')
+router.register(r'notifications', NotificationViewSet, basename='notification-list')
 urlpatterns = [
     # Content management
     path("content/presign/", PresignUploadView.as_view(), name="content-presign-upload"),
@@ -207,8 +213,6 @@ urlpatterns = [
 
 
 
-    # Employee invitation flow (OTP-based)
-    path('auth/invitation-signup/', views.InvitationAcceptView.as_view({'post': 'create'}), name='invitation-signup'),
 
     # Include router URLs
     path("", include(router.urls)),
