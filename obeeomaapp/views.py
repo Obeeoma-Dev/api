@@ -22,6 +22,9 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import NotFound
 from drf_spectacular.utils import extend_schema, OpenApiParameter
+from .serializers import MFAPasswordVerifySerializer
+from .utils.mfa_token import create_mfa_settings_token, verify_mfa_settings_token
+from .serializers import MFAPasswordVerifySerializer, MFAToggleSerializer
 # from .models import OnboardingState
 from .models import CrisisHotline
 from .serializers import CrisisHotlineSerializer
@@ -635,6 +638,58 @@ def mfa_verify(request):
     django_login(request, user)  #This sets the Django session cookie
 
     return Response(_build_login_success_payload(user))
+
+# Verify Password for MFA Actions
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def verify_mfa_password(request):
+    """
+    Verify the admin password before allowing MFA changes.
+    Returns a temporary MFA settings token if correct.
+    """
+    serializer = MFAPasswordVerifySerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    user = request.user
+    password = serializer.validated_data['password']
+
+    if not user.check_password(password):
+        return Response({"error": "Incorrect password."}, status=400)
+
+    token = create_mfa_settings_token(user.id)
+
+    return Response({
+        "message": "Password verified successfully.",
+        "mfa_settings_token": token
+    })
+
+# MFA Toggle View
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def toggle_mfa(request):
+    """
+    Enable or disable MFA securely using the temporary MFA settings token.
+    """
+    serializer = MFAToggleSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    mfa_enabled = serializer.validated_data['mfa_enabled']
+    token = serializer.validated_data['mfa_settings_token']
+
+    user_id = verify_mfa_settings_token(token)
+    if not user_id or user_id != request.user.id:
+        return Response({"error": "Invalid or expired MFA settings token."}, status=400)
+
+    user = request.user
+    user.mfa_enabled = mfa_enabled
+    user.save()
+
+    return Response({
+        "message": "MFA setting updated successfully.",
+        "mfa_enabled": user.mfa_enabled
+    })
+
+
 
 # Resetpassword completeview
 @extend_schema(tags=['Authentication'])

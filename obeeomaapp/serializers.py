@@ -525,7 +525,17 @@ class MFAVerifySerializer(serializers.Serializer):
         help_text="6-digit MFA code from your authenticator app"
     )
 
+#  MFA PasswordVerify Serializer
+class MFAPasswordVerifySerializer(serializers.Serializer):
+    password = serializers.CharField(write_only=True)
 
+#MFA Toggle Serializer
+class MFAToggleSerializer(serializers.Serializer):
+    mfa_enabled = serializers.BooleanField()
+    mfa_settings_token = serializers.CharField()
+
+
+# USER SERIALIZER
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -1528,6 +1538,8 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+    
+# SETTINGS
 class SettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Settings
