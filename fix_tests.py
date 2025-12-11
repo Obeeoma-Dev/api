@@ -47,6 +47,5 @@ with open('tests/test_serializers.py', 'w', encoding='utf-8') as f:
 print(" Fixed test_serializers.py")
 print("\nRemaining issues to fix manually:")
 print("1. AssessmentResponseSerializer tests")
-print("2. EmployeeInvitationAcceptSerializer tests")
-print("3. SubscriptionSerializer tests")
-print("4. SystemAdminOverviewSerializer tests")
+print("2. SubscriptionSerializer tests")
+print("3. SystemAdminOverviewSerializer tests")

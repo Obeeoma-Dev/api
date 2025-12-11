@@ -73,7 +73,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import *
-from .serializers import EmployeeInvitationCreateSerializer, EmployeeInvitationAcceptSerializer  # Explicit import
+from .serializers import EmployeeInvitationCreateSerializer, InvitationOTPVerificationSerializer  # Explicit import
 from django.core.mail import send_mail, EmailMultiAlternatives
 from .utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings
@@ -87,7 +87,7 @@ import pyotp, qrcode, io, base64
 from django.utils.crypto import get_random_string
 from django.core.cache import cache
 from .models import Organization
-from .serializers import OTPVerificationSerializer
+from .serializers import PasswordResetOTPVerificationSerializer,InvitationOTPVerificationSerializer
 from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string
 from django.contrib.auth import authenticate, login as django_login
@@ -210,94 +210,56 @@ class OrganizationDetailView(APIView):
         serializer = OrganizationDetailSerializer(org)
         return Response(serializer.data)
 
-
-# VIEWS FOR VERIFYING THE OTP
+# Verify reset password otp view
 @extend_schema(
     tags=['Authentication'],
-    request=OTPVerificationSerializer,
-    responses={
-        200: {
-            "description": "OTP verified successfully",
-            "content": {
-                "application/json": {
-                    "examples": {
-                        "password_reset": {
-                            "summary": "Password Reset OTP",
-                            "value": {
-                                "message": "OTP verified successfully. You can now reset your password."
-                            }
-                        },
-                        "invitation": {
-                            "summary": "Invitation OTP",
-                            "value": {
-                                "message": "Invitation OTP verified successfully. Proceed to create your account.",
-                                "email": "employee@company.com",
-                                "employer": "Company Name"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        400: {"description": "Invalid or expired OTP"}
-    },
-    description="""
-    Verify OTP for password reset or employee invitation.
-    
-    **OTP Types:**
-    - `reset_password`: Verify OTP for password reset
-    - `invitation`: Verify OTP for employee invitation
-    
-    **Example Request (Invitation):**
-    ```json
-    {
-      "email": "employee@company.com",
-      "code": "123456",
-      "otp_type": "invitation"
-    }
-    ```
-    
-    **Example Request (Password Reset):**
-    ```json
-    {
-      "email": "user@company.com",
-      "code": "654321",
-      "otp_type": "reset_password"
-    }
-    ```
-    """
+    request=PasswordResetOTPVerificationSerializer,
+    responses={200: "OTP verified"},
+    description="Verifies the OTP sent to the user's email for password reset"
 )
-class VerifyOTPView(APIView):
+class VerifyPasswordResetOTPView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = OTPVerificationSerializer(data=request.data)
+        serializer = PasswordResetOTPVerificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        otp_type = request.data.get("otp_type")
+        otp = serializer.context['otp']
+        otp.delete()  # Remove OTP so it cannot be reused
 
-        if otp_type == "reset_password":
-            user = serializer.context['user']
-            serializer.context['otp'].delete()  # Remove password reset OTP
-            return Response(
-                {"message": "OTP verified successfully. You can now reset your password."},
-                status=status.HTTP_200_OK
-            )
+        return Response(
+            {"message": "OTP verified successfully. You can now reset your password."},
+            status=status.HTTP_200_OK
+        )
 
-        elif otp_type == "invitation":
-            invitation = serializer.context['invitation']
-            # Store email in session for signup
-            request.session['verified_invitation_email'] = invitation.email
-            request.session['invitation_verified_at'] = timezone.now().isoformat()
-            
-            return Response(
-                {
-                    "message": "Invitation OTP verified successfully. Proceed to create your account.",
-                    "email": invitation.email,
-                    "employer": invitation.employer.name
-                },
-                status=status.HTTP_200_OK
-            )
+# Verify invitation otp view
+@extend_schema(
+    tags=['Authentication'],
+    request=InvitationOTPVerificationSerializer,
+    responses={200: "Invitation OTP verified"},
+      description="Verifies the invitation OTP before employee account creation"
+)
+class VerifyInvitationOTPView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = InvitationOTPVerificationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        invitation = serializer.context['invitation']
+
+        # Save verified invitation email in session
+        request.session['verified_invitation_email'] = invitation.email
+        request.session['invitation_verified_at'] = timezone.now().isoformat()
+
+        return Response(
+            {
+                "message": "Invitation OTP verified successfully. Proceed to create your account.",
+                "email": invitation.email,
+                "employer": invitation.employer.name,
+            },
+            status=status.HTTP_200_OK
+        )
 
 
 
@@ -306,23 +268,15 @@ class VerifyOTPView(APIView):
 def _build_login_success_payload(user):
     refresh = RefreshToken.for_user(user)
 
-    display_username = user.username
-    try:
-        organization = user.organizations.first()
-        if organization:
-            display_username = organization.organizationName
-    except Exception:
-        pass
-
     user_data = {
         "id": user.id,
-        "username": display_username,
+        "username": user.username,
         "email": user.email,
         "role": user.role,
         "date_joined": user.date_joined,
         "is_active": user.is_active,
         "avatar": user.avatar.url if hasattr(user, "avatar") and user.avatar else None,
-        "onboarding_completed": getattr(user, 'onboarding_completed', False), 
+        "onboarding_completed": getattr(user, 'onboarding_completed', False),
     }
 
     # Redirect URL based on role
@@ -438,7 +392,7 @@ class LogoutView(APIView):
             token.blacklist()
             return Response(
                 {"message": "Logged out successfully."},
-                status=status.HTTP_205_RESET_CONTENT
+                status=status.HTTP_200_RESET_CONTENT
             )
         except Exception:
             return Response(
@@ -705,8 +659,6 @@ class ResetPasswordCompleteView(viewsets.ViewSet):
             status=status.HTTP_200_OK
         )
 
-# Employee Invitation Serializers - moved to serializers.py
-# Use EmployeeInvitationAcceptSerializer from serializers.py instead
 
 class EmployeeUserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
@@ -749,7 +701,7 @@ class ActiveHotlineView(APIView):
 class InviteView(viewsets.ModelViewSet):
     """
     Employee Invitation Management (OTP Only)
-    
+
     Allows employers to:
     - Send email invitations to new employees
     - View pending invitations
@@ -877,7 +829,7 @@ The Obeeoma Team
             # Send email using Gmail API
             logger.info(f"Attempting to send invitation email to {invitation.email}")
             success = send_gmail_api_email(invitation.email, subject, text_message)
-            
+
             if not success:
                 logger.error(f"Gmail API failed to send invitation email to {invitation.email}")
                 # Still return success but log the failure
@@ -898,6 +850,8 @@ The Obeeoma Team
                 "created_at": invitation.created_at,
             }
         }, status=status.HTTP_201_CREATED)
+
+
 
 # ===== ASSESSMENT QUESTIONNAIRE VIEWS =====
 
@@ -1041,98 +995,6 @@ class AssessmentResponseViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-@extend_schema(
-    tags=["Authentication"],
-    request=EmployeeInvitationAcceptSerializer,
-    responses={
-        201: {
-            "description": "Account created successfully",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "message": "Account created successfully. You can now login.",
-                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                        "user": {
-                            "id": 1,
-                            "username": "newemployee",
-                            "email": "newemployee@company.com",
-                            "role": "employee"
-                        }
-                    }
-                }
-            }
-        },
-        400: {"description": "Invalid data, email not verified, or validation error"}
-    },
-    description="""
-    Complete employee signup after OTP verification.
-    
-    **New Flow:**
-    1. Employee receives invitation email with 6-digit OTP
-    2. Employee verifies OTP using /api/v1/auth/verify-otp/ endpoint (otp_type: "invitation")
-    3. After OTP verification, employee uses THIS endpoint to create account
-    
-    **Required Fields (email is automatically captured from OTP verification):**
-    - username: Choose a unique username
-    - password: Create a password (min 8 characters)
-    - confirm_password: Confirm the password
-    
-    **Example Request:**
-    ```json
-    {
-      "username": "johndoe",
-      "password": "SecurePassword123!",
-      "confirm_password": "SecurePassword123!"
-    }
-    ```
-    
-    **Note:** You must verify your OTP first. The email is automatically retrieved from your verification session.
-    
-    Upon success, the user account is created and linked to the organization.
-    """
-)
-class InvitationAcceptView(viewsets.ViewSet):
-    permission_classes = [permissions.AllowAny]
-    serializer_class = EmployeeInvitationAcceptSerializer
-
-    def create(self, request):
-        """Complete employee signup after OTP verification"""
-        # Get verified email from session
-        email = request.session.get('verified_invitation_email')
-        if not email:
-            return Response(
-                {"error": "Please verify your OTP first before signing up."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        serializer = self.serializer_class(data=request.data, context={'email': email})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        
-        # Clear session data after successful signup
-        request.session.pop('verified_invitation_email', None)
-        request.session.pop('invitation_verified_at', None)
-        
-        # Generate tokens
-        refresh = RefreshToken.for_user(user)
-        
-        # Get user data
-        user_data = {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "date_joined": user.date_joined,
-            "is_active": user.is_active,
-        }
-        
-        return Response({
-            'message': 'Account created successfully. You can now login.',
-            'access': str(refresh.access_token),
-            'refresh': str(refresh),
-            'user': user_data
-        }, status=status.HTTP_201_CREATED)
 
 
 # --- Employer Dashboard ---
@@ -3962,6 +3824,54 @@ class ContentMediaViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
+
+# New views for the requested endpoints
+
+@extend_schema(tags=['Engagement Level'])
+class EngagementLevelViewSet(viewsets.ModelViewSet):
+    queryset = EngagementLevel.objects.all()
+    serializer_class = EngagementLevelSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+@extend_schema(tags=['Company Mood'])
+class CompanyMoodViewSet(viewsets.ModelViewSet):
+    queryset = CompanyMood.objects.all()
+    serializer_class = CompanyMoodSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+@extend_schema(tags=['Wellness Graph'])
+class WellnessGraphViewSet(viewsets.ModelViewSet):
+    queryset = WellnessGraph.objects.all()
+    serializer_class = WellnessGraphSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return WellnessGraph.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+
+
+@extend_schema(tags=['Employee Management'])
+class EmployeeManagementViewSet(viewsets.ModelViewSet):
+    queryset = Employee.objects.all()
+    serializer_class = EmployeeManagementSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+@extend_schema(tags=['Notifications'])
+class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Notification.objects.all()
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(employee__user=self.request.user)
 
     # Provide a convenience endpoint to regenerate a presigned GET url for private serving (optional)
     @action(detail=True, methods=["get"], permission_classes=[permissions.IsAuthenticated])

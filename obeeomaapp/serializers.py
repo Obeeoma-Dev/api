@@ -17,9 +17,13 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from obeeomaapp.utils.gmail_http_api import send_gmail_api_email
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
+from .models import EmployeeInvitation
 from .models import OnboardingState
 User = get_user_model()
 from rest_framework import serializers
+import secrets
+import string
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.hashers import check_password
@@ -36,10 +40,65 @@ logger = logging.getLogger(__name__)
 from .models import UserAchievement
 import uuid
 import requests
+import secrets
+import string
 from secrets import randbelow
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.translation import gettext as _
+
+# INVITATION SERIALIZERS
+class InvitationOTPVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+
+    def validate(self, attrs):
+        email = attrs.get('email')
+        otp = attrs.get('otp')
+
+        try:
+            invitation = EmployeeInvitation.objects.get(
+                email=email,
+                otp=otp,
+                accepted=False
+            )
+
+            # Check if OTP is expired
+            if invitation.otp_expires_at < timezone.now():
+                raise serializers.ValidationError({"otp": "OTP has expired"})
+
+            self.context['invitation'] = invitation
+            return attrs
+
+        except EmployeeInvitation.DoesNotExist:
+            raise serializers.ValidationError({"otp": "Invalid OTP or email"})
+
+
+class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
+    employeephone = serializers.CharField(max_length=20, required=False, allow_blank=True, help_text="Employee phone number (optional)")
+    employeedepartment = serializers.CharField(max_length=100, required=False, allow_blank=True, help_text="Employee department (optional)")
+    
+    class Meta:
+        model = EmployeeInvitation
+        fields = ['email', 'message', 'employeephone', 'employeedepartment']
+
+    def create(self, validated_data):
+        employer = self.context['employer']
+        user = self.context['user']
+
+        # Generate OTP
+        otp = ''.join(secrets.choice(string.digits) for _ in range(6))
+        otp_expires_at = timezone.now() + timedelta(days=7)  # 7 days validity
+
+        invitation = EmployeeInvitation.objects.create(
+            employer=employer,
+            invited_by=user,
+            otp=otp,
+            otp_expires_at=otp_expires_at,
+            **validated_data
+        )
+
+        return invitation
 
 
 User = get_user_model()
@@ -99,6 +158,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Organization
+
         fields = [
             'organizationName',
             'organisationSize',
@@ -141,7 +201,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
         organization = Organization.objects.create(**validated_data)
 
         # Send email via Gmail API (OAuth)
-        login_link = f"{settings.FRONTEND_URL}/login" if hasattr(settings, 'FRONTEND_URL') else "http://64.225.122.101/login"
+        
         org_email = organization.companyEmail
         org_name = organization.organizationName
 
@@ -149,7 +209,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
         message = (
             f"Hello {org_name},\n\n"
             f"Your organization has been successfully registered on our platform.\n\n"
-            f"You can now log in using the link below:\n{login_link}\n\n"
+            f"You can now log in using your registered organization name and password.\n\n"
             f"Thank you for registering with us!"
         )
 
@@ -262,6 +322,29 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, required=True)
     confirm_password = serializers.CharField(write_only=True, required=True)
     avatar = serializers.ImageField(required=True)
+    
+    # Assessment fields - all required for onboarding
+    gad7_scores = serializers.ListField(
+        child=serializers.IntegerField(min_value=0, max_value=3),
+        required=True,
+        min_length=7,
+        max_length=7,
+        help_text="GAD-7 anxiety assessment: 7 scores (0-3 each)"
+    )
+    phq9_scores = serializers.ListField(
+        child=serializers.IntegerField(min_value=0, max_value=3),
+        required=True,
+        min_length=9,
+        max_length=9,
+        help_text="PHQ-9 depression assessment: 9 scores (0-3 each)"
+    )
+    pss10_scores = serializers.ListField(
+        child=serializers.IntegerField(min_value=0, max_value=4),
+        required=True,
+        min_length=10,
+        max_length=10,
+        help_text="PSS-10 stress assessment: 10 scores (0-4 each)"
+    )
 
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
@@ -274,10 +357,48 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
         return attrs
 
     def update(self, user, validated_data):
+        # Update user profile
+        user.username = validated_data["username"]
+        user.set_password(validated_data["password"])
         user.avatar = validated_data["avatar"]
         user.onboarding_completed = True
-        user.is_first_time = False   # this marks onboarding done
+        user.is_first_time = False
         user.save()
+        
+        # Create GAD-7 assessment
+        gad7_total = sum(validated_data["gad7_scores"])
+        MentalHealthAssessment.objects.create(
+            user=user,
+            assessment_type='GAD-7',
+            gad7_scores=validated_data["gad7_scores"],
+            gad7_total=gad7_total
+        )
+        
+        # Create PHQ-9 assessment
+        phq9_total = sum(validated_data["phq9_scores"])
+        MentalHealthAssessment.objects.create(
+            user=user,
+            assessment_type='PHQ-9',
+            phq9_scores=validated_data["phq9_scores"],
+            phq9_total=phq9_total
+        )
+        
+        # Create PSS-10 assessment
+        pss10_total = sum(validated_data["pss10_scores"])
+        # Determine stress category
+        if pss10_total <= 13:
+            category = "Low stress"
+        elif pss10_total <= 26:
+            category = "Moderate stress"
+        else:
+            category = "High stress"
+            
+        PSS10Assessment.objects.create(
+            user=user,
+            score=pss10_total,
+            category=category
+        )
+        
         return user
 
 
@@ -335,41 +456,27 @@ class ResetPasswordCompleteSerializer(serializers.Serializer):
 
 
     
-# SERIAILZER FOR VERIFYING OTP
-class OTPVerificationSerializer(serializers.Serializer):
+# SERIAILZER FOR VERIFYING RESET PASSWORD OTP
+class PasswordResetOTPVerificationSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=6)
-    email = serializers.EmailField(required=True)
-    otp_type = serializers.ChoiceField(choices=["reset_password", "invitation"])
 
     def validate(self, attrs):
         code = attrs.get("code")
-        email = attrs.get("email")
-        otp_type = attrs.get("otp_type")
 
-        if otp_type == "reset_password":
-            otp = PasswordResetToken.objects.filter(user__email=email, code=code).order_by('-created_at').first()
-            if not otp:
-                raise serializers.ValidationError("Invalid password reset OTP.")
-            if otp.expires_at < timezone.now():
-                otp.delete()
-                raise serializers.ValidationError("This OTP has expired. Please request a new one.")
+        otp = PasswordResetToken.objects.filter(code=code).order_by('-created_at').first()
+        if not otp:
+            raise serializers.ValidationError("Invalid verification code.")
 
-            self.context["user"] = otp.user
-            self.context["otp"] = otp
+        if otp.expires_at < timezone.now():
+            otp.delete()
+            raise serializers.ValidationError("This OTP has expired. Please request a new one.")
 
-        elif otp_type == "invitation":
-            otp = EmployeeInvitation.objects.filter(email=email, otp=code, accepted=False).order_by('-created_at').first()
-            if not otp:
-                raise serializers.ValidationError("Invalid invitation OTP.")
-            if otp.otp_expires_at < timezone.now():
-                raise serializers.ValidationError("This invitation OTP has expired.")
-
-            self.context["invitation"] = otp
-
-        else:
-            raise serializers.ValidationError("Invalid OTP type.")
-
+        self.context["user"] = otp.user
+        self.context["otp"] = otp
         return attrs
+
+
+
 
 
 # SERIALIZERS FOR MFA SETUP AND VERIFICATION
@@ -524,117 +631,8 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
         return user
 
 
-# (Employee Invitation Accept - After OTP Verification)
-
-class EmployeeInvitationAcceptSerializer(serializers.Serializer):
-    username = serializers.CharField(required=True, min_length=3, max_length=150)
-    password = serializers.CharField(required=True, write_only=True, min_length=8)
-    confirm_password = serializers.CharField(required=True, write_only=True)
-
-    def validate_username(self, value):
-        """Check if username already exists"""
-        if User.objects.filter(username=value).exists():
-            raise serializers.ValidationError("This username is already taken.")
-        return value
-
-    def validate(self, attrs):
-        # Check passwords match
-        if attrs['password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
-        
-        # Validate password strength
-        from django.contrib.auth.password_validation import validate_password
-        try:
-            validate_password(attrs['password'])
-        except Exception as e:
-            raise serializers.ValidationError({"password": list(e.messages)})
-
-        # Get email from context (passed from view after OTP verification)
-        email = self.context.get('email')
-        if not email:
-            raise serializers.ValidationError("Email not found. Please verify your OTP first.")
-
-        # Find the invitation by email (OTP should already be verified)
-        try:
-            invitation = EmployeeInvitation.objects.get(
-                email=email,
-                accepted=False
-            )
-        except EmployeeInvitation.DoesNotExist:
-            raise serializers.ValidationError("No valid invitation found for this email. Please verify your OTP first.")
-
-        attrs['invitation'] = invitation
-        return attrs
-
-    def create(self, validated_data):
-        invitation = validated_data['invitation']
-        
-        # Create user account
-        user = User.objects.create_user(
-            username=validated_data['username'],
-            email=invitation.email,
-            password=validated_data['password'],
-            role='employee',
-            is_active=True
-        )
-
-        # Create employee profile
-        employee_profile = Employee.objects.create(
-            user=user,
-            employer=invitation.employer,
-            name=validated_data['username']
-        )
-
-        # Mark invitation as accepted
-        invitation.accepted = True
-        invitation.accepted_at = timezone.now()
-        invitation.save()
-
-        return user
 
 
-# INVITATION CREATE SERIALIZER
-class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(
-        required=True,
-        help_text="Email address of the employee being invited"
-    )
-    message = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        help_text="Optional invitation message"
-    )
-
-    class Meta:
-        model = EmployeeInvitation
-        fields = [
-            'id', 'email', 'message',
-            'otp', 'otp_expires_at',
-            'accepted', 'accepted_at',
-            'created_at'
-        ]
-        read_only_fields = ['id', 'otp', 'otp_expires_at', 'accepted', 'accepted_at', 'created_at']
-
-    def create(self, validated_data):
-        employer = self.context['employer']
-        inviter = self.context['user']
-
-        # Generate 6-digit OTP
-        otp = f"{randbelow(1000000):06d}"
-
-        # Expiry for OTP: 7 days from now
-        expiry_time = timezone.now() + timedelta(days=7)
-
-        invitation = EmployeeInvitation.objects.create(
-            employer=employer,
-            invited_by=inviter,
-            otp=otp,
-            otp_expires_at=expiry_time,
-            **validated_data
-        )
-
-        # You will send OTP via email outside this function
-        return invitation
 
 # --- Employee Profile ---
 
@@ -1659,6 +1657,51 @@ class ContentMediaSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at"]
+
+
+# New serializers for the requested endpoints
+
+class EngagementLevelSerializer(serializers.ModelSerializer):
+    activeEmployees = serializers.SerializerMethodField()
+    inactiveEmployees = serializers.SerializerMethodField()
+    totalEmployees = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EngagementLevel
+        fields = ['id', 'worker_department', 'hours_engaged', 'recorded_at', 'activeEmployees', 'inactiveEmployees', 'totalEmployees']
+
+    def get_activeEmployees(self, obj):
+        return Employee.objects.filter(status='active').count()
+
+    def get_inactiveEmployees(self, obj):
+        return Employee.objects.filter(status__in=['inactive', 'suspended']).count()
+
+    def get_totalEmployees(self, obj):
+        return Employee.objects.count()
+
+
+class CompanyMoodSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CompanyMood
+        fields = ['id', 'summary_description', 'created_at']
+
+
+class WellnessGraphSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WellnessGraph
+        fields = ['id', 'user', 'mood_score', 'mood_date']
+
+
+
+
+class EmployeeManagementSerializer(serializers.ModelSerializer):
+    empemail = serializers.EmailField(source='email')
+    empdepartment = serializers.CharField(source='department.name', read_only=True)
+    empstatus = serializers.CharField(source='status')
+
+    class Meta:
+        model = Employee
+        fields = ['id', 'empemail', 'empdepartment', 'empstatus']
 
 # content/serializers.py
 from rest_framework import serializers

@@ -16,7 +16,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret-key")
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 PORT = os.getenv("PORT", "8000")
 
-ALLOWED_HOSTS=["127.0.0.1", "localhost", "64.225.122.101"]
+ALLOWED_HOSTS=["127.0.0.1", "localhost", "64.225.122.101", "localhost:5173"]
 
 
 # Required for Nginx proxy
@@ -34,6 +34,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://64.225.122.101:8000",
     "http://64.225.122.101",
     "http://64.225.122.101:5173", 
+    "http://localhost:5173/"
 ]
 
 # Database configuration
@@ -147,7 +148,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # CORS settings
 # Allow all origins for development (restrict in production)
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -157,6 +158,7 @@ CORS_ALLOW_METHODS = [
     'POST',
     'PUT',
 ]
+
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',

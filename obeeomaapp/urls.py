@@ -5,8 +5,7 @@ from . import views
 from .views import OrganizationViewSet, AdminUserManagementViewSet
 
 from drf_yasg.views import get_schema_view
-from drf_yasg import openapi
-from .views import VerifyOTPView   
+from drf_yasg import openapi  
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 from .views import CustomTokenObtainPairView
@@ -25,17 +24,18 @@ from obeeomaapp.views import (
     UsersView, ReportsView, CrisisInsightsView,
     EmployeeProfileView, AvatarProfileView,
     MoodTrackingView, SelfHelpResourceView,
-    CrisisTriggerView, NotificationView, 
-    EngagementTrackerView, FeedbackView, ChatSessionView, 
-    ChatMessageView, RecommendationLogView, 
-    home, OrganizationSignupView, InviteView,
+    CrisisTriggerView, NotificationView,
+    EngagementTrackerView, FeedbackView, ChatSessionView,
+    ChatMessageView, RecommendationLogView,
+    home, OrganizationSignupView,
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet,
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, MediaViewSet,
      CompleteOnboardingView,
     DynamicQuestionViewSet, UserAchievementViewSet,
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView, CBTExerciseViewSet, SettingsViewSet,
     JournalEntryViewSet, UpdatePaymentMethodViewSet,  PSS10AssessmentViewSet,
-    ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView
+    ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView,VerifyPasswordResetOTPView,VerifyInvitationOTPView,
+    EngagementLevelViewSet, CompanyMoodViewSet, WellnessGraphViewSet, EmployeeManagementViewSet, NotificationViewSet, InviteView
 )
 
 
@@ -120,8 +120,6 @@ router.register(r'dashboard/billing/verify-payment', BillingView, basename='veri
 router.register(r'assessments/questions', AssessmentQuestionViewSet, basename='assessment-question')
 router.register(r'assessments/responses', AssessmentResponseViewSet, basename='assessment-response')
 
-# Employee Invitations
-router.register(r'invitations', InviteView, basename='invitations')
 
 # Media uploads
 router.register(r'media', MediaViewSet, basename='media')
@@ -129,6 +127,14 @@ router.register(r'media', MediaViewSet, basename='media')
 # Content management
 router.register(r'content/articles', ContentArticleViewSet, basename='content-article')
 router.register(r'content/media', ContentMediaViewSet, basename='content-media')
+
+# New endpoints
+router.register(r'engagement-level', EngagementLevelViewSet, basename='engagement-level')
+router.register(r'company-mood', CompanyMoodViewSet, basename='company-mood')
+router.register(r'wellness-graph', WellnessGraphViewSet, basename='wellness-graph')
+router.register(r'employee-management', EmployeeManagementViewSet, basename='employee-mgmt')
+router.register(r'notifications', NotificationViewSet, basename='notification-list')
+router.register(r'invitations', InviteView, basename='invitation')
 urlpatterns = [
     # Content management
     path("content/presign/", PresignUploadView.as_view(), name="content-presign-upload"),
@@ -146,7 +152,8 @@ urlpatterns = [
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
     path("auth/reset-password/confirm/", PasswordResetConfirmView.as_view({'post': 'create'}), name="password-reset-confirm"),
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
-    path('auth/verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
+    path("auth/verify-password-reset-otp/", VerifyPasswordResetOTPView.as_view(), name="verify-password-reset-otp"),
+    path("auth/verify-invitation-otp/", VerifyInvitationOTPView.as_view(), name="verify-invitation-otp"),
     path('auth/reset-password/complete/', ResetPasswordCompleteView.as_view({'post': 'create'}), name='password-reset-complete'),
     path('auth/mfa/setup/', views.mfa_setup, name='mfa-setup'),
     path('auth/mfa/confirm/', views.mfa_confirm, name='mfa-confirm'),
@@ -207,8 +214,6 @@ urlpatterns = [
 
 
 
-    # Employee invitation flow (OTP-based)
-    path('auth/invitation-signup/', views.InvitationAcceptView.as_view({'post': 'create'}), name='invitation-signup'),
 
     # Include router URLs
     path("", include(router.urls)),
