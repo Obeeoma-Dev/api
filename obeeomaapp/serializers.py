@@ -415,22 +415,39 @@ class PasswordResetSerializer(serializers.Serializer):
     def create(self, validated_data):
         return validated_data
 
-# Serializer for passwordchange or reset
+# Password change serializer
 class PasswordChangeSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True, required=True)
     new_password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
+        user = self.context['request'].user
+        old_password = attrs.get('old_password')
         new_password = attrs.get('new_password')
         confirm_password = attrs.get('confirm_password')
 
+        # This Checks old password correctness
+        if not user.check_password(old_password):
+            raise serializers.ValidationError({"old_password": "Old password is incorrect."})
+
+        # This here Prevents reuse of old password
+        if old_password == new_password:
+            raise serializers.ValidationError({"new_password": "New password cannot be the same as old password."})
+
+        # Confirm match
         if new_password != confirm_password:
             raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
-        
+
         return attrs
 
-    def create(self, validated_data):
-        return validated_data
+    def save(self, **kwargs):
+        user = self.context['request'].user
+        new_password = self.validated_data['new_password']
+        user.set_password(new_password)
+        user.save()
+        return user
+
     
 # Resetpasswordcomplete serializer
 

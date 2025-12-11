@@ -185,8 +185,6 @@ class SignupView(viewsets.ModelViewSet):
      permission_classes = [permissions.AllowAny]
         
 
-       
-
 # VIEWS FOR CREATING AN ORGANIZATION
 @extend_schema(
     tags=['Authentication'],
@@ -1150,7 +1148,7 @@ class AvatarProfileView(viewsets.ModelViewSet):
 # updated mood tracking view with mood summary action
 
 @extend_schema(tags=['Employee - Mood Tracking'])
-class MoodTrackingView(viewsets.ModelViewSet):
+class  MoodTrackingView(viewsets.ModelViewSet):
     serializer_class = MoodTrackingSerializer
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ['mood']
