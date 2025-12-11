@@ -36,6 +36,7 @@ from obeeomaapp.views import (
     JournalEntryViewSet, UpdatePaymentMethodViewSet,  PSS10AssessmentViewSet,
     ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView,VerifyPasswordResetOTPView,VerifyInvitationOTPView,
     EngagementLevelViewSet, CompanyMoodViewSet, WellnessGraphViewSet, EmployeeManagementViewSet, NotificationViewSet, InviteView, 
+    verify_mfa_password, toggle_mfa,
     
 )
 
@@ -159,10 +160,8 @@ urlpatterns = [
     path('auth/mfa/setup/', views.mfa_setup, name='mfa-setup'),
     path('auth/mfa/confirm/', views.mfa_confirm, name='mfa-confirm'),
     path('auth/mfa/verify/', views.mfa_verify, name='mfa-verify'),
-
-    # NEW secure admin MFA management endpoints
-   path('auth/mfa/verify-password/', views.verify_mfa_password, name='verify-mfa-password'),
-   path('auth/mfa/toggle/', views.toggle_mfa, name='mfa-toggle'),
+    path('auth/mfa/verify-password/', views.verify_mfa_password, name='verify-mfa-password'),
+    path('auth/mfa/toggle/', views.toggle_mfa, name='mfa-toggle'),
 
     # Hotline Active Endpoint
     path('auth/hotline/active/', ActiveHotlineView.as_view(), name="active-hotline"),
