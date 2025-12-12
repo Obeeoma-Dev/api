@@ -36,7 +36,7 @@ from obeeomaapp.views import (
     JournalEntryViewSet, UpdatePaymentMethodViewSet,  PSS10AssessmentViewSet,
     ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView,VerifyPasswordResetOTPView,VerifyInvitationOTPView,
     EngagementLevelViewSet, CompanyMoodViewSet, WellnessGraphViewSet, EmployeeManagementViewSet, NotificationViewSet, InviteView, 
-    verify_mfa_password, toggle_mfa,
+    VerifyMFAPasswordView, ToggleMFAView
     
 )
 
@@ -172,8 +172,8 @@ urlpatterns = [
     path('auth/mfa/setup/', views.mfa_setup, name='mfa-setup'),
     path('auth/mfa/confirm/', views.mfa_confirm, name='mfa-confirm'),
     path('auth/mfa/verify/', views.mfa_verify, name='mfa-verify'),
-    path('auth/mfa/verify-password/', views.verify_mfa_password, name='verify-mfa-password'),
-    path('auth/mfa/toggle/', views.toggle_mfa, name='mfa-toggle'),
+    path('auth/mfa/verify-password/', VerifyMFAPasswordView.as_view(), name='verify-mfa-password'),
+    path('auth/mfa/toggle/', ToggleMFAView.as_view(), name='mfa-toggle'),
 
     # JWT Token Management
     path("auth/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
