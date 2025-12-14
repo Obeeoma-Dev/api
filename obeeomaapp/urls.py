@@ -110,11 +110,9 @@ router.register(r'admin/reports-analytics', ReportsAnalyticsView, basename='repo
 router.register(r'admin/system-settings', SystemSettingsView, basename='system-settings')
 router.register(r'admin/feature-flags', FeaturesUsageView, basename='feature-flags')
 router.register(r'dynamic-questions', DynamicQuestionViewSet, basename='dynamic-question')
-
 # ADMIN USER MANAGEMENT ROUTERS
 router.register(r'admin/organizations', OrganizationViewSet, basename='admin-organizations')
 router.register(r'admin/users', AdminUserManagementViewSet, basename='admin-users')
-
 # SYSTEM ADMIN – BILLING & SUBSCRIPTIONS(MANAGEMENT)
 router.register(r'admin/subscriptions', AdminSubscriptionManagementViewSet,  basename='admin-subscriptions')    
 router.register( r'admin/billing', AdminBillingHistoryViewSet, basename='admin-billing')
