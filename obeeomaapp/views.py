@@ -3364,7 +3364,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     serializer_class = OrganizationSerializer
     permission_classes = [IsSystemAdmin]
 
-
 class AdminUserManagementViewSet(viewsets.ModelViewSet):
     """
     System Admin full control over users.
@@ -3434,6 +3433,10 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
         if user.role == 'system_admin':
             return Response({'detail': 'Cannot delete a system admin account.'}, status=status.HTTP_400_BAD_REQUEST)
         return super().destroy(request, *args, **kwargs)
+
+
+
+# SETTINGS VIEW
 @extend_schema(tags=['User - Settings'])
 class SettingsViewSet(viewsets.ModelViewSet):
     serializer_class = SettingsSerializer

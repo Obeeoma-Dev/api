@@ -30,6 +30,7 @@ from django.contrib.auth.hashers import check_password
 from django.utils import timezone
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
+from obeeomaapp.models import Subscription, Billing
 from django.contrib.auth import get_user_model
 from django.db import transaction
 import logging
@@ -1538,6 +1539,35 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+class AdminSubscriptionSerializer(serializers.ModelSerializer):
+    """
+    Serializer used by SYSTEM ADMIN
+    to view and manage ALL subscriptions
+    across ALL organizations.
+    """
+
+    class Meta:
+        model = Subscription
+        fields = '__all__'
+        read_only_fields = [
+            'id',
+            'created_at',
+            'updated_at'
+        ]
+
+
+class AdminBillingSerializer(serializers.ModelSerializer):
+    """
+    Read-only serializer for SYSTEM ADMIN
+    to audit billing records (payments, invoices, etc).
+    """
+
+    class Meta:
+        model = Billing
+        fields = '__all__'
+        read_only_fields = fields  # billing history should not be edited
+
+
     
 # SETTINGS
 class SettingsSerializer(serializers.ModelSerializer):
