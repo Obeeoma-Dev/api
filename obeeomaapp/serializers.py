@@ -30,7 +30,7 @@ from django.contrib.auth.hashers import check_password
 from django.utils import timezone
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
-from obeeomaapp.models import Subscription, Billing
+from obeeomaapp.models import Subscription, BillingHistory
 from django.contrib.auth import get_user_model
 from django.db import transaction
 import logging
@@ -1552,7 +1552,6 @@ class AdminSubscriptionSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id',
             'created_at',
-            'updated_at'
         ]
 
 
@@ -1563,10 +1562,18 @@ class AdminBillingSerializer(serializers.ModelSerializer):
     """
 
     class Meta:
-        model = Billing
+        model = BillingHistory
         fields = '__all__'
-        read_only_fields = fields  # billing history should not be edited
-
+        read_only_fields = [
+              'id',
+            'employer',
+            'invoice_number',
+            'amount',
+            'plan_name',
+            'billing_date',
+            'status',
+            'created_at'
+        ]
 
     
 # SETTINGS

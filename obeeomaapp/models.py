@@ -367,8 +367,6 @@ class HotlineActivity(models.Model):
 
 
 
-
-
 # Employee Engagement model.
 class EmployeeEngagement(models.Model):
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="engagements")
@@ -1696,11 +1694,7 @@ class PSS10Assessment(models.Model):
     def __str__(self):
         return f"PSS-10 ({self.user.email}) - {self.score} ({self.category})"
 
-# content/models.py
-from django.db import models
-from django.contrib.auth import get_user_model
 
-User = get_user_model()
 
 class ContentArticle(models.Model):
     title = models.CharField(max_length=255)

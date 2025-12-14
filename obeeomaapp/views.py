@@ -76,7 +76,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import *
-from .serializers import EmployeeInvitationCreateSerializer, InvitationOTPVerificationSerializer  # Explicit import
+from .serializers import EmployeeInvitationCreateSerializer, InvitationOTPVerificationSerializer 
 from django.core.mail import send_mail, EmailMultiAlternatives
 from .utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings
@@ -3433,6 +3433,20 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
         if user.role == 'system_admin':
             return Response({'detail': 'Cannot delete a system admin account.'}, status=status.HTTP_400_BAD_REQUEST)
         return super().destroy(request, *args, **kwargs)
+
+# ADMIN SUBSCRIPTION MANAGEMENT
+class AdminSubscriptionManagementViewSet(viewsets.ModelViewSet):
+    queryset = Subscription.objects.all()
+    serializer_class = AdminSubscriptionSerializer
+    permission_classes = [IsSystemAdmin]
+# ADMIN BILLING HISTORY (READ-ONLY)
+class AdminBillingHistoryViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    System Admin can view billing history but cannot edit.
+    """
+    queryset = BillingHistory.objects.all()
+    serializer_class = AdminBillingSerializer
+    permission_classes = [IsSystemAdmin]
 
 
 

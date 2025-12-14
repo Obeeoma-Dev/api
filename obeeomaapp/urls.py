@@ -36,7 +36,7 @@ from obeeomaapp.views import (
     JournalEntryViewSet, UpdatePaymentMethodViewSet,  PSS10AssessmentViewSet,
     ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView,VerifyPasswordResetOTPView,VerifyInvitationOTPView,
     EngagementLevelViewSet, CompanyMoodViewSet, WellnessGraphViewSet, EmployeeManagementViewSet, NotificationViewSet, InviteView, 
-    VerifyMFAPasswordView, ToggleMFAView
+    VerifyMFAPasswordView, ToggleMFAView,AdminSubscriptionManagementViewSet, AdminBillingHistoryViewSet
     
 )
 
@@ -110,11 +110,16 @@ router.register(r'admin/reports-analytics', ReportsAnalyticsView, basename='repo
 router.register(r'admin/system-settings', SystemSettingsView, basename='system-settings')
 router.register(r'admin/feature-flags', FeaturesUsageView, basename='feature-flags')
 router.register(r'dynamic-questions', DynamicQuestionViewSet, basename='dynamic-question')
+
 # ADMIN USER MANAGEMENT ROUTERS
 router.register(r'admin/organizations', OrganizationViewSet, basename='admin-organizations')
 router.register(r'admin/users', AdminUserManagementViewSet, basename='admin-users')
-router.register(r'journal-entries', JournalEntryViewSet, basename='journal-entry')
 
+# SYSTEM ADMIN – BILLING & SUBSCRIPTIONS(MANAGEMENT)
+router.register(r'admin/subscriptions', AdminSubscriptionManagementViewSet,  basename='admin-subscriptions')    
+router.register( r'admin/billing', AdminBillingHistoryViewSet, basename='admin-billing')
+
+router.register(r'journal-entries', JournalEntryViewSet, basename='journal-entry')
 router.register(r'dashboard/billing/verify-payment', BillingView, basename='verify-payment')
 
 # Assessment Questionnaires (PHQ-9 & GAD-7)
