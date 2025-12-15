@@ -199,7 +199,7 @@ urlpatterns = [
     path("dashboard/trends/", TrendsView.as_view({'get': 'list'}), name="trends"),
     path("dashboard/employee-engagement/", EmployeeEngagementView.as_view({'get': 'list', 'post': 'create'}), name="employee-engagement"),
     # Added Employee Engagement Summary Endpoint
-    path( "dashboard/employee-engagement/summary/",  EmployeeEngagementSummaryView.as_view, name="employee-engagement-summary"),
+    path( "dashboard/employee-engagement/summary/",  EmployeeEngagementSummaryView.as_view(), name="employee-engagement-summary"),
     
     path("dashboard/features-usage/", FeaturesUsageView.as_view({'get': 'list'}), name="features-usage"),
     path("dashboard/billing/", BillingView.as_view({'get': 'list', 'post': 'create'}), name="billing"),
