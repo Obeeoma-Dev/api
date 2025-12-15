@@ -127,6 +127,15 @@ class EmployeeInvitation(models.Model):
             return "rejected"
         return "pending"
 
+    @property
+    def accepted(self):
+        """
+        Backwards-compatible boolean flag indicating if the invitation
+        has been accepted. Older code/tests expect `invitation.accepted`
+        instead of checking `accepted_at` or `status`.
+        """
+        return bool(self.accepted_at)
+
     def __str__(self):
         return f"Invite {self.email} → {self.employer.name}"
 
