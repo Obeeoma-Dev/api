@@ -76,7 +76,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import *
-from .serializers import EmployeeInvitationCreateSerializer, InvitationOTPVerificationSerializer 
+from .serializers import EmployeeInvitationCreateSerializer, EmployeeInvitationResponseSerializer
 from django.core.mail import send_mail, EmailMultiAlternatives
 from .utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings
@@ -249,6 +249,10 @@ class VerifyInvitationOTPView(APIView):
 
         invitation = serializer.context['invitation']
 
+        # Mark invitation as accepted
+        invitation.accepted_at = timezone.now()
+        invitation.save()
+
         # Save verified invitation email in session
         request.session['verified_invitation_email'] = invitation.email
         request.session['invitation_verified_at'] = timezone.now().isoformat()
@@ -261,7 +265,6 @@ class VerifyInvitationOTPView(APIView):
             },
             status=status.HTTP_200_OK
         )
-
 
 
 
@@ -763,86 +766,94 @@ class InviteView(viewsets.ModelViewSet):
 
     Allows employers to:
     - Send email invitations to new employees
-    - View pending invitations
-    - Resend or cancel invitations
+    - View pending / accepted / expired invitations
     """
     serializer_class = EmployeeInvitationCreateSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    
+    # QUERYSET (LIST / FILTER)
+   
     def get_queryset(self):
         employer = None
-
-        # Try to get employer from organization
-        try:
-            organization = Organization.objects.filter(owner=self.request.user).first()
-            if organization:
-                employer, created = Employer.objects.get_or_create(
-                    name=organization.organizationName,
-                    defaults={'is_active': True}
-                )
-        except Exception:
-            pass
-
-        # Try to get employer from employee profile
-        if not employer:
-            try:
-                employee_profile = Employee.objects.filter(user=self.request.user).first()
-                if employee_profile:
-                    employer = employee_profile.employer
-            except Exception:
-                pass
-
-        # If user is staff, get first employer
-        if not employer and self.request.user.is_staff:
-            employer = Employer.objects.first()
-
-        if employer:
-            queryset = EmployeeInvitation.objects.filter(employer=employer).order_by('-created_at')
-            status_param = self.request.query_params.get('status')
-            now = timezone.now()
-
-            if status_param == 'pending':
-                queryset = queryset.filter(accepted=False, otp_expires_at__gt=now)
-            elif status_param == 'accepted':
-                queryset = queryset.filter(accepted=True)
-            elif status_param == 'expired':
-                queryset = queryset.filter(accepted=False, otp_expires_at__lte=now)
-
-            return queryset
-
-        return EmployeeInvitation.objects.none()
-
-    @extend_schema(
-        request=EmployeeInvitationCreateSerializer,
-        responses={201: "Invitation sent successfully", 400: "Bad Request"},
-        description="Send an invitation to a new employee with OTP only"
-    )
-    def create(self, request, *args, **kwargs):
-        """Send an invitation to a new employee (OTP only)"""
-        employer = None
+        user = self.request.user
+        now = timezone.now()
 
         # Get employer from organization
-        try:
-            organization = Organization.objects.filter(owner=request.user).first()
-            if organization:
-                employer, created = Employer.objects.get_or_create(
-                    name=organization.organizationName,
-                    defaults={'is_active': True}
-                )
-        except Exception as e:
-            logger.warning(f"Error getting organization: {str(e)}")
+        organization = Organization.objects.filter(owner=user).first()
+        if organization:
+            employer, _ = Employer.objects.get_or_create(
+                name=organization.organizationName,
+                defaults={'is_active': True}
+            )
 
         # Get employer from employee profile
         if not employer:
-            try:
-                employee_profile = Employee.objects.filter(user=request.user).first()
-                if employee_profile:
-                    employer = employee_profile.employer
-            except Exception:
-                pass
+            employee_profile = Employee.objects.filter(user=user).first()
+            if employee_profile:
+                employer = employee_profile.employer
 
         # Staff fallback
-        if not employer and request.user.is_staff:
+        if not employer and user.is_staff:
+            employer = Employer.objects.first()
+
+        if not employer:
+            return EmployeeInvitation.objects.none()
+
+        queryset = EmployeeInvitation.objects.filter(
+            employer=employer
+        ).order_by('-created_at')
+
+        status_param = self.request.query_params.get('status')
+
+        if status_param == 'pending':
+            queryset = queryset.filter(
+                accepted_at__isnull=True,
+                rejected_at__isnull=True,
+                otp_expires_at__gt=now
+            )
+
+        elif status_param == 'accepted':
+            queryset = queryset.filter(
+                accepted_at__isnull=False
+            )
+
+        elif status_param == 'expired':
+            queryset = queryset.filter(
+                accepted_at__isnull=True,
+                rejected_at__isnull=True,
+                otp_expires_at__lte=now
+            )
+
+        return queryset
+
+   
+    # CREATE INVITATION
+    @extend_schema(
+        request=EmployeeInvitationCreateSerializer,
+        responses={201: EmployeeInvitationResponseSerializer},
+        description="Send an invitation to a new employee with OTP"
+    )
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        employer = None
+
+        # Get employer from organization
+        organization = Organization.objects.filter(owner=user).first()
+        if organization:
+            employer, _ = Employer.objects.get_or_create(
+                name=organization.organizationName,
+                defaults={'is_active': True}
+            )
+
+        # Get employer from employee profile
+        if not employer:
+            employee_profile = Employee.objects.filter(user=user).first()
+            if employee_profile:
+                employer = employee_profile.employer
+
+        # Staff fallback
+        if not employer and user.is_staff:
             employer = Employer.objects.first()
 
         if not employer:
@@ -853,62 +864,47 @@ class InviteView(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(
             data=request.data,
-            context={'employer': employer, 'user': request.user}
+            context={
+                'employer': employer,
+                'user': user
+            }
         )
         serializer.is_valid(raise_exception=True)
         invitation = serializer.save()
 
-        # Send email with OTP only
+        # SEND OTP EMAIL
+        
         try:
             subject = f"Welcome to {employer.name} on Obeeoma!"
-            otp = invitation.otp
-            otp_expiry = invitation.otp_expires_at.strftime('%B %d, %Y at %I:%M %p')  # e.g., December 14, 2025 at 04:32 PM
+            otp_expiry = invitation.otp_expires_at.strftime(
+                '%B %d, %Y at %I:%M %p'
+            )
 
-            text_message = f"""
+            message = f"""
 Hello,
 
-You have been invited to join {employer.name} on Obeeoma by {request.user.username}.
+You have been invited to join {employer.name} on Obeeoma by {user.username}.
 
-{invitation.message if invitation.message else ''}
+{invitation.message or ""}
 
-Your 6-digit verification code is: {otp}
+Your 6-digit verification code is: {invitation.otp}
 
-This code will expire on {otp_expiry} (valid for 7 days).
-
-To complete your registration:
-1. Enter this OTP code to verify your email
-2. Create your username and password
-3. Start using Obeeoma
+This code expires on {otp_expiry} (valid for 7 days).
 
 If you did not expect this invitation, please ignore this email.
 
 Best regards,
 The Obeeoma Team
 """
-            # Send email using Gmail API
-            logger.info(f"Attempting to send invitation email to {invitation.email}")
-            success = send_gmail_api_email(invitation.email, subject, text_message)
-
-            if not success:
-                logger.error(f"Gmail API failed to send invitation email to {invitation.email}")
-                # Still return success but log the failure
-            else:
-                logger.info(f"Successfully sent invitation email to {invitation.email}")
+            send_gmail_api_email(invitation.email, subject, message)
 
         except Exception as e:
-            logger.error(f"Failed to send OTP email: {str(e)}")
-            logger.exception("Full email error traceback:")
+            logger.exception("Failed to send invitation email")
 
-        return Response({
-            "message": "Invitation sent successfully. OTP has been emailed to the user.",
-            "invitation": {
-                "id": invitation.id,
-                "email": invitation.email,
-                "message": invitation.message,
-                "otp_expires_at": invitation.otp_expires_at,
-                "created_at": invitation.created_at,
-            }
-        }, status=status.HTTP_201_CREATED)
+        return Response(
+            EmployeeInvitationResponseSerializer(invitation).data,
+            status=status.HTTP_201_CREATED
+        )
 
 
 

@@ -92,28 +92,43 @@ class User(AbstractUser):
 # EMPLOYEE INVITATION
 class EmployeeInvitation(models.Model):
     employer = models.ForeignKey(
-        'Employer', on_delete=models.CASCADE, related_name="invitations"
+        'Employer',
+        on_delete=models.CASCADE,
+        related_name='invitations'
     )
     email = models.EmailField()
     invited_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
     )
     message = models.TextField(blank=True)
 
-    # New fields for employee details
+    # Employee details
     employeephone = models.CharField(max_length=20, blank=True, null=True)
     employeedepartment = models.CharField(max_length=100, blank=True, null=True)
 
-    # OTP for verification
-    otp = models.CharField(max_length=6, null=True, blank=True)
-    otp_expires_at = models.DateTimeField(null=True, blank=True)
+    # OTP
+    otp = models.CharField(max_length=6, blank=True, null=True)
+    otp_expires_at = models.DateTimeField(blank=True, null=True)
 
-    accepted = models.BooleanField(default=False)
+    # Invitation lifecycle (EVENTS, not status)
     accepted_at = models.DateTimeField(blank=True, null=True)
+    rejected_at = models.DateTimeField(blank=True, null=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
+    @property
+    def status(self):
+        if self.accepted_at:
+            return "accepted"
+        if self.rejected_at:
+            return "rejected"
+        return "pending"
+
     def __str__(self):
-        return f"Invite {self.email} -> {self.employer.name}"
+        return f"Invite {self.email} → {self.employer.name}"
 
     class Meta:
         indexes = [models.Index(fields=["email"])]

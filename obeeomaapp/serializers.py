@@ -49,6 +49,30 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.utils.translation import gettext as _
 
 # INVITATION SERIALIZERS
+class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
+    employeephone = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    employeedepartment = serializers.CharField(max_length=100, required=False, allow_blank=True)
+
+    class Meta:
+        model = EmployeeInvitation
+        fields = ['email', 'message', 'employeephone', 'employeedepartment']
+
+    def create(self, validated_data):
+        employer = self.context['employer']
+        user = self.context['user']
+
+        otp = ''.join(secrets.choice(string.digits) for _ in range(6))
+        otp_expires_at = timezone.now() + timedelta(days=7)
+
+        invitation = EmployeeInvitation.objects.create(
+            employer=employer,
+            invited_by=user,
+            otp=otp,
+            otp_expires_at=otp_expires_at,
+            **validated_data
+        )
+
+        return invitation
 class InvitationOTPVerificationSerializer(serializers.Serializer):
     email = serializers.EmailField()
     otp = serializers.CharField(max_length=6)
@@ -61,11 +85,11 @@ class InvitationOTPVerificationSerializer(serializers.Serializer):
             invitation = EmployeeInvitation.objects.get(
                 email=email,
                 otp=otp,
-                accepted=False
+                accepted_at__isnull=True,
+                rejected_at__isnull=True
             )
 
-            # Check if OTP is expired
-            if invitation.otp_expires_at < timezone.now():
+            if not invitation.otp_expires_at or invitation.otp_expires_at < timezone.now():
                 raise serializers.ValidationError({"otp": "OTP has expired"})
 
             self.context['invitation'] = invitation
@@ -73,33 +97,29 @@ class InvitationOTPVerificationSerializer(serializers.Serializer):
 
         except EmployeeInvitation.DoesNotExist:
             raise serializers.ValidationError({"otp": "Invalid OTP or email"})
+class EmployeeInvitationResponseSerializer(serializers.ModelSerializer):
+    emailAddress = serializers.EmailField(source='email')
+    phoneNumber = serializers.CharField(
+        source='employeephone',
+        required=False,
+        allow_blank=True
+    )
+    department = serializers.CharField(
+        source='employeedepartment',
+        required=False,
+        allow_blank=True
+    )
 
-
-class EmployeeInvitationCreateSerializer(serializers.ModelSerializer):
-    employeephone = serializers.CharField(max_length=20, required=False, allow_blank=True, help_text="Employee phone number (optional)")
-    employeedepartment = serializers.CharField(max_length=100, required=False, allow_blank=True, help_text="Employee department (optional)")
-    
     class Meta:
         model = EmployeeInvitation
-        fields = ['email', 'message', 'employeephone', 'employeedepartment']
+        fields = [
+            'id',
+            'emailAddress',
+            'phoneNumber',
+            'department',
+            'status',
+        ]
 
-    def create(self, validated_data):
-        employer = self.context['employer']
-        user = self.context['user']
-
-        # Generate OTP
-        otp = ''.join(secrets.choice(string.digits) for _ in range(6))
-        otp_expires_at = timezone.now() + timedelta(days=7)  # 7 days validity
-
-        invitation = EmployeeInvitation.objects.create(
-            employer=employer,
-            invited_by=user,
-            otp=otp,
-            otp_expires_at=otp_expires_at,
-            **validated_data
-        )
-
-        return invitation
 
 
 User = get_user_model()

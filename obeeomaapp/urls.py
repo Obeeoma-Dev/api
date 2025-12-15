@@ -148,10 +148,8 @@ urlpatterns = [
     path(
         "debug/email-config/", EmailConfigCheckView.as_view(), name="email-config-check"
     ),
-    # ============================================================================
-    # AUTHENTICATION
-    # ============================================================================
     
+    # AUTHENTICATION ENDPOINTS
     # User Registration & Login
     path("auth/signup/", SignupView.as_view({"post": "create"}), name="signup"),
     path("auth/organization-signup/", OrganizationSignupView.as_view({"post": "create"}), name="organization-signup"),
