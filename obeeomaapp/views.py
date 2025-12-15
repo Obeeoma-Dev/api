@@ -43,6 +43,7 @@ from django.db.models import Avg
 from .models import Feedback
 from .serializers import FeedbackSerializer
 import logging
+import csv
 
 logger = logging.getLogger(__name__)
 from django.db.models import Avg
@@ -1128,12 +1129,27 @@ class UsersView(viewsets.ModelViewSet):
     serializer_class = EmployeeSerializer
     # permission_classes = [IsCompanyAdmin]
 
-
+# REPORTS VIEW with DOWNLOAD ACTION
 @extend_schema(tags=['Employer Dashboard'])
 class ReportsView(viewsets.ReadOnlyModelViewSet):
     queryset = RecentActivity.objects.select_related("employer").order_by("-timestamp")
     serializer_class = RecentActivitySerializer
-    # permission_classes = [IsCompanyAdmin]
+
+    # This is the New action for downloading a report
+    @action(detail=True, methods=['get'], url_path='download')
+    def download_report(self, request, pk=None):
+        # Get the report instance
+        report = self.get_object()
+        
+        # Assuming your model has a file_path field (update if different)
+        file_path = getattr(report, 'file_path', None)
+        if not file_path:
+            return Response({"detail": "Report file not found."}, status=404)
+        
+        response = FileResponse(open(file_path, 'rb'))
+        response['Content-Disposition'] = f'attachment; filename="{getattr(report, "title", "report")}.pdf"'
+        return response
+   
 
 # For crisis insights about hotline activities and for which reasons employees are reaching out.
 @extend_schema(tags=['Employer Dashboard'])
@@ -2303,6 +2319,23 @@ class WellnessReportsView(viewsets.ViewSet):
         }
         
         return Response(data)
+# Added New action for CSV download 
+    @action(detail=False, methods=['get'], url_path='download')
+    def download_summary(self, request):
+        # Prepare CSV response
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="wellness_summary.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(['Metric', 'Value'])
+
+        # this Adds computed metrics
+        writer.writerow(['Common Issues', CommonIssue.objects.count()])
+        writer.writerow(['Resource Engagement', ResourceEngagement.objects.filter(completed=True).count()])
+        avg_wellbeing = MoodTracking.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
+        writer.writerow(['Average Wellbeing Trend', round(avg_wellbeing, 2)])
+        writer.writerow(['At-Risk Departments', Department.objects.filter(at_risk=True).count()])
+        return response
 
 
 @extend_schema(tags=['Employer Dashboard'])
