@@ -1029,10 +1029,19 @@ class WellnessReportsSerializer(serializers.Serializer):
     chat_engagement = ChatEngagementSerializer(many=True)
     department_contributions = DepartmentContributionSerializer(many=True)
     recent_activities = OrganizationActivitySerializer(many=True)
+    
+
+# Employee Status Summary Serializer
+class EmployeeStatusSummarySerializer(serializers.Serializer):
+    activeEmployees = serializers.IntegerField()
+    inactiveEmployees = serializers.IntegerField()
+    totalEmployees = serializers.IntegerField()
+    activePercentage = serializers.FloatField()
+    inactivePercentage = serializers.FloatField()
+
 
 
 # System Admin Serializers
-
 class PlatformMetricsSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlatformMetrics

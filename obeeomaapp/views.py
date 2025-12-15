@@ -2905,7 +2905,32 @@ class ReportsAnalyticsView(viewsets.ViewSet):
         }
         
         return Response(data)
+    
 
+# Employee Engagement Summary View
+@extend_schema(tags=['Employer Dashboard'])
+class EmployeeEngagementSummaryView(APIView):
+    permission_classes = [IsCompanyAdmin]
+
+    def get(self, request):
+        employees = Employee.objects.filter(employer=request.user.employer)
+
+        total = employees.count()
+        active = employees.filter(is_active=True).count()
+        inactive = total - active
+
+        active_pct = (active / total * 100) if total else 0
+        inactive_pct = (inactive / total * 100) if total else 0
+
+        data = {
+            "activeEmployees": active,
+            "inactiveEmployees": inactive,
+            "totalEmployees": total,
+            "activePercentage": round(active_pct, 2),
+            "inactivePercentage": round(inactive_pct, 2),
+        }
+
+        return Response(data)
 
 @extend_schema(tags=['System Admin'])
 class SystemSettingsView(viewsets.ModelViewSet):
