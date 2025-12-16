@@ -382,34 +382,18 @@ class CompleteOnboardingView(APIView):
 # LOGOUT VIEW
 @extend_schema(
     tags=["Authentication"],
-    request=LogoutSerializer,
     responses={
-        205: {"description": "Logged out successfully"},
-        400: {"description": "Invalid or expired refresh token"},
+        200: {"description": "Logged out successfully"},
     },
 )
 class LogoutView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = LogoutSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        try:
-            refresh_token = serializer.validated_data["refresh"]
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-
-            return Response(
-                {"message": "Logged out successfully"},
-                status=status.HTTP_205_RESET_CONTENT
-            )
-
-        except TokenError:
-            return Response(
-                {"error": "Invalid or expired refresh token"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        return Response(
+            {"message": "Logged out successfully"},
+            status=status.HTTP_200_OK
+        )
 
 
 # password reset request view
