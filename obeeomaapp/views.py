@@ -385,16 +385,31 @@ class CompleteOnboardingView(APIView):
     request=LogoutSerializer,
     responses={
         200: {"description": "Logged out successfully"},
+        400: {"description": "Invalid refresh token"},
+        501: {"description": "Token blacklist not enabled"},
     },
 )
 class LogoutView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        return Response(
-            {"message": "Logged out successfully"},
-            status=status.HTTP_200_OK
-        )
+        serializer = LogoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        refresh_token = serializer.validated_data["refresh"]
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()  # requires token_blacklist app installed
+        except AttributeError:
+            # Blacklist app not installed
+            return Response(
+                {"detail": "Token blacklist not enabled on server."},
+                status=status.HTTP_501_NOT_IMPLEMENTED,
+            )
+        except TokenError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
 
 
 # password reset request view
