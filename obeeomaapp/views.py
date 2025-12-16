@@ -372,7 +372,7 @@ class CompleteOnboardingView(APIView):
     def post(self, request):
         user = request.user
 
-        # Prevent re-onboarding
+        # this Prevents re-onboarding
         if user.onboarding_completed:
             return Response(
                 {"detail": "Onboarding already completed."},
