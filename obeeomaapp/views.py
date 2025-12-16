@@ -355,6 +355,11 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 #  CompleteOnboardingView
 class CompleteOnboardingView(APIView):
+    """
+    Completes first-time employee onboarding.
+    User must be authenticated but NOT onboarded.
+    """
+
     permission_classes = [permissions.IsAuthenticated]
 
     @extend_schema(
@@ -363,22 +368,44 @@ class CompleteOnboardingView(APIView):
         tags=['Onboarding'],
         description="Complete first-time user onboarding."
     )
+    @transaction.atomic
     def post(self, request):
         user = request.user
 
+        # Prevent re-onboarding
         if user.onboarding_completed:
-            return Response({"detail": "Onboarding already completed."}, status=400)
+            return Response(
+                {"detail": "Onboarding already completed."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
+        # Validate onboarding payload
         serializer = EmployeeOnboardingSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        # Complete onboarding
         serializer.update(user, serializer.validated_data)
 
-        # Now allow permanent login
-        return Response({
-            "message": "Onboarding completed successfully.",
-            "first_time_access": False   # This tells frontend this user must login next time   
-        })
+        # this Persists onboarding state (UX tracking)
+        OnboardingState.objects.update_or_create(
+            user=user,
+            defaults={
+                "completed": True,
+                "first_action_done": True
+            }
+        )
 
+        # this Ensures that the DB is up-to-date
+        user.refresh_from_db()
+
+        return Response(
+            {
+                "message": "Onboarding completed successfully.",
+                "onboarding_completed": user.onboarding_completed,
+                "first_time_access": False
+            },
+            status=status.HTTP_200_OK
+        )
 # LOGOUT VIEW
 @extend_schema(
     tags=["Authentication"],

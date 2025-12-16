@@ -12,7 +12,7 @@ User = settings.AUTH_USER_MODEL
 import pyotp
 from cryptography.fernet import Fernet
 
-#User and Authentication Models
+#UserModels
 class User(AbstractUser):
     ROLE_CHOICES = (
         ('system_admin', 'Systems Admin'),

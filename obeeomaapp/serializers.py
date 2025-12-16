@@ -338,35 +338,50 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return data
 
 #  EmployeeOnboardingSerializer
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
+
+from .models import OnboardingState, MentalHealthAssessment, PSS10Assessment
+
+User = get_user_model()
+
+# EMPLOYEE ONBOARDING SERIALIZER
 class EmployeeOnboardingSerializer(serializers.Serializer):
+    """
+    Handles first-time employee onboarding.
+    Onboarding is considered COMPLETE only if:
+    - profile update succeeds
+    - ALL assessments are saved
+    """
+
     username = serializers.CharField(required=True)
     password = serializers.CharField(write_only=True, required=True)
     confirm_password = serializers.CharField(write_only=True, required=True)
     avatar = serializers.ImageField(required=True)
-    
-    # Assessment fields - all required for onboarding
+
+    # Assessments (REQUIRED) 
     gad7_scores = serializers.ListField(
         child=serializers.IntegerField(min_value=0, max_value=3),
-        required=True,
         min_length=7,
         max_length=7,
-        help_text="GAD-7 anxiety assessment: 7 scores (0-3 each)"
-    )
-    phq9_scores = serializers.ListField(
-        child=serializers.IntegerField(min_value=0, max_value=3),
-        required=True,
-        min_length=9,
-        max_length=9,
-        help_text="PHQ-9 depression assessment: 9 scores (0-3 each)"
-    )
-    pss10_scores = serializers.ListField(
-        child=serializers.IntegerField(min_value=0, max_value=4),
-        required=True,
-        min_length=10,
-        max_length=10,
-        help_text="PSS-10 stress assessment: 10 scores (0-4 each)"
+        required=True
     )
 
+    phq9_scores = serializers.ListField(
+        child=serializers.IntegerField(min_value=0, max_value=3),
+        min_length=9,
+        max_length=9,
+        required=True
+    )
+
+    pss10_scores = serializers.ListField(
+        child=serializers.IntegerField(min_value=0, max_value=4),
+        min_length=10,
+        max_length=10,
+        required=True
+    )
+
+    # Field-level validation 
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
             raise serializers.ValidationError("Username already taken.")
@@ -374,53 +389,76 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         if attrs["password"] != attrs["confirm_password"]:
-            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."}
+            )
         return attrs
 
+    # ---- Onboarding execution ----
     def update(self, user, validated_data):
+        """
+        This method FINALIZES onboarding.
+        It is called inside a DB transaction (from the view).
+        If ANY error happens after this, everything is rolled back.
+        """
+
         # Update user profile
         user.username = validated_data["username"]
         user.set_password(validated_data["password"])
         user.avatar = validated_data["avatar"]
+
+        # Mark onboarding as completed (ONLY after validation)
         user.onboarding_completed = True
         user.is_first_time = False
-        user.save()
-        
-        # Create GAD-7 assessment
+
+        user.save(update_fields=[
+            "username",
+            "password",
+            "avatar",
+            "onboarding_completed",
+            "is_first_time"
+        ])
+
+        # GAD-7 assessment
         gad7_total = sum(validated_data["gad7_scores"])
         MentalHealthAssessment.objects.create(
             user=user,
-            assessment_type='GAD-7',
+            assessment_type="GAD-7",
             gad7_scores=validated_data["gad7_scores"],
             gad7_total=gad7_total
         )
-        
-        # Create PHQ-9 assessment
+
+        # PHQ-9 assessment
         phq9_total = sum(validated_data["phq9_scores"])
         MentalHealthAssessment.objects.create(
             user=user,
-            assessment_type='PHQ-9',
+            assessment_type="PHQ-9",
             phq9_scores=validated_data["phq9_scores"],
             phq9_total=phq9_total
         )
-        
-        # Create PSS-10 assessment
+
+        #  PSS-10 assessment
         pss10_total = sum(validated_data["pss10_scores"])
-        # Determine stress category
         if pss10_total <= 13:
             category = "Low stress"
         elif pss10_total <= 26:
             category = "Moderate stress"
         else:
             category = "High stress"
-            
+
         PSS10Assessment.objects.create(
             user=user,
             score=pss10_total,
             category=category
         )
-        
+
         return user
+
+# Onboarding State Serializer
+class OnboardingStateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OnboardingState
+        fields = ["goal", "completed", "first_action_done"]
 
 
 # Logout Serializer
@@ -1402,11 +1440,7 @@ class UserActivitySerializer(serializers.ModelSerializer):
             'completed', 'progress_percentage', 'notes', 'accessed_at'
         ]
 
-# Onboarding State Serializer
-class OnboardingStateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = OnboardingState
-        fields = ['goal', 'completed', 'first_action_done']
+
 
 # Dynamic Question Serializer
 class DynamicQuestionSerializer(serializers.ModelSerializer):
