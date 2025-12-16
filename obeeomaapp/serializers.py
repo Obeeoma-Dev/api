@@ -425,9 +425,9 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
 
 # Logout Serializer
 class LogoutSerializer(serializers.Serializer):
-     refresh = serializers.CharField()
+    refresh = serializers.CharField()
 
-     def validate_refresh(self, value):
+    def validate_refresh(self, value):
         if not value:
             raise serializers.ValidationError("Refresh token is required.")
         return value
@@ -1029,7 +1029,7 @@ class WellnessReportsSerializer(serializers.Serializer):
     chat_engagement = ChatEngagementSerializer(many=True)
     department_contributions = DepartmentContributionSerializer(many=True)
     recent_activities = OrganizationActivitySerializer(many=True)
-    
+
 
 # Employee Status Summary Serializer
 class EmployeeStatusSummarySerializer(serializers.Serializer):

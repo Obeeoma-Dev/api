@@ -96,6 +96,7 @@ from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string
 from django.contrib.auth import authenticate, login as django_login
 from .serializers import AdminUserSerializer, OrganizationSerializer
+from rest_framework_simplejwt.exceptions import TokenError
 from .permissions import IsSystemAdmin
 import hmac
 import hashlib
@@ -382,26 +383,31 @@ class CompleteOnboardingView(APIView):
 @extend_schema(
     tags=["Authentication"],
     request=LogoutSerializer,
-    responses={205: {"description": "Logged out successfully"}, 400: {"description": "Invalid or expired token"}},
+    responses={
+        205: {"description": "Logged out successfully"},
+        400: {"description": "Invalid or expired refresh token"},
+    },
 )
 class LogoutView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = LogoutSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        refresh_token = serializer.validated_data["refresh"]
         try:
+            refresh_token = serializer.validated_data["refresh"]
             token = RefreshToken(refresh_token)
             token.blacklist()
+
             return Response(
-                {"message": "Logged out successfully."},
-                status=status.HTTP_200_RESET_CONTENT
+                {"message": "Logged out successfully"},
+                status=status.HTTP_205_RESET_CONTENT
             )
-        except Exception:
+
+        except TokenError:
             return Response(
-                {"error": "Invalid or expired token."},
+                {"error": "Invalid or expired refresh token"},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
