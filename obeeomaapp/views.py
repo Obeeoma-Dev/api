@@ -382,6 +382,7 @@ class CompleteOnboardingView(APIView):
 # LOGOUT VIEW
 @extend_schema(
     tags=["Authentication"],
+    request=LogoutSerializer,
     responses={
         200: {"description": "Logged out successfully"},
     },
