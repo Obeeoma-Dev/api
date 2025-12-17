@@ -22,6 +22,9 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import NotFound
 from drf_spectacular.utils import extend_schema, OpenApiParameter
+from .serializers import MFAPasswordVerifySerializer
+from .utils.mfa_token import create_mfa_settings_token, verify_mfa_settings_token
+from .serializers import MFAPasswordVerifySerializer, MFAToggleSerializer
 # from .models import OnboardingState
 from .models import CrisisHotline
 from .serializers import CrisisHotlineSerializer
@@ -40,6 +43,7 @@ from django.db.models import Avg
 from .models import Feedback
 from .serializers import FeedbackSerializer
 import logging
+import csv
 
 logger = logging.getLogger(__name__)
 from django.db.models import Avg
@@ -73,7 +77,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import *
-from .serializers import EmployeeInvitationCreateSerializer, EmployeeInvitationAcceptSerializer  # Explicit import
+from .serializers import EmployeeInvitationCreateSerializer, EmployeeInvitationResponseSerializer
 from django.core.mail import send_mail, EmailMultiAlternatives
 from .utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings
@@ -87,11 +91,12 @@ import pyotp, qrcode, io, base64
 from django.utils.crypto import get_random_string
 from django.core.cache import cache
 from .models import Organization
-from .serializers import OTPVerificationSerializer
+from .serializers import PasswordResetOTPVerificationSerializer,InvitationOTPVerificationSerializer
 from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string
 from django.contrib.auth import authenticate, login as django_login
 from .serializers import AdminUserSerializer, OrganizationSerializer
+from rest_framework_simplejwt.exceptions import TokenError
 from .permissions import IsSystemAdmin
 import hmac
 import hashlib
@@ -185,8 +190,6 @@ class SignupView(viewsets.ModelViewSet):
      permission_classes = [permissions.AllowAny]
         
 
-       
-
 # VIEWS FOR CREATING AN ORGANIZATION
 @extend_schema(
     tags=['Authentication'],
@@ -210,95 +213,60 @@ class OrganizationDetailView(APIView):
         serializer = OrganizationDetailSerializer(org)
         return Response(serializer.data)
 
-
-# VIEWS FOR VERIFYING THE OTP
+# Verify reset password otp view
 @extend_schema(
     tags=['Authentication'],
-    request=OTPVerificationSerializer,
-    responses={
-        200: {
-            "description": "OTP verified successfully",
-            "content": {
-                "application/json": {
-                    "examples": {
-                        "password_reset": {
-                            "summary": "Password Reset OTP",
-                            "value": {
-                                "message": "OTP verified successfully. You can now reset your password."
-                            }
-                        },
-                        "invitation": {
-                            "summary": "Invitation OTP",
-                            "value": {
-                                "message": "Invitation OTP verified successfully. Proceed to create your account.",
-                                "email": "employee@company.com",
-                                "employer": "Company Name"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        400: {"description": "Invalid or expired OTP"}
-    },
-    description="""
-    Verify OTP for password reset or employee invitation.
-    
-    **OTP Types:**
-    - `reset_password`: Verify OTP for password reset
-    - `invitation`: Verify OTP for employee invitation
-    
-    **Example Request (Invitation):**
-    ```json
-    {
-      "email": "employee@company.com",
-      "code": "123456",
-      "otp_type": "invitation"
-    }
-    ```
-    
-    **Example Request (Password Reset):**
-    ```json
-    {
-      "email": "user@company.com",
-      "code": "654321",
-      "otp_type": "reset_password"
-    }
-    ```
-    """
+    request=PasswordResetOTPVerificationSerializer,
+    responses={200: "OTP verified"},
+    description="Verifies the OTP sent to the user's email for password reset"
 )
-class VerifyOTPView(APIView):
+class VerifyPasswordResetOTPView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = OTPVerificationSerializer(data=request.data)
+        serializer = PasswordResetOTPVerificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        otp_type = request.data.get("otp_type")
+        otp = serializer.context['otp']
+        otp.delete()  # Remove OTP so it cannot be reused
 
-        if otp_type == "reset_password":
-            user = serializer.context['user']
-            serializer.context['otp'].delete()  # Remove password reset OTP
-            return Response(
-                {"message": "OTP verified successfully. You can now reset your password."},
-                status=status.HTTP_200_OK
-            )
+        return Response(
+            {"message": "OTP verified successfully. You can now reset your password."},
+            status=status.HTTP_200_OK
+        )
 
-        elif otp_type == "invitation":
-            invitation = serializer.context['invitation']
-            # Store email in session for signup
-            request.session['verified_invitation_email'] = invitation.email
-            request.session['invitation_verified_at'] = timezone.now().isoformat()
-            
-            return Response(
-                {
-                    "message": "Invitation OTP verified successfully. Proceed to create your account.",
-                    "email": invitation.email,
-                    "employer": invitation.employer.name
-                },
-                status=status.HTTP_200_OK
-            )
+# Verify invitation otp view
+@extend_schema(
+    tags=['Authentication'],
+    request=InvitationOTPVerificationSerializer,
+    responses={200: "Invitation OTP verified"},
+      description="Verifies the invitation OTP before employee account creation"
+)
+class VerifyInvitationOTPView(APIView):
+    permission_classes = [AllowAny]
 
+    def post(self, request):
+        serializer = InvitationOTPVerificationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        invitation = serializer.context['invitation']
+
+        # Mark invitation as accepted
+        invitation.accepted_at = timezone.now()
+        invitation.save()
+
+        # Save verified invitation email in session
+        request.session['verified_invitation_email'] = invitation.email
+        request.session['invitation_verified_at'] = timezone.now().isoformat()
+
+        return Response(
+            {
+                "message": "Invitation OTP verified successfully. Proceed to create your account.",
+                "email": invitation.email,
+                "employer": invitation.employer.name,
+            },
+            status=status.HTTP_200_OK
+        )
 
 
 
@@ -306,23 +274,15 @@ class VerifyOTPView(APIView):
 def _build_login_success_payload(user):
     refresh = RefreshToken.for_user(user)
 
-    display_username = user.username
-    try:
-        organization = user.organizations.first()
-        if organization:
-            display_username = organization.organizationName
-    except Exception:
-        pass
-
     user_data = {
         "id": user.id,
-        "username": display_username,
+        "username": user.username,
         "email": user.email,
         "role": user.role,
         "date_joined": user.date_joined,
         "is_active": user.is_active,
         "avatar": user.avatar.url if hasattr(user, "avatar") and user.avatar else None,
-        "onboarding_completed": getattr(user, 'onboarding_completed', False), 
+        "onboarding_completed": getattr(user, 'onboarding_completed', False),
     }
 
     # Redirect URL based on role
@@ -395,6 +355,11 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 #  CompleteOnboardingView
 class CompleteOnboardingView(APIView):
+    """
+    Completes first-time employee onboarding.
+    User must be authenticated but NOT onboarded.
+    """
+
     permission_classes = [permissions.IsAuthenticated]
 
     @extend_schema(
@@ -403,27 +368,53 @@ class CompleteOnboardingView(APIView):
         tags=['Onboarding'],
         description="Complete first-time user onboarding."
     )
+    @transaction.atomic
     def post(self, request):
         user = request.user
 
+        # this Prevents re-onboarding
         if user.onboarding_completed:
-            return Response({"detail": "Onboarding already completed."}, status=400)
+            return Response(
+                {"detail": "Onboarding already completed."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
+        # Validate onboarding payload
         serializer = EmployeeOnboardingSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        # Complete onboarding
         serializer.update(user, serializer.validated_data)
 
-        # Now allow permanent login
-        return Response({
-            "message": "Onboarding completed successfully.",
-            "first_time_access": False   # This tells frontend this user must login next time   
-        })
+        # this Persists onboarding state (UX tracking)
+        OnboardingState.objects.update_or_create(
+            user=user,
+            defaults={
+                "completed": True,
+                "first_action_done": True
+            }
+        )
 
+        # this Ensures that the DB is up-to-date
+        user.refresh_from_db()
+
+        return Response(
+            {
+                "message": "Onboarding completed successfully.",
+                "onboarding_completed": user.onboarding_completed,
+                "first_time_access": False
+            },
+            status=status.HTTP_200_OK
+        )
 # LOGOUT VIEW
 @extend_schema(
     tags=["Authentication"],
     request=LogoutSerializer,
-    responses={205: {"description": "Logged out successfully"}, 400: {"description": "Invalid or expired token"}},
+    responses={
+        200: {"description": "Logged out successfully"},
+        400: {"description": "Invalid refresh token"},
+        501: {"description": "Token blacklist not enabled"},
+    },
 )
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -435,16 +426,17 @@ class LogoutView(APIView):
         refresh_token = serializer.validated_data["refresh"]
         try:
             token = RefreshToken(refresh_token)
-            token.blacklist()
+            token.blacklist()  # requires token_blacklist app installed
+        except AttributeError:
+            # Blacklist app not installed
             return Response(
-                {"message": "Logged out successfully."},
-                status=status.HTTP_205_RESET_CONTENT
+                {"detail": "Token blacklist not enabled on server."},
+                status=status.HTTP_501_NOT_IMPLEMENTED,
             )
-        except Exception:
-            return Response(
-                {"error": "Invalid or expired token."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        except TokenError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
 
 
 # password reset request view
@@ -684,6 +676,64 @@ def mfa_verify(request):
 
     return Response(_build_login_success_payload(user))
 
+# Verify Password for MFA Actions
+@extend_schema(tags=['MFA'])
+class VerifyMFAPasswordView(APIView):
+    serializer_class = MFAPasswordVerifySerializer
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Verify admin password before allowing MFA changes. Returns a temporary MFA settings token."
+    )
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        password = serializer.validated_data['password']
+
+        if not user.check_password(password):
+            return Response({"error": "Incorrect password."}, status=400)
+
+        token = create_mfa_settings_token(user.id)
+        return Response({
+            "message": "Password verified successfully.",
+            "mfa_settings_token": token
+        })
+
+
+
+# MFA Toggle View
+@extend_schema(tags=['MFA'])
+class ToggleMFAView(APIView):
+    serializer_class = MFAToggleSerializer
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Enable or disable MFA securely using the temporary MFA settings token."
+    )
+    def patch(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        mfa_enabled = serializer.validated_data['mfa_enabled']
+        token = serializer.validated_data['mfa_settings_token']
+
+        user_id = verify_mfa_settings_token(token)
+        if not user_id or user_id != request.user.id:
+            return Response({"error": "Invalid or expired MFA settings token."}, status=400)
+
+        user = request.user
+        user.mfa_enabled = mfa_enabled
+        user.save()
+
+        return Response({
+            "message": "MFA setting updated successfully.",
+            "mfa_enabled": user.mfa_enabled
+        })
+
+
+
 # Resetpassword completeview
 @extend_schema(tags=['Authentication'])
 class ResetPasswordCompleteView(viewsets.ViewSet):
@@ -705,8 +755,6 @@ class ResetPasswordCompleteView(viewsets.ViewSet):
             status=status.HTTP_200_OK
         )
 
-# Employee Invitation Serializers - moved to serializers.py
-# Use EmployeeInvitationAcceptSerializer from serializers.py instead
 
 class EmployeeUserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
@@ -749,89 +797,97 @@ class ActiveHotlineView(APIView):
 class InviteView(viewsets.ModelViewSet):
     """
     Employee Invitation Management (OTP Only)
-    
+
     Allows employers to:
     - Send email invitations to new employees
-    - View pending invitations
-    - Resend or cancel invitations
+    - View pending / accepted / expired invitations
     """
     serializer_class = EmployeeInvitationCreateSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    
+    # QUERYSET (LIST / FILTER)
+   
     def get_queryset(self):
         employer = None
-
-        # Try to get employer from organization
-        try:
-            organization = Organization.objects.filter(owner=self.request.user).first()
-            if organization:
-                employer, created = Employer.objects.get_or_create(
-                    name=organization.organizationName,
-                    defaults={'is_active': True}
-                )
-        except Exception:
-            pass
-
-        # Try to get employer from employee profile
-        if not employer:
-            try:
-                employee_profile = Employee.objects.filter(user=self.request.user).first()
-                if employee_profile:
-                    employer = employee_profile.employer
-            except Exception:
-                pass
-
-        # If user is staff, get first employer
-        if not employer and self.request.user.is_staff:
-            employer = Employer.objects.first()
-
-        if employer:
-            queryset = EmployeeInvitation.objects.filter(employer=employer).order_by('-created_at')
-            status_param = self.request.query_params.get('status')
-            now = timezone.now()
-
-            if status_param == 'pending':
-                queryset = queryset.filter(accepted=False, otp_expires_at__gt=now)
-            elif status_param == 'accepted':
-                queryset = queryset.filter(accepted=True)
-            elif status_param == 'expired':
-                queryset = queryset.filter(accepted=False, otp_expires_at__lte=now)
-
-            return queryset
-
-        return EmployeeInvitation.objects.none()
-
-    @extend_schema(
-        request=EmployeeInvitationCreateSerializer,
-        responses={201: "Invitation sent successfully", 400: "Bad Request"},
-        description="Send an invitation to a new employee with OTP only"
-    )
-    def create(self, request, *args, **kwargs):
-        """Send an invitation to a new employee (OTP only)"""
-        employer = None
+        user = self.request.user
+        now = timezone.now()
 
         # Get employer from organization
-        try:
-            organization = Organization.objects.filter(owner=request.user).first()
-            if organization:
-                employer, created = Employer.objects.get_or_create(
-                    name=organization.organizationName,
-                    defaults={'is_active': True}
-                )
-        except Exception as e:
-            logger.warning(f"Error getting organization: {str(e)}")
+        organization = Organization.objects.filter(owner=user).first()
+        if organization:
+            employer, _ = Employer.objects.get_or_create(
+                name=organization.organizationName,
+                defaults={'is_active': True}
+            )
 
         # Get employer from employee profile
         if not employer:
-            try:
-                employee_profile = Employee.objects.filter(user=request.user).first()
-                if employee_profile:
-                    employer = employee_profile.employer
-            except Exception:
-                pass
+            employee_profile = Employee.objects.filter(user=user).first()
+            if employee_profile:
+                employer = employee_profile.employer
 
         # Staff fallback
-        if not employer and request.user.is_staff:
+        if not employer and user.is_staff:
+            employer = Employer.objects.first()
+
+        if not employer:
+            return EmployeeInvitation.objects.none()
+
+        queryset = EmployeeInvitation.objects.filter(
+            employer=employer
+        ).order_by('-created_at')
+
+        status_param = self.request.query_params.get('status')
+
+        if status_param == 'pending':
+            queryset = queryset.filter(
+                accepted_at__isnull=True,
+                rejected_at__isnull=True,
+                otp_expires_at__gt=now
+            )
+
+        elif status_param == 'accepted':
+            queryset = queryset.filter(
+                accepted_at__isnull=False
+            )
+
+        elif status_param == 'expired':
+            queryset = queryset.filter(
+                accepted_at__isnull=True,
+                rejected_at__isnull=True,
+                otp_expires_at__lte=now
+            )
+
+        return queryset
+
+   
+    # CREATE INVITATION
+    @extend_schema(
+        request=EmployeeInvitationCreateSerializer,
+        responses={201: EmployeeInvitationResponseSerializer},
+        description="Send an invitation to a new employee with OTP"
+    )
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        employer = None
+
+        # Get employer from organization
+        organization = Organization.objects.filter(owner=user).first()
+        if organization:
+            employer, _ = Employer.objects.get_or_create(
+                name=organization.organizationName,
+                defaults={'is_active': True}
+            )
+
+        # Get employer from employee profile
+        if not employer:
+            employee_profile = Employee.objects.filter(user=user).first()
+            if employee_profile:
+                employer = employee_profile.employer
+
+        # Staff fallback
+        if not employer and user.is_staff:
             employer = Employer.objects.first()
 
         if not employer:
@@ -842,62 +898,49 @@ class InviteView(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(
             data=request.data,
-            context={'employer': employer, 'user': request.user}
+            context={
+                'employer': employer,
+                'user': user
+            }
         )
         serializer.is_valid(raise_exception=True)
         invitation = serializer.save()
 
-        # Send email with OTP only
+        # SEND OTP EMAIL
+        
         try:
             subject = f"Welcome to {employer.name} on Obeeoma!"
-            otp = invitation.otp
-            otp_expiry = invitation.otp_expires_at.strftime('%B %d, %Y at %I:%M %p')  # e.g., December 14, 2025 at 04:32 PM
+            otp_expiry = invitation.otp_expires_at.strftime(
+                '%B %d, %Y at %I:%M %p'
+            )
 
-            text_message = f"""
+            message = f"""
 Hello,
 
-You have been invited to join {employer.name} on Obeeoma by {request.user.username}.
+You have been invited to join {employer.name} on Obeeoma by {user.username}.
 
-{invitation.message if invitation.message else ''}
+{invitation.message or ""}
 
-Your 6-digit verification code is: {otp}
+Your 6-digit verification code is: {invitation.otp}
 
-This code will expire on {otp_expiry} (valid for 7 days).
-
-To complete your registration:
-1. Enter this OTP code to verify your email
-2. Create your username and password
-3. Start using Obeeoma
+This code expires on {otp_expiry} (valid for 7 days).
 
 If you did not expect this invitation, please ignore this email.
 
 Best regards,
 The Obeeoma Team
 """
-            # Send email using Gmail API
-            logger.info(f"Attempting to send invitation email to {invitation.email}")
-            success = send_gmail_api_email(invitation.email, subject, text_message)
-            
-            if not success:
-                logger.error(f"Gmail API failed to send invitation email to {invitation.email}")
-                # Still return success but log the failure
-            else:
-                logger.info(f"Successfully sent invitation email to {invitation.email}")
+            send_gmail_api_email(invitation.email, subject, message)
 
         except Exception as e:
-            logger.error(f"Failed to send OTP email: {str(e)}")
-            logger.exception("Full email error traceback:")
+            logger.exception("Failed to send invitation email")
 
-        return Response({
-            "message": "Invitation sent successfully. OTP has been emailed to the user.",
-            "invitation": {
-                "id": invitation.id,
-                "email": invitation.email,
-                "message": invitation.message,
-                "otp_expires_at": invitation.otp_expires_at,
-                "created_at": invitation.created_at,
-            }
-        }, status=status.HTTP_201_CREATED)
+        return Response(
+            EmployeeInvitationResponseSerializer(invitation).data,
+            status=status.HTTP_201_CREATED
+        )
+
+
 
 # ===== ASSESSMENT QUESTIONNAIRE VIEWS =====
 
@@ -1041,98 +1084,6 @@ class AssessmentResponseViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-@extend_schema(
-    tags=["Authentication"],
-    request=EmployeeInvitationAcceptSerializer,
-    responses={
-        201: {
-            "description": "Account created successfully",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "message": "Account created successfully. You can now login.",
-                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                        "user": {
-                            "id": 1,
-                            "username": "newemployee",
-                            "email": "newemployee@company.com",
-                            "role": "employee"
-                        }
-                    }
-                }
-            }
-        },
-        400: {"description": "Invalid data, email not verified, or validation error"}
-    },
-    description="""
-    Complete employee signup after OTP verification.
-    
-    **New Flow:**
-    1. Employee receives invitation email with 6-digit OTP
-    2. Employee verifies OTP using /api/v1/auth/verify-otp/ endpoint (otp_type: "invitation")
-    3. After OTP verification, employee uses THIS endpoint to create account
-    
-    **Required Fields (email is automatically captured from OTP verification):**
-    - username: Choose a unique username
-    - password: Create a password (min 8 characters)
-    - confirm_password: Confirm the password
-    
-    **Example Request:**
-    ```json
-    {
-      "username": "johndoe",
-      "password": "SecurePassword123!",
-      "confirm_password": "SecurePassword123!"
-    }
-    ```
-    
-    **Note:** You must verify your OTP first. The email is automatically retrieved from your verification session.
-    
-    Upon success, the user account is created and linked to the organization.
-    """
-)
-class InvitationAcceptView(viewsets.ViewSet):
-    permission_classes = [permissions.AllowAny]
-    serializer_class = EmployeeInvitationAcceptSerializer
-
-    def create(self, request):
-        """Complete employee signup after OTP verification"""
-        # Get verified email from session
-        email = request.session.get('verified_invitation_email')
-        if not email:
-            return Response(
-                {"error": "Please verify your OTP first before signing up."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        serializer = self.serializer_class(data=request.data, context={'email': email})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        
-        # Clear session data after successful signup
-        request.session.pop('verified_invitation_email', None)
-        request.session.pop('invitation_verified_at', None)
-        
-        # Generate tokens
-        refresh = RefreshToken.for_user(user)
-        
-        # Get user data
-        user_data = {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "date_joined": user.date_joined,
-            "is_active": user.is_active,
-        }
-        
-        return Response({
-            'message': 'Account created successfully. You can now login.',
-            'access': str(refresh.access_token),
-            'refresh': str(refresh),
-            'user': user_data
-        }, status=status.HTTP_201_CREATED)
 
 
 # --- Employer Dashboard ---
@@ -1252,12 +1203,27 @@ class UsersView(viewsets.ModelViewSet):
     serializer_class = EmployeeSerializer
     # permission_classes = [IsCompanyAdmin]
 
-
+# REPORTS VIEW with DOWNLOAD ACTION
 @extend_schema(tags=['Employer Dashboard'])
 class ReportsView(viewsets.ReadOnlyModelViewSet):
     queryset = RecentActivity.objects.select_related("employer").order_by("-timestamp")
     serializer_class = RecentActivitySerializer
-    # permission_classes = [IsCompanyAdmin]
+
+    # This is the New action for downloading a report
+    @action(detail=True, methods=['get'], url_path='download')
+    def download_report(self, request, pk=None):
+        # Get the report instance
+        report = self.get_object()
+        
+        # Assuming your model has a file_path field (update if different)
+        file_path = getattr(report, 'file_path', None)
+        if not file_path:
+            return Response({"detail": "Report file not found."}, status=404)
+        
+        response = FileResponse(open(file_path, 'rb'))
+        response['Content-Disposition'] = f'attachment; filename="{getattr(report, "title", "report")}.pdf"'
+        return response
+   
 
 # For crisis insights about hotline activities and for which reasons employees are reaching out.
 @extend_schema(tags=['Employer Dashboard'])
@@ -1329,7 +1295,7 @@ class AvatarProfileView(viewsets.ModelViewSet):
 # updated mood tracking view with mood summary action
 
 @extend_schema(tags=['Employee - Mood Tracking'])
-class MoodTrackingView(viewsets.ModelViewSet):
+class  MoodTrackingView(viewsets.ModelViewSet):
     serializer_class = MoodTrackingSerializer
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ['mood']
@@ -2427,6 +2393,23 @@ class WellnessReportsView(viewsets.ViewSet):
         }
         
         return Response(data)
+# Added New action for CSV download 
+    @action(detail=False, methods=['get'], url_path='download')
+    def download_summary(self, request):
+        # Prepare CSV response
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="wellness_summary.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(['Metric', 'Value'])
+
+        # this Adds computed metrics
+        writer.writerow(['Common Issues', CommonIssue.objects.count()])
+        writer.writerow(['Resource Engagement', ResourceEngagement.objects.filter(completed=True).count()])
+        avg_wellbeing = MoodTracking.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
+        writer.writerow(['Average Wellbeing Trend', round(avg_wellbeing, 2)])
+        writer.writerow(['At-Risk Departments', Department.objects.filter(at_risk=True).count()])
+        return response
 
 
 @extend_schema(tags=['Employer Dashboard'])
@@ -3029,7 +3012,32 @@ class ReportsAnalyticsView(viewsets.ViewSet):
         }
         
         return Response(data)
+    
 
+# Employee Engagement Summary View
+@extend_schema(tags=['Employer Dashboard'])
+class EmployeeEngagementSummaryView(APIView):
+    permission_classes = [IsCompanyAdmin]
+
+    def get(self, request):
+        employees = Employee.objects.filter(employer=request.user.employer)
+
+        total = employees.count()
+        active = employees.filter(is_active=True).count()
+        inactive = total - active
+
+        active_pct = (active / total * 100) if total else 0
+        inactive_pct = (inactive / total * 100) if total else 0
+
+        data = {
+            "activeEmployees": active,
+            "inactiveEmployees": inactive,
+            "totalEmployees": total,
+            "activePercentage": round(active_pct, 2),
+            "inactivePercentage": round(inactive_pct, 2),
+        }
+
+        return Response(data)
 
 @extend_schema(tags=['System Admin'])
 class SystemSettingsView(viewsets.ModelViewSet):
@@ -3484,7 +3492,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     serializer_class = OrganizationSerializer
     permission_classes = [IsSystemAdmin]
 
-
 class AdminUserManagementViewSet(viewsets.ModelViewSet):
     """
     System Admin full control over users.
@@ -3554,6 +3561,24 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
         if user.role == 'system_admin':
             return Response({'detail': 'Cannot delete a system admin account.'}, status=status.HTTP_400_BAD_REQUEST)
         return super().destroy(request, *args, **kwargs)
+
+# ADMIN SUBSCRIPTION MANAGEMENT
+class AdminSubscriptionManagementViewSet(viewsets.ModelViewSet):
+    queryset = Subscription.objects.all()
+    serializer_class = AdminSubscriptionSerializer
+    permission_classes = [IsSystemAdmin]
+# ADMIN BILLING HISTORY (READ-ONLY)
+class AdminBillingHistoryViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    System Admin can view billing history but cannot edit.
+    """
+    queryset = BillingHistory.objects.all()
+    serializer_class = AdminBillingSerializer
+    permission_classes = [IsSystemAdmin]
+
+
+
+# SETTINGS VIEW
 @extend_schema(tags=['User - Settings'])
 class SettingsViewSet(viewsets.ModelViewSet):
     serializer_class = SettingsSerializer
@@ -3911,6 +3936,54 @@ class ContentMediaViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
+
+# New views for the requested endpoints
+
+@extend_schema(tags=['Engagement Level'])
+class EngagementLevelViewSet(viewsets.ModelViewSet):
+    queryset = EngagementLevel.objects.all()
+    serializer_class = EngagementLevelSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+@extend_schema(tags=['Company Mood'])
+class CompanyMoodViewSet(viewsets.ModelViewSet):
+    queryset = CompanyMood.objects.all()
+    serializer_class = CompanyMoodSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+@extend_schema(tags=['Wellness Graph'])
+class WellnessGraphViewSet(viewsets.ModelViewSet):
+    queryset = WellnessGraph.objects.all()
+    serializer_class = WellnessGraphSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return WellnessGraph.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+
+
+@extend_schema(tags=['Employee Management'])
+class EmployeeManagementViewSet(viewsets.ModelViewSet):
+    queryset = Employee.objects.all()
+    serializer_class = EmployeeManagementSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+@extend_schema(tags=['Notifications'])
+class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Notification.objects.all()
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(employee__user=self.request.user)
 
     # Provide a convenience endpoint to regenerate a presigned GET url for private serving (optional)
     @action(detail=True, methods=["get"], permission_classes=[permissions.IsAuthenticated])

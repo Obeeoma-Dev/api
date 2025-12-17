@@ -12,7 +12,7 @@ User = settings.AUTH_USER_MODEL
 import pyotp
 from cryptography.fernet import Fernet
 
-#User and Authentication Models
+#UserModels
 class User(AbstractUser):
     ROLE_CHOICES = (
         ('system_admin', 'Systems Admin'),
@@ -89,6 +89,60 @@ class User(AbstractUser):
 
     
 
+# EMPLOYEE INVITATION
+class EmployeeInvitation(models.Model):
+    employer = models.ForeignKey(
+        'Employer',
+        on_delete=models.CASCADE,
+        related_name='invitations'
+    )
+    email = models.EmailField()
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    message = models.TextField(blank=True)
+
+    # Employee details
+    employeephone = models.CharField(max_length=20, blank=True, null=True)
+    employeedepartment = models.CharField(max_length=100, blank=True, null=True)
+
+    # OTP
+    otp = models.CharField(max_length=6, blank=True, null=True)
+    otp_expires_at = models.DateTimeField(blank=True, null=True)
+
+    # Invitation lifecycle (EVENTS, not status)
+    accepted_at = models.DateTimeField(blank=True, null=True)
+    rejected_at = models.DateTimeField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def status(self):
+        if self.accepted_at:
+            return "accepted"
+        if self.rejected_at:
+            return "rejected"
+        return "pending"
+
+    @property
+    def accepted(self):
+        """
+        Backwards-compatible boolean flag indicating if the invitation
+        has been accepted. Older code/tests expect `invitation.accepted`
+        instead of checking `accepted_at` or `status`.
+        """
+        return bool(self.accepted_at)
+
+    def __str__(self):
+        return f"Invite {self.email} → {self.employer.name}"
+
+    class Meta:
+        indexes = [models.Index(fields=["email"])]
+
+
 #MODELS FOR CREATING AN ORGANIZATION
 class ContactPerson(models.Model):
     first_name = models.CharField(max_length=100, null=True, blank=True)
@@ -157,6 +211,7 @@ class Employee(models.Model):
     first_name = models.CharField(max_length=100, default='')
     last_name = models.CharField(max_length=100, default='')
     email = models.EmailField(unique=True)
+    phone = models.CharField(max_length=20, blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     joined_date = models.DateTimeField(auto_now_add=True)
     last_active = models.DateTimeField(auto_now=True)
@@ -173,30 +228,6 @@ class Employee(models.Model):
         ordering = ['-joined_date']
 
 
-# EMPLOYEE INVITATION
-class EmployeeInvitation(models.Model):
-    employer = models.ForeignKey(
-        'Employer', on_delete=models.CASCADE, related_name="invitations"
-    )
-    email = models.EmailField()
-    invited_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
-    )
-    message = models.TextField(blank=True)
-
-    # OTP for verification
-    otp = models.CharField(max_length=6, null=True, blank=True)
-    otp_expires_at = models.DateTimeField(null=True, blank=True)
-
-    accepted = models.BooleanField(default=False)
-    accepted_at = models.DateTimeField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"Invite {self.email} -> {self.employer.name}"
-
-    class Meta:
-        indexes = [models.Index(fields=["email"])]
 
 
 
@@ -357,6 +388,7 @@ class HotlineActivity(models.Model):
     class Meta:
         ordering = ['-recorded_at']
         verbose_name_plural = "Hotline Activities"
+
 
 
 # Employee Engagement model.
@@ -1690,11 +1722,7 @@ class PSS10Assessment(models.Model):
     def __str__(self):
         return f"PSS-10 ({self.user.email}) - {self.score} ({self.category})"
 
-# content/models.py
-from django.db import models
-from django.contrib.auth import get_user_model
 
-User = get_user_model()
 
 class ContentArticle(models.Model):
     title = models.CharField(max_length=255)
@@ -1735,3 +1763,31 @@ class ContentMedia(models.Model):
 
     def __str__(self):
         return f"{self.title or self.s3_key or 'media'} ({self.media_type})"
+
+
+# New models for the requested endpoints
+
+class EngagementLevel(models.Model):
+    worker_department = models.CharField(max_length=100)
+    hours_engaged = models.DecimalField(max_digits=5, decimal_places=2)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.worker_department} - {self.hours_engaged} hours"
+
+
+class CompanyMood(models.Model):
+    summary_description = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Company Mood - {self.created_at.date()}"
+
+
+class WellnessGraph(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='wellness_graphs')
+    mood_score = models.IntegerField()
+    mood_date = models.DateField()
+
+    def __str__(self):
+        return f"{self.user.username} - {self.mood_score} on {self.mood_date}"
