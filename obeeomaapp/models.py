@@ -274,34 +274,35 @@ class SelfAssessment(models.Model):
     class Meta:
         ordering = ['-submitted_at']
 
-# --- Employee Wellbeing Models ---
+
 # Mood Tracking model.
 class MoodTracking(models.Model):
     MOOD_CATEGORIES = {
-    'Ecstatic': 'Positive',
-    'Happy': 'Positive',
-    'Excited': 'Positive',
-    'Content': 'Positive',
-    'Calm': 'Neutral',
-    'Neutral': 'Neutral',
-    'Tired': 'Neutral',
-    'Anxious': 'Negative',
-    'Stressed': 'Negative',
-    'Sad': 'Negative',
-    'Frustrated': 'Negative',
-    'Angry': 'Negative',
-}
+        'Ecstatic': 'Positive',
+        'Happy': 'Positive',
+        'Excited': 'Positive',
+        'Content': 'Positive',
+        'Calm': 'Neutral',
+        'Neutral': 'Neutral',
+        'Tired': 'Neutral',
+        'Anxious': 'Negative',
+        'Stressed': 'Negative',
+        'Sad': 'Negative',
+        'Frustrated': 'Negative',
+        'Angry': 'Negative',
+    }
+
+    MOOD_CHOICES = [(mood, mood) for mood in MOOD_CATEGORIES.keys()]
+
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mood_checkins")
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE, null=True, blank=True, related_name="mood_checkins_employee")
-    mood = models.CharField(max_length=50, blank=True, null=True)
+    
+    mood = models.CharField(max_length=50, choices=MOOD_CHOICES)  # this line  validates the mood input
     timestamp = models.DateTimeField(auto_now_add=True)
     checked_in_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-checked_in_at']
-
-    def __str__(self):
-        return f"{self.user.username} - {self.mood} ({self.checked_in_at.date()})"
 
 
 # Self-Help Resources model.
