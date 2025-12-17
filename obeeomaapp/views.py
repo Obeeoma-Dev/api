@@ -110,6 +110,22 @@ from .serializers import (
     EmployeeProfileSerializer
 )
 
+# Mood score mapping for trends (used to provide numeric scores to frontend)
+MOOD_SCORES = {
+    "Ecstatic": 5,
+    "Happy": 4,
+    "Excited": 4,
+    "Content": 4,
+    "Calm": 3,
+    "Neutral": 3,
+    "Tired": 3,
+    "Anxious": 2,
+    "Stressed": 2,
+    "Sad": 2,
+    "Frustrated": 2,
+    "Angry": 1,
+}
+
 
 # Set up logging
 logging.getLogger(__name__)
@@ -1103,11 +1119,69 @@ class OverviewView(viewsets.ViewSet):
         })
 
 
+# Employer Dashboard - Mood Trends (aggregated daily moods for visualization)
 @extend_schema(tags=['Employer Dashboard'])
 class TrendsView(viewsets.ReadOnlyModelViewSet):
-    queryset = HotlineActivity.objects.select_related("employer").order_by("-recorded_at")
-    serializer_class = HotlineActivitySerializer
+    serializer_class = None  # returning computed data, not model serializer
     permission_classes = [IsCompanyAdmin]
+
+    def list(self, request, *args, **kwargs):
+        """
+        GET /dashboard/trends/?days=7 or ?start=YYYY-MM-DD&end=YYYY-MM-DD
+
+        Returns an array of day buckets:
+        [
+          { "date": "2025-02-01", "avg_score": 4.0, "mood_counts": {"Happy": 3, "Neutral": 1} },
+          ...
+        ]
+
+        Notes:
+        - If no date params are provided, all records are used (continuous).
+        - Frontend can map avg_score to emojis; we only provide numeric scores and counts.
+        - If you need employer scoping, add a filter linking MoodTracking -> Employer.
+        """
+        qs = MoodTracking.objects.select_related("employee", "user")
+
+        # Date filtering
+        start = request.query_params.get("start")
+        end = request.query_params.get("end")
+        days = request.query_params.get("days")
+        today = timezone.now().date()
+
+        if start:
+            qs = qs.filter(checked_in_at__date__gte=start)
+        if end:
+            qs = qs.filter(checked_in_at__date__lte=end)
+        if not start and not end and days:
+            try:
+                days_int = int(days)
+                qs = qs.filter(checked_in_at__date__gte=today - timedelta(days=days_int))
+            except ValueError:
+                pass  # ignore bad days param
+
+        # Aggregate per day
+        trend = {}
+        for entry in qs.values("checked_in_at__date", "mood"):
+            day = entry["checked_in_at__date"]
+            mood = entry["mood"] or "Unknown"
+            score = MOOD_SCORES.get(mood, 0)
+
+            bucket = trend.setdefault(day, {"date": day.isoformat(), "total_score": 0, "count": 0, "mood_counts": {}})
+            bucket["total_score"] += score
+            bucket["count"] += 1
+            bucket["mood_counts"][mood] = bucket["mood_counts"].get(mood, 0) + 1
+
+        data = []
+        for day in sorted(trend.keys()):
+            bucket = trend[day]
+            avg_score = round(bucket["total_score"] / bucket["count"], 2) if bucket["count"] else 0
+            data.append({
+                "date": bucket["date"],
+                "avg_score": avg_score,
+                "mood_counts": bucket["mood_counts"],
+            })
+
+        return Response(data)
 
 
 @extend_schema(tags=['Employer Dashboard'])
