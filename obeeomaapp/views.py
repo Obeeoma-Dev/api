@@ -100,6 +100,8 @@ from rest_framework_simplejwt.exceptions import TokenError
 from .permissions import IsSystemAdmin
 import hmac
 import hashlib
+from openpyxl import Workbook
+
 from django.views.decorators.csrf import csrf_exempt  #  Make sure this is present
 from django.http import HttpResponse
 from django.conf import settings
@@ -2489,129 +2491,108 @@ def initiate_subscription_payment(self, request):
         return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Wellness Reports View   
+from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django.http import HttpResponse
+import io, csv
+
+# Import your models and serializers
+from .models import CommonIssue, ResourceEngagement, MoodTracking, Department
+from .serializers import ChatEngagementSerializer, DepartmentContributionSerializer, OrganizationActivitySerializer
+
 @extend_schema(tags=['Employer Dashboard'])
 class WellnessReportsView(viewsets.ViewSet):
     """Wellness reports and analytics"""
-    permission_classes = [IsCompanyAdmin]
 
-    # Mapping moods to numeric scores for averaging
-    MOOD_SCORES = {
-        'Ecstatic': 5,
-        'Happy': 4,
-        'Excited': 4,
-        'Content': 3,
-        'Calm': 3,
-        'Neutral': 3,
-        'Tired': 2,
-        'Anxious': 1,
-        'Stressed': 1,
-        'Sad': 1,
-        'Frustrated': 1,
-        'Angry': 0,
-    }
+    permission_classes = [IsAuthenticated]
 
+    # JSON summary endpoint
     def list(self, request):
-        """Return a summary of wellness metrics and recent activity"""
-
-        # Get common issues count
+        """Return wellness summary as JSON"""
+        
+        # Metrics
         common_issues = CommonIssue.objects.count()
-
-        # Get resource engagement count
         resource_engagement = ResourceEngagement.objects.filter(completed=True).count()
 
-        # Calculate average wellbeing using mood mapping
+        # Average wellbeing using mood scores
+        MOOD_SCORES = {
+            'Ecstatic': 5, 'Happy': 4, 'Excited': 4, 'Content': 3,
+            'Calm': 3, 'Neutral': 3, 'Tired': 2, 'Anxious': 1,
+            'Stressed': 1, 'Sad': 1, 'Frustrated': 1, 'Angry': 0
+        }
         moods = MoodTracking.objects.values_list('mood', flat=True)
         if moods:
-            avg_wellbeing = round(sum(self.MOOD_SCORES[m] for m in moods) / len(moods), 2)
+            avg_wellbeing = round(sum(MOOD_SCORES[m] for m in moods) / len(moods), 2)
         else:
             avg_wellbeing = 0
 
-        # Get at-risk departments count
         at_risk = Department.objects.filter(at_risk=True).count()
 
-        # Get latest chat engagement data
-        chat_engagement = ChatEngagement.objects.all()[:5]
-
-        # Get department contributions
-        department_contributions = DepartmentContribution.objects.select_related('department').all()[:4]
-
-        # Get recent organizational activities
-        recent_activities = OrganizationActivity.objects.select_related(
-            'employer', 'department', 'employee'
-        ).order_by('-created_at')[:3]
-
+        # JSON response
         data = {
             'common_issues': common_issues,
             'resource_engagement': resource_engagement,
-            'average_wellbeing_trend': avg_wellbeing,
-            'at_risk': at_risk,
-            'chat_engagement': ChatEngagementSerializer(chat_engagement, many=True).data,
-            'department_contributions': DepartmentContributionSerializer(department_contributions, many=True).data,
-            'recent_activities': OrganizationActivitySerializer(recent_activities, many=True).data
+            'average_wellbeing_trend': f"{avg_wellbeing:.2f}",
+            'at_risk': at_risk
         }
 
         return Response(data)
 
-    # CSV download action
+    # CSV download endpoint
+   
+    @action(detail=False, methods=['get'], url_path='download-summary')
+    def download_summary(self, request):
+        """
+        Download wellness summary as a professional XLSX file.
+        Columns auto-sized for readability.
+        """
 
-@action(detail=False, methods=['get'], url_path='download-summary')
-def download_summary(self, request):
-    """
-    Download wellness summary as a CSV in binary mode.
-    Frontend can safely fetch this as a blob.
-    """
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Wellness Summary"
 
-    # Create a binary in-memory stream
-    buffer = io.BytesIO()
+        # Add report title
+        ws.merge_cells('A1:B1')
+        ws['A1'] = "Wellness Summary Report"
 
-    # Wrap buffer for csv.writer
-    text_wrapper = io.TextIOWrapper(buffer, encoding='utf-8', newline='')
-    writer = csv.writer(text_wrapper)  
-    # Add report title and spacing
-    writer.writerow(['Wellness Summary Report'])
-    writer.writerow([])  # blank line
-    writer.writerow(['Metric', 'Value'])
-    writer.writerow([])  # blank line after header
-    # Compute metrics
-    common_issues = CommonIssue.objects.count()
-    resource_engagement = ResourceEngagement.objects.filter(completed=True).count()
+        # Leave a blank row for spacing
+        ws.append([])
 
-    # Average wellbeing using mood scores
-    MOOD_SCORES = {
-        'Ecstatic': 5,
-        'Happy': 4,
-        'Excited': 4,
-        'Content': 3,
-        'Calm': 3,
-        'Neutral': 3,
-        'Tired': 2,
-        'Anxious': 1,
-        'Stressed': 1,
-        'Sad': 1,
-        'Frustrated': 1,
-        'Angry': 0,
-    }
-    moods = MoodTracking.objects.values_list('mood', flat=True)
-    if moods:
-        avg_wellbeing = round(sum(MOOD_SCORES[m] for m in moods) / len(moods), 2)
-    else:
-        avg_wellbeing = 0
+        # Add header
+        ws.append(['Metric', 'Value'])
 
-    at_risk = Department.objects.filter(at_risk=True).count()
-    # Write metrics to CSV
-    
-    writer.writerow(['Common Issues', common_issues])
-    writer.writerow(['Resource Engagement', resource_engagement])
-    writer.writerow(['Average Wellbeing Trend', f"{avg_wellbeing:.2f}"])
-    writer.writerow(['At-Risk Departments', at_risk])
-    # Finish CSV and return response
-    text_wrapper.flush()
-    buffer.seek(0)
+        # Compute metrics
+        common_issues = CommonIssue.objects.count()
+        resource_engagement = ResourceEngagement.objects.filter(completed=True).count()
+        MOOD_SCORES = {
+            'Ecstatic': 5, 'Happy': 4, 'Excited': 4, 'Content': 3,
+            'Calm': 3, 'Neutral': 3, 'Tired': 2, 'Anxious': 1,
+            'Stressed': 1, 'Sad': 1, 'Frustrated': 1, 'Angry': 0
+        }
+        moods = MoodTracking.objects.values_list('mood', flat=True)
+        avg_wellbeing = round(sum(MOOD_SCORES[m] for m in moods) / len(moods), 2) if moods else 0
+        at_risk = Department.objects.filter(at_risk=True).count()
 
-    response = HttpResponse(buffer, content_type='application/octet-stream')
-    response['Content-Disposition'] = 'attachment; filename="wellness_summary.csv"'
-    return response
+        # Write metrics to sheet
+        ws.append(['Common Issues', common_issues])
+        ws.append(['Resource Engagement', resource_engagement])
+        ws.append(['Average Wellbeing Trend', f"{avg_wellbeing:.2f}"])
+        ws.append(['At-Risk Departments', at_risk])
 
+        # Auto-adjust column widths
+        ws.column_dimensions['A'].width = 35
+        ws.column_dimensions['B'].width = 20
+
+        # Return XLSX response
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="wellness_summary.xlsx"'
+        wb.save(response)
+        return response
 
 @extend_schema(tags=['Employer Dashboard'])
 class OrganizationSettingsView(viewsets.ModelViewSet):
