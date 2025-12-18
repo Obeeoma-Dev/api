@@ -2554,46 +2554,64 @@ class WellnessReportsView(viewsets.ViewSet):
 
     # CSV download action
 
-    @action(detail=False, methods=['get'], url_path='download-summary')
-    def download_summary(self, request):
-        """
-        Download wellness summary as a CSV in binary mode.
-        Frontend can safely fetch this as a blob.
-        """
+@action(detail=False, methods=['get'], url_path='download-summary')
+def download_summary(self, request):
+    """
+    Download wellness summary as a CSV in binary mode.
+    Frontend can safely fetch this as a blob.
+    """
 
-        # Create a binary in-memory stream
-        buffer = io.BytesIO()
+    # Create a binary in-memory stream
+    buffer = io.BytesIO()
 
-        # Wrap buffer for csv.writer
-        text_wrapper = io.TextIOWrapper(buffer, encoding='utf-8', newline='')
-        writer = csv.writer(text_wrapper)
+    # Wrap buffer for csv.writer
+    text_wrapper = io.TextIOWrapper(buffer, encoding='utf-8', newline='')
+    writer = csv.writer(text_wrapper)  
+    # Add report title and spacing
+    writer.writerow(['Wellness Summary Report'])
+    writer.writerow([])  # blank line
+    writer.writerow(['Metric', 'Value'])
+    writer.writerow([])  # blank line after header
+    # Compute metrics
+    common_issues = CommonIssue.objects.count()
+    resource_engagement = ResourceEngagement.objects.filter(completed=True).count()
 
-        # Write CSV header
-        writer.writerow(['Metric', 'Value'])
+    # Average wellbeing using mood scores
+    MOOD_SCORES = {
+        'Ecstatic': 5,
+        'Happy': 4,
+        'Excited': 4,
+        'Content': 3,
+        'Calm': 3,
+        'Neutral': 3,
+        'Tired': 2,
+        'Anxious': 1,
+        'Stressed': 1,
+        'Sad': 1,
+        'Frustrated': 1,
+        'Angry': 0,
+    }
+    moods = MoodTracking.objects.values_list('mood', flat=True)
+    if moods:
+        avg_wellbeing = round(sum(MOOD_SCORES[m] for m in moods) / len(moods), 2)
+    else:
+        avg_wellbeing = 0
 
-        # Metrics
-        writer.writerow(['Common Issues', CommonIssue.objects.count()])
-        writer.writerow(['Resource Engagement', ResourceEngagement.objects.filter(completed=True).count()])
+    at_risk = Department.objects.filter(at_risk=True).count()
+    # Write metrics to CSV
+    
+    writer.writerow(['Common Issues', common_issues])
+    writer.writerow(['Resource Engagement', resource_engagement])
+    writer.writerow(['Average Wellbeing Trend', f"{avg_wellbeing:.2f}"])
+    writer.writerow(['At-Risk Departments', at_risk])
+    # Finish CSV and return response
+    text_wrapper.flush()
+    buffer.seek(0)
 
-        # Average wellbeing
-        moods = MoodTracking.objects.values_list('mood', flat=True)
-        if moods:
-            avg_wellbeing = round(sum(self.MOOD_SCORES[m] for m in moods) / len(moods), 2)
-        else:
-            avg_wellbeing = 0
-        writer.writerow(['Average Wellbeing Trend', avg_wellbeing])
+    response = HttpResponse(buffer, content_type='application/octet-stream')
+    response['Content-Disposition'] = 'attachment; filename="wellness_summary.csv"'
+    return response
 
-        # At-risk departments
-        writer.writerow(['At-Risk Departments', Department.objects.filter(at_risk=True).count()])
-
-        # Flush and rewind
-        text_wrapper.flush()
-        buffer.seek(0)
-
-        # Return as binary HTTP response
-        response = HttpResponse(buffer, content_type='application/octet-stream')
-        response['Content-Disposition'] = 'attachment; filename="wellness_summary.csv"'
-        return response
 
 @extend_schema(tags=['Employer Dashboard'])
 class OrganizationSettingsView(viewsets.ModelViewSet):
