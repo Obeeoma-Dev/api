@@ -787,8 +787,9 @@ class ChatSessionSerializer(serializers.ModelSerializer):
 class ChatMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatMessage
-        fields = '__all__'
-        read_only_fields = ['session', 'timestamp']
+        fields = ["id", "sender", "message", "timestamp"]  
+        read_only_fields = ["id", "timestamp"]           
+
 
 
 class RecommendationLogSerializer(serializers.ModelSerializer):

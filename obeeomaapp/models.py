@@ -588,13 +588,33 @@ class ChatMessage(models.Model):
         ("ai", "AI Assistant (Sana)"),
         ("system", "System")
     ]
-    session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name="messages")
+
+    session = models.ForeignKey(
+        ChatSession,
+        on_delete=models.CASCADE,
+        related_name="messages"
+    )
     sender = models.CharField(max_length=10, choices=ROLE_CHOICES)
     message = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ["timestamp"]
+
+    def api_role(self):
+        """Maps DB role to OpenAI/DeepSeek role"""
+        if self.sender == "ai":
+            return "assistant"
+        return self.sender
+
+    @property
+    def content(self):
+        return self.message
+
     def __str__(self):
         return f"Message - {self.session.employee.user.username}"
+
+
 
 # Recommendation Logs model.
 class RecommendationLog(models.Model):
