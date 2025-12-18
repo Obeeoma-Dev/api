@@ -106,6 +106,8 @@ from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
 import logging
 from django_filters.rest_framework import DjangoFilterBackend
+
+from reportlab.pdfgen import canvas
 from .serializers import (
     EmployeeProfileSerializer
 )
@@ -1188,10 +1190,109 @@ class TrendsView(viewsets.ReadOnlyModelViewSet):
 class EmployeeEngagementView(viewsets.ModelViewSet):
     queryset = EmployeeEngagement.objects.select_related("employer").order_by("-month")
     serializer_class = EmployeeEngagementSerializer
-    # permission_classes = [IsCompanyAdmin]
+    
+
+# REPORT 1: DEPARTMENT ANALYSIS REPORT
+
+class DepartmentAnalysisReportView(APIView):
+    """
+    Generates a downloadable PDF containing department analysis.
+
+    Binary download means:
+    - Response is not JSON
+    - It is a PDF file returned as bytes
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Create temporary buffer in memory
+        buffer = io.BytesIO()
+
+        # Generate PDF using reportlab
+        p = canvas.Canvas(buffer)
+
+        p.drawString(100, 800, "DEPARTMENT ANALYSIS REPORT")
+        p.drawString(100, 780, f"Requested by: {request.user.username}")
+        p.drawString(100, 760, "-----------------------------------------")
+        p.drawString(100, 740, "Department statistics go here...")
+
+        p.showPage()
+        p.save()
+
+        buffer.seek(0)
+
+        # Response as downloadable PDF
+        response = HttpResponse(buffer, content_type="application/pdf")
+        response['Content-Disposition'] = 'attachment; filename=\"department-analysis.pdf\"'
+
+        return response
 
 
-from drf_spectacular.utils import extend_schema, extend_schema_view
+#############################################
+# REPORT 2: RISK ASSESSMENT REPORT
+#############################################
+
+class RiskAssessmentReportView(APIView):
+    """
+    Downloads a risk assessment report in PDF format.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        buffer = io.BytesIO()
+        p = canvas.Canvas(buffer)
+
+        p.drawString(100, 800, "RISK ASSESSMENT REPORT")
+        p.drawString(100, 780, f"Requested by: {request.user.username}")
+        p.drawString(100, 760, "-----------------------------------------")
+        p.drawString(100, 740, "Risk metrics go here...")
+
+        p.showPage()
+        p.save()
+        buffer.seek(0)
+
+        response = HttpResponse(buffer, content_type="application/pdf")
+        response['Content-Disposition'] = 'attachment; filename=\"risk-assessment.pdf\"'
+
+        return response
+
+
+#############################################
+# REPORT 3: ENGAGEMENT REPORT
+#############################################
+
+class EngagementReportView(APIView):
+    """
+    Downloads an employee engagement report as PDF.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        buffer = io.BytesIO()
+        p = canvas.Canvas(buffer)
+
+        p.drawString(100, 800, "ENGAGEMENT REPORT")
+        p.drawString(100, 780, f"Requested by: {request.user.username}")
+        p.drawString(100, 760, "-----------------------------------------")
+        p.drawString(100, 740, "Employee engagement trends go here...")
+
+        p.showPage()
+        p.save()
+        buffer.seek(0)
+
+        response = HttpResponse(buffer, content_type="application/pdf")
+        response['Content-Disposition'] = 'attachment; filename=\"engagement.pdf\"'
+
+        return response
+
+
+
+
 
 @extend_schema_view(
     list=extend_schema(
