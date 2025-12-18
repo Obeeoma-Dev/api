@@ -106,8 +106,6 @@ from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
 import logging
 from django_filters.rest_framework import DjangoFilterBackend
-
-from reportlab.pdfgen import canvas
 from .serializers import (
     EmployeeProfileSerializer
 )
@@ -1191,6 +1189,8 @@ class EmployeeEngagementView(viewsets.ModelViewSet):
     queryset = EmployeeEngagement.objects.select_related("employer").order_by("-month")
     serializer_class = EmployeeEngagementSerializer
     
+
+from reportlab.pdfgen import canvas
 
 # REPORT 1: DEPARTMENT ANALYSIS REPORT
 
@@ -2493,58 +2493,107 @@ def initiate_subscription_payment(self, request):
 class WellnessReportsView(viewsets.ViewSet):
     """Wellness reports and analytics"""
     permission_classes = [IsCompanyAdmin]
-    
+
+    # Mapping moods to numeric scores for averaging
+    MOOD_SCORES = {
+        'Ecstatic': 5,
+        'Happy': 4,
+        'Excited': 4,
+        'Content': 3,
+        'Calm': 3,
+        'Neutral': 3,
+        'Tired': 2,
+        'Anxious': 1,
+        'Stressed': 1,
+        'Sad': 1,
+        'Frustrated': 1,
+        'Angry': 0,
+    }
+
     def list(self, request):
+        """Return a summary of wellness metrics and recent activity"""
+
         # Get common issues count
         common_issues = CommonIssue.objects.count()
-        
+
         # Get resource engagement count
         resource_engagement = ResourceEngagement.objects.filter(completed=True).count()
-        
-        # Get average wellbeing trend
-        avg_wellbeing = MoodTracking.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
-        
-        # Get at-risk count
+
+        # Calculate average wellbeing using mood mapping
+        moods = MoodTracking.objects.values_list('mood', flat=True)
+        if moods:
+            avg_wellbeing = round(sum(self.MOOD_SCORES[m] for m in moods) / len(moods), 2)
+        else:
+            avg_wellbeing = 0
+
+        # Get at-risk departments count
         at_risk = Department.objects.filter(at_risk=True).count()
-        
-        # Get chat engagement data
+
+        # Get latest chat engagement data
         chat_engagement = ChatEngagement.objects.all()[:5]
-        
+
         # Get department contributions
         department_contributions = DepartmentContribution.objects.select_related('department').all()[:4]
-        
-        # Get recent activities
-        recent_activities = OrganizationActivity.objects.select_related('employer', 'department', 'employee').order_by('-created_at')[:3]
-        
+
+        # Get recent organizational activities
+        recent_activities = OrganizationActivity.objects.select_related(
+            'employer', 'department', 'employee'
+        ).order_by('-created_at')[:3]
+
         data = {
             'common_issues': common_issues,
             'resource_engagement': resource_engagement,
-            'average_wellbeing_trend': round(avg_wellbeing, 2),
+            'average_wellbeing_trend': avg_wellbeing,
             'at_risk': at_risk,
             'chat_engagement': ChatEngagementSerializer(chat_engagement, many=True).data,
             'department_contributions': DepartmentContributionSerializer(department_contributions, many=True).data,
             'recent_activities': OrganizationActivitySerializer(recent_activities, many=True).data
         }
-        
-        return Response(data)
-# Added New action for CSV download 
-    @action(detail=False, methods=['get'], url_path='download')
-    def download_summary(self, request):
-        # Prepare CSV response
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename="wellness_summary.csv"'
 
-        writer = csv.writer(response)
+        return Response(data)
+
+    # CSV download action
+
+    @action(detail=False, methods=['get'], url_path='download-summary')
+    def download_summary(self, request):
+        """
+        Download wellness summary as a CSV in binary mode.
+        Frontend can safely fetch this as a blob.
+        """
+
+        # Create a binary in-memory stream
+        buffer = io.BytesIO()
+
+        # Wrap buffer for csv.writer
+        text_wrapper = io.TextIOWrapper(buffer, encoding='utf-8', newline='')
+        writer = csv.writer(text_wrapper)
+
+        # Write CSV header
         writer.writerow(['Metric', 'Value'])
 
-        # this Adds computed metrics
+        # Metrics
         writer.writerow(['Common Issues', CommonIssue.objects.count()])
         writer.writerow(['Resource Engagement', ResourceEngagement.objects.filter(completed=True).count()])
-        avg_wellbeing = MoodTracking.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
-        writer.writerow(['Average Wellbeing Trend', round(avg_wellbeing, 2)])
-        writer.writerow(['At-Risk Departments', Department.objects.filter(at_risk=True).count()])
-        return response
 
+        # Average wellbeing
+        moods = MoodTracking.objects.values_list('mood', flat=True)
+        if moods:
+            avg_wellbeing = round(sum(self.MOOD_SCORES[m] for m in moods) / len(moods), 2)
+        else:
+            avg_wellbeing = 0
+        writer.writerow(['Average Wellbeing Trend', avg_wellbeing])
+
+        # At-risk departments
+        writer.writerow(['At-Risk Departments', Department.objects.filter(at_risk=True).count()])
+
+        # Flush and rewind
+        text_wrapper.flush()
+        buffer.seek(0)
+
+        # Return as binary HTTP response
+        response = HttpResponse(buffer, content_type='application/octet-stream')
+        response['Content-Disposition'] = 'attachment; filename="wellness_summary.csv"'
+        return response
 
 @extend_schema(tags=['Employer Dashboard'])
 class OrganizationSettingsView(viewsets.ModelViewSet):
