@@ -9,6 +9,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from rest_framework.permissions import IsAdminUser, AllowAny, SAFE_METHODS, BasePermission
 from django.http import JsonResponse
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.db.models import Avg, Count, Sum
 from rest_framework.decorators import action
 from .serializers import LogoutSerializer
@@ -583,26 +584,35 @@ class PasswordResetConfirmView(viewsets.ViewSet):
 
 
 # View for changing or updating password
-@extend_schema(tags=['Authentication'])
+@extend_schema(
+    tags=['Authentication'],
+    request=PasswordChangeSerializer,
+    responses={200: {"message": "Password updated successfully. Please log in again."}},
+    description="Allows a logged-in user to change their password. Optionally accepts 'refresh' token to blacklist it."
+)
 class PasswordChangeView(viewsets.ViewSet):
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
-    serializer_class = PasswordChangeSerializer
 
     def create(self, request):
-        serializer = self.serializer_class(
-            data=request.data,
-            context={'request': request} 
-        )
+        serializer = PasswordChangeSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
+        serializer.save()
 
-        serializer.save() 
-        logout(request) 
+        # Optional: blacklist refresh token
+        refresh_token = request.data.get("refresh")
+        if refresh_token:
+            try:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            except Exception:
+                pass
 
         return Response(
-            {"message": "Password updated successfully"},
+            {"message": "Password updated successfully. Please log in again."},
             status=status.HTTP_200_OK
         )
-
+    
 
 # This is the Setup for MFA (when the superuser is already logged in)
 @extend_schema(request=MFASetupSerializer, responses={200: MFASetupSerializer})
