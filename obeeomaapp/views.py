@@ -15,6 +15,8 @@ from .serializers import LogoutSerializer
 from drf_spectacular.utils import extend_schema
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth import logout
+
 from rest_framework import status, permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -583,25 +585,23 @@ class PasswordResetConfirmView(viewsets.ViewSet):
 # View for changing or updating password
 @extend_schema(tags=['Authentication'])
 class PasswordChangeView(viewsets.ViewSet):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     serializer_class = PasswordChangeSerializer
 
     def create(self, request):
-        serializer = self.serializer_class(data=request.data)
+        serializer = self.serializer_class(
+            data=request.data,
+            context={'request': request} 
+        )
         serializer.is_valid(raise_exception=True)
 
-        user = request.user
-        new_password = serializer.validated_data['new_password']
-
-        # This logic helps in Setting a new password
-        user.set_password(new_password)
-        user.save()
+        serializer.save() 
+        logout(request) 
 
         return Response(
             {"message": "Password updated successfully"},
             status=status.HTTP_200_OK
         )
-
 
 
 # This is the Setup for MFA (when the superuser is already logged in)
