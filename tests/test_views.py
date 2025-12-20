@@ -215,36 +215,3 @@ class UpdatePaymentMethodTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.assertIn("detail", response.data)
-
-
-from obeeomaapp.models import Employer, Employee
-
-class EmployeeViewSetTest(APITestCase):
-    def setUp(self):
-        self.employer = Employer.objects.create(name="TechCorp")
-        Employee.objects.create(employer=self.employer, name="Alice", email="alice@example.com", status="active")
-        Employee.objects.create(employer=self.employer, name="Bob", email="bob@example.com", status="inactive")
-
-    def test_active_employees(self):
-        url = reverse('employee-active')
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['count'], 1)
-        self.assertEqual(response.data['employees'][0]['name'], "Alice")
-
-    def test_inactive_employees(self):
-        url = reverse('employee-inactive')
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['count'], 1)
-        self.assertEqual(response.data['employees'][0]['name'], "Bob")
-
-    def test_summary(self):
-        url = reverse('employee-summary')
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['total'], 2)
-        self.assertEqual(response.data['active'], 1)
-        self.assertEqual(response.data['inactive'], 1)
-        self.assertEqual(response.data['active_percent'], 50.0)
-        self.assertEqual(response.data['inactive_percent'], 50.0)

@@ -36,7 +36,7 @@ from obeeomaapp.views import (
     JournalEntryViewSet, UpdatePaymentMethodViewSet,  PSS10AssessmentViewSet,
     ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView,VerifyPasswordResetOTPView,VerifyInvitationOTPView,
     EngagementLevelViewSet, CompanyMoodViewSet, WellnessGraphViewSet, EmployeeManagementViewSet, NotificationViewSet, InviteView, 
-    VerifyMFAPasswordView, ToggleMFAView,AdminSubscriptionManagementViewSet, AdminBillingHistoryViewSet, EmployeeEngagementSummaryView
+    VerifyMFAPasswordView, ToggleMFAView,AdminSubscriptionManagementViewSet, AdminBillingHistoryViewSet, EmployeeEngagementSummaryView,DepartmentAnalysisReportView,RiskAssessmentReportView,EngagementReportView
     
 )
 
@@ -200,6 +200,10 @@ urlpatterns = [
     path("dashboard/employee-engagement/", EmployeeEngagementView.as_view({'get': 'list', 'post': 'create'}), name="employee-engagement"),
     # Added Employee Engagement Summary Endpoint
     path( "dashboard/employee-engagement/summary/",  EmployeeEngagementSummaryView.as_view(), name="employee-engagement-summary"),
+    # Added the dashboard endpoints for downloading reports
+    path("download/department-analysis/", DepartmentAnalysisReportView.as_view()),
+    path("download/risk-assessment/", RiskAssessmentReportView.as_view()),
+    path("download/engagement/", EngagementReportView.as_view()),
     
     path("dashboard/features-usage/", FeaturesUsageView.as_view({'get': 'list'}), name="features-usage"),
     path("dashboard/billing/", BillingView.as_view({'get': 'list', 'post': 'create'}), name="billing"),

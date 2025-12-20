@@ -9,12 +9,15 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from rest_framework.permissions import IsAdminUser, AllowAny, SAFE_METHODS, BasePermission
 from django.http import JsonResponse
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.db.models import Avg, Count, Sum
 from rest_framework.decorators import action
 from .serializers import LogoutSerializer
 from drf_spectacular.utils import extend_schema
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth import logout
+
 from rest_framework import status, permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -100,6 +103,8 @@ from rest_framework_simplejwt.exceptions import TokenError
 from .permissions import IsSystemAdmin
 import hmac
 import hashlib
+from openpyxl import Workbook
+
 from django.views.decorators.csrf import csrf_exempt  #  Make sure this is present
 from django.http import HttpResponse
 from django.conf import settings
@@ -109,6 +114,22 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import (
     EmployeeProfileSerializer
 )
+
+# Mood score mapping for trends (used to provide numeric scores to frontend)
+MOOD_SCORES = {
+    "Ecstatic": 5,
+    "Happy": 4,
+    "Excited": 4,
+    "Content": 4,
+    "Calm": 3,
+    "Neutral": 3,
+    "Tired": 3,
+    "Anxious": 2,
+    "Stressed": 2,
+    "Sad": 2,
+    "Frustrated": 2,
+    "Angry": 1,
+}
 
 
 # Set up logging
@@ -563,28 +584,35 @@ class PasswordResetConfirmView(viewsets.ViewSet):
 
 
 # View for changing or updating password
-@extend_schema(tags=['Authentication'])
+@extend_schema(
+    tags=['Authentication'],
+    request=PasswordChangeSerializer,
+    responses={200: {"message": "Password updated successfully. Please log in again."}},
+    description="Allows a logged-in user to change their password. Optionally accepts 'refresh' token to blacklist it."
+)
 class PasswordChangeView(viewsets.ViewSet):
-    permission_classes = [AllowAny]
-    serializer_class = PasswordChangeSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def create(self, request):
-        serializer = self.serializer_class(data=request.data)
+        serializer = PasswordChangeSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
+        serializer.save()
 
-        user = request.user
-        new_password = serializer.validated_data['new_password']
-
-        # This logic helps in Setting a new password
-        user.set_password(new_password)
-        user.save()
+        # Optional: blacklist refresh token
+        refresh_token = request.data.get("refresh")
+        if refresh_token:
+            try:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            except Exception:
+                pass
 
         return Response(
-            {"message": "Password updated successfully"},
+            {"message": "Password updated successfully. Please log in again."},
             status=status.HTTP_200_OK
         )
-
-
+    
 
 # This is the Setup for MFA (when the superuser is already logged in)
 @extend_schema(request=MFASetupSerializer, responses={200: MFASetupSerializer})
@@ -1103,12 +1131,13 @@ class OverviewView(viewsets.ViewSet):
         })
 
 
+# Employer Dashboard - Mood Trends (aggregated daily moods for visualization)
 @extend_schema(tags=['Employer Dashboard'])
 class TrendsView(viewsets.ReadOnlyModelViewSet):
-    queryset = HotlineActivity.objects.select_related("employer").order_by("-recorded_at")
-    serializer_class = HotlineActivitySerializer
+    serializer_class = None  # returning computed data, not model serializer
     permission_classes = [IsCompanyAdmin]
 
+<<<<<<< HEAD
 @extend_schema_view(
     list=extend_schema(
         operation_id="engagement_list",
@@ -1119,13 +1148,189 @@ class TrendsView(viewsets.ReadOnlyModelViewSet):
         tags=["Employer Dashboard"]
     ),
 )
+=======
+    def list(self, request, *args, **kwargs):
+        """
+        GET /dashboard/trends/?days=7 or ?start=YYYY-MM-DD&end=YYYY-MM-DD
+
+        Returns an array of day buckets:
+        [
+          { "date": "2025-02-01", "avg_score": 4.0, "mood_counts": {"Happy": 3, "Neutral": 1} },
+          ...
+        ]
+
+        Notes:
+        - If no date params are provided, all records are used (continuous).
+        - Frontend can map avg_score to emojis; we only provide numeric scores and counts.
+        - If you need employer scoping, add a filter linking MoodTracking -> Employer.
+        """
+        qs = MoodTracking.objects.select_related("employee", "user")
+
+        # Date filtering
+        start = request.query_params.get("start")
+        end = request.query_params.get("end")
+        days = request.query_params.get("days")
+        today = timezone.now().date()
+
+        if start:
+            qs = qs.filter(checked_in_at__date__gte=start)
+        if end:
+            qs = qs.filter(checked_in_at__date__lte=end)
+        if not start and not end and days:
+            try:
+                days_int = int(days)
+                qs = qs.filter(checked_in_at__date__gte=today - timedelta(days=days_int))
+            except ValueError:
+                pass  # ignore bad days param
+
+        # Aggregate per day
+        trend = {}
+        for entry in qs.values("checked_in_at__date", "mood"):
+            day = entry["checked_in_at__date"]
+            mood = entry["mood"] or "Unknown"
+            score = MOOD_SCORES.get(mood, 0)
+
+            bucket = trend.setdefault(day, {"date": day.isoformat(), "total_score": 0, "count": 0, "mood_counts": {}})
+            bucket["total_score"] += score
+            bucket["count"] += 1
+            bucket["mood_counts"][mood] = bucket["mood_counts"].get(mood, 0) + 1
+
+        data = []
+        for day in sorted(trend.keys()):
+            bucket = trend[day]
+            avg_score = round(bucket["total_score"] / bucket["count"], 2) if bucket["count"] else 0
+            data.append({
+                "date": bucket["date"],
+                "avg_score": avg_score,
+                "mood_counts": bucket["mood_counts"],
+            })
+
+        return Response(data)
+
+
+@extend_schema(tags=['Employer Dashboard'])
+>>>>>>> ad16f48ed357961547b0931557cebcb009169401
 class EmployeeEngagementView(viewsets.ModelViewSet):
     queryset = EmployeeEngagement.objects.select_related("employer").order_by("-month")
     serializer_class = EmployeeEngagementSerializer
-    # permission_classes = [IsCompanyAdmin]
+    
 
+from reportlab.pdfgen import canvas
+
+# REPORT 1: DEPARTMENT ANALYSIS REPORT
+
+class DepartmentAnalysisReportView(APIView):
+    """
+    Generates a downloadable PDF containing department analysis.
+
+    Binary download means:
+    - Response is not JSON
+    - It is a PDF file returned as bytes
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Create temporary buffer in memory
+        buffer = io.BytesIO()
+
+        # Generate PDF using reportlab
+        p = canvas.Canvas(buffer)
+
+        p.drawString(100, 800, "DEPARTMENT ANALYSIS REPORT")
+        p.drawString(100, 780, f"Requested by: {request.user.username}")
+        p.drawString(100, 760, "-----------------------------------------")
+        p.drawString(100, 740, "Department statistics go here...")
+
+        p.showPage()
+        p.save()
+
+        buffer.seek(0)
+
+        # Response as downloadable PDF
+        response = HttpResponse(buffer, content_type="application/pdf")
+        response['Content-Disposition'] = 'attachment; filename=\"department-analysis.pdf\"'
+
+        return response
+
+
+#############################################
+# REPORT 2: RISK ASSESSMENT REPORT
+#############################################
+
+class RiskAssessmentReportView(APIView):
+    """
+    Downloads a risk assessment report in PDF format.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        buffer = io.BytesIO()
+        p = canvas.Canvas(buffer)
+
+        p.drawString(100, 800, "RISK ASSESSMENT REPORT")
+        p.drawString(100, 780, f"Requested by: {request.user.username}")
+        p.drawString(100, 760, "-----------------------------------------")
+        p.drawString(100, 740, "Risk metrics go here...")
+
+        p.showPage()
+        p.save()
+        buffer.seek(0)
+
+        response = HttpResponse(buffer, content_type="application/pdf")
+        response['Content-Disposition'] = 'attachment; filename=\"risk-assessment.pdf\"'
+
+        return response
+
+
+#############################################
+# REPORT 3: ENGAGEMENT REPORT
+#############################################
+
+class EngagementReportView(APIView):
+    """
+    Downloads an employee engagement report as PDF.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        buffer = io.BytesIO()
+        p = canvas.Canvas(buffer)
+
+        p.drawString(100, 800, "ENGAGEMENT REPORT")
+        p.drawString(100, 780, f"Requested by: {request.user.username}")
+        p.drawString(100, 760, "-----------------------------------------")
+        p.drawString(100, 740, "Employee engagement trends go here...")
+
+        p.showPage()
+        p.save()
+        buffer.seek(0)
+
+        response = HttpResponse(buffer, content_type="application/pdf")
+        response['Content-Disposition'] = 'attachment; filename=\"engagement.pdf\"'
+
+        return response
+
+
+
+<<<<<<< HEAD
     @extend_schema(
         operation_id="active_employees",
+=======
+
+
+@extend_schema_view(
+    list=extend_schema(
+        operation_id="features_usage_list",
+        tags=["Employer Dashboard"]
+    ),
+    by_category=extend_schema(
+        operation_id="features_usage_by_category",
+>>>>>>> ad16f48ed357961547b0931557cebcb009169401
         tags=["Employer Dashboard"],
         description="Returns all active employees with count."
     )
@@ -2427,62 +2632,108 @@ def initiate_subscription_payment(self, request):
         return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Wellness Reports View   
+from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django.http import HttpResponse
+import io, csv
+
+# Import your models and serializers
+from .models import CommonIssue, ResourceEngagement, MoodTracking, Department
+from .serializers import ChatEngagementSerializer, DepartmentContributionSerializer, OrganizationActivitySerializer
+
 @extend_schema(tags=['Employer Dashboard'])
 class WellnessReportsView(viewsets.ViewSet):
     """Wellness reports and analytics"""
-    permission_classes = [IsCompanyAdmin]
-    
+
+    permission_classes = [IsAuthenticated]
+
+    # JSON summary endpoint
     def list(self, request):
-        # Get common issues count
+        """Return wellness summary as JSON"""
+        
+        # Metrics
         common_issues = CommonIssue.objects.count()
-        
-        # Get resource engagement count
         resource_engagement = ResourceEngagement.objects.filter(completed=True).count()
-        
-        # Get average wellbeing trend
-        avg_wellbeing = MoodTracking.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
-        
-        # Get at-risk count
+
+        # Average wellbeing using mood scores
+        MOOD_SCORES = {
+            'Ecstatic': 5, 'Happy': 4, 'Excited': 4, 'Content': 3,
+            'Calm': 3, 'Neutral': 3, 'Tired': 2, 'Anxious': 1,
+            'Stressed': 1, 'Sad': 1, 'Frustrated': 1, 'Angry': 0
+        }
+        moods = MoodTracking.objects.values_list('mood', flat=True)
+        if moods:
+            avg_wellbeing = round(sum(MOOD_SCORES[m] for m in moods) / len(moods), 2)
+        else:
+            avg_wellbeing = 0
+
         at_risk = Department.objects.filter(at_risk=True).count()
-        
-        # Get chat engagement data
-        chat_engagement = ChatEngagement.objects.all()[:5]
-        
-        # Get department contributions
-        department_contributions = DepartmentContribution.objects.select_related('department').all()[:4]
-        
-        # Get recent activities
-        recent_activities = OrganizationActivity.objects.select_related('employer', 'department', 'employee').order_by('-created_at')[:3]
-        
+
+        # JSON response
         data = {
             'common_issues': common_issues,
             'resource_engagement': resource_engagement,
-            'average_wellbeing_trend': round(avg_wellbeing, 2),
-            'at_risk': at_risk,
-            'chat_engagement': ChatEngagementSerializer(chat_engagement, many=True).data,
-            'department_contributions': DepartmentContributionSerializer(department_contributions, many=True).data,
-            'recent_activities': OrganizationActivitySerializer(recent_activities, many=True).data
+            'average_wellbeing_trend': f"{avg_wellbeing:.2f}",
+            'at_risk': at_risk
         }
-        
+
         return Response(data)
-# Added New action for CSV download 
-    @action(detail=False, methods=['get'], url_path='download')
+
+    # CSV download endpoint
+   
+    @action(detail=False, methods=['get'], url_path='download-summary')
     def download_summary(self, request):
-        # Prepare CSV response
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename="wellness_summary.csv"'
+        """
+        Download wellness summary as a professional XLSX file.
+        Columns auto-sized for readability.
+        """
 
-        writer = csv.writer(response)
-        writer.writerow(['Metric', 'Value'])
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Wellness Summary"
 
-        # this Adds computed metrics
-        writer.writerow(['Common Issues', CommonIssue.objects.count()])
-        writer.writerow(['Resource Engagement', ResourceEngagement.objects.filter(completed=True).count()])
-        avg_wellbeing = MoodTracking.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
-        writer.writerow(['Average Wellbeing Trend', round(avg_wellbeing, 2)])
-        writer.writerow(['At-Risk Departments', Department.objects.filter(at_risk=True).count()])
+        # Add report title
+        ws.merge_cells('A1:B1')
+        ws['A1'] = "Wellness Summary Report"
+
+        # Leave a blank row for spacing
+        ws.append([])
+
+        # Add header
+        ws.append(['Metric', 'Value'])
+
+        # Compute metrics
+        common_issues = CommonIssue.objects.count()
+        resource_engagement = ResourceEngagement.objects.filter(completed=True).count()
+        MOOD_SCORES = {
+            'Ecstatic': 5, 'Happy': 4, 'Excited': 4, 'Content': 3,
+            'Calm': 3, 'Neutral': 3, 'Tired': 2, 'Anxious': 1,
+            'Stressed': 1, 'Sad': 1, 'Frustrated': 1, 'Angry': 0
+        }
+        moods = MoodTracking.objects.values_list('mood', flat=True)
+        avg_wellbeing = round(sum(MOOD_SCORES[m] for m in moods) / len(moods), 2) if moods else 0
+        at_risk = Department.objects.filter(at_risk=True).count()
+
+        # Write metrics to sheet
+        ws.append(['Common Issues', common_issues])
+        ws.append(['Resource Engagement', resource_engagement])
+        ws.append(['Average Wellbeing Trend', f"{avg_wellbeing:.2f}"])
+        ws.append(['At-Risk Departments', at_risk])
+
+        # Auto-adjust column widths
+        ws.column_dimensions['A'].width = 35
+        ws.column_dimensions['B'].width = 20
+
+        # Return XLSX response
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="wellness_summary.xlsx"'
+        wb.save(response)
         return response
-
 
 @extend_schema(tags=['Employer Dashboard'])
 class OrganizationSettingsView(viewsets.ModelViewSet):
