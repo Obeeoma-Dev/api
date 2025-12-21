@@ -9,12 +9,15 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from rest_framework.permissions import IsAdminUser, AllowAny, SAFE_METHODS, BasePermission
 from django.http import JsonResponse
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.db.models import Avg, Count, Sum
 from rest_framework.decorators import action
 from .serializers import LogoutSerializer
 from drf_spectacular.utils import extend_schema
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth import logout
+
 from rest_framework import status, permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -22,6 +25,9 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import NotFound
 from drf_spectacular.utils import extend_schema, OpenApiParameter
+from .serializers import MFAPasswordVerifySerializer
+from .utils.mfa_token import create_mfa_settings_token, verify_mfa_settings_token
+from .serializers import MFAPasswordVerifySerializer, MFAToggleSerializer
 # from .models import OnboardingState
 from .models import CrisisHotline
 from .serializers import CrisisHotlineSerializer
@@ -40,6 +46,7 @@ from django.db.models import Avg
 from .models import Feedback
 from .serializers import FeedbackSerializer
 import logging
+import csv
 
 logger = logging.getLogger(__name__)
 from django.db.models import Avg
@@ -73,7 +80,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import *
-from .serializers import EmployeeInvitationCreateSerializer, InvitationOTPVerificationSerializer  # Explicit import
+from .serializers import EmployeeInvitationCreateSerializer, EmployeeInvitationResponseSerializer
 from django.core.mail import send_mail, EmailMultiAlternatives
 from .utils.gmail_http_api import send_gmail_api_email
 from django.conf import settings
@@ -92,9 +99,12 @@ from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string
 from django.contrib.auth import authenticate, login as django_login
 from .serializers import AdminUserSerializer, OrganizationSerializer
+from rest_framework_simplejwt.exceptions import TokenError
 from .permissions import IsSystemAdmin
 import hmac
 import hashlib
+from openpyxl import Workbook
+
 from django.views.decorators.csrf import csrf_exempt  #  Make sure this is present
 from django.http import HttpResponse
 from django.conf import settings
@@ -104,6 +114,22 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import (
     EmployeeProfileSerializer
 )
+
+# Mood score mapping for trends (used to provide numeric scores to frontend)
+MOOD_SCORES = {
+    "Ecstatic": 5,
+    "Happy": 4,
+    "Excited": 4,
+    "Content": 4,
+    "Calm": 3,
+    "Neutral": 3,
+    "Tired": 3,
+    "Anxious": 2,
+    "Stressed": 2,
+    "Sad": 2,
+    "Frustrated": 2,
+    "Angry": 1,
+}
 
 
 # Set up logging
@@ -185,8 +211,6 @@ class SignupView(viewsets.ModelViewSet):
      permission_classes = [permissions.AllowAny]
         
 
-       
-
 # VIEWS FOR CREATING AN ORGANIZATION
 @extend_schema(
     tags=['Authentication'],
@@ -248,6 +272,10 @@ class VerifyInvitationOTPView(APIView):
 
         invitation = serializer.context['invitation']
 
+        # Mark invitation as accepted
+        invitation.accepted_at = timezone.now()
+        invitation.save()
+
         # Save verified invitation email in session
         request.session['verified_invitation_email'] = invitation.email
         request.session['invitation_verified_at'] = timezone.now().isoformat()
@@ -260,7 +288,6 @@ class VerifyInvitationOTPView(APIView):
             },
             status=status.HTTP_200_OK
         )
-
 
 
 
@@ -349,6 +376,11 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 #  CompleteOnboardingView
 class CompleteOnboardingView(APIView):
+    """
+    Completes first-time employee onboarding.
+    User must be authenticated but NOT onboarded.
+    """
+
     permission_classes = [permissions.IsAuthenticated]
 
     @extend_schema(
@@ -357,27 +389,53 @@ class CompleteOnboardingView(APIView):
         tags=['Onboarding'],
         description="Complete first-time user onboarding."
     )
+    @transaction.atomic
     def post(self, request):
         user = request.user
 
+        # this Prevents re-onboarding
         if user.onboarding_completed:
-            return Response({"detail": "Onboarding already completed."}, status=400)
+            return Response(
+                {"detail": "Onboarding already completed."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
+        # Validate onboarding payload
         serializer = EmployeeOnboardingSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        # Complete onboarding
         serializer.update(user, serializer.validated_data)
 
-        # Now allow permanent login
-        return Response({
-            "message": "Onboarding completed successfully.",
-            "first_time_access": False   # This tells frontend this user must login next time   
-        })
+        # this Persists onboarding state (UX tracking)
+        OnboardingState.objects.update_or_create(
+            user=user,
+            defaults={
+                "completed": True,
+                "first_action_done": True
+            }
+        )
 
+        # this Ensures that the DB is up-to-date
+        user.refresh_from_db()
+
+        return Response(
+            {
+                "message": "Onboarding completed successfully.",
+                "onboarding_completed": user.onboarding_completed,
+                "first_time_access": False
+            },
+            status=status.HTTP_200_OK
+        )
 # LOGOUT VIEW
 @extend_schema(
     tags=["Authentication"],
     request=LogoutSerializer,
-    responses={205: {"description": "Logged out successfully"}, 400: {"description": "Invalid or expired token"}},
+    responses={
+        200: {"description": "Logged out successfully"},
+        400: {"description": "Invalid refresh token"},
+        501: {"description": "Token blacklist not enabled"},
+    },
 )
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -389,16 +447,17 @@ class LogoutView(APIView):
         refresh_token = serializer.validated_data["refresh"]
         try:
             token = RefreshToken(refresh_token)
-            token.blacklist()
+            token.blacklist()  # requires token_blacklist app installed
+        except AttributeError:
+            # Blacklist app not installed
             return Response(
-                {"message": "Logged out successfully."},
-                status=status.HTTP_200_RESET_CONTENT
+                {"detail": "Token blacklist not enabled on server."},
+                status=status.HTTP_501_NOT_IMPLEMENTED,
             )
-        except Exception:
-            return Response(
-                {"error": "Invalid or expired token."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        except TokenError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
 
 
 # password reset request view
@@ -525,28 +584,35 @@ class PasswordResetConfirmView(viewsets.ViewSet):
 
 
 # View for changing or updating password
-@extend_schema(tags=['Authentication'])
+@extend_schema(
+    tags=['Authentication'],
+    request=PasswordChangeSerializer,
+    responses={200: {"message": "Password updated successfully. Please log in again."}},
+    description="Allows a logged-in user to change their password. Optionally accepts 'refresh' token to blacklist it."
+)
 class PasswordChangeView(viewsets.ViewSet):
-    permission_classes = [AllowAny]
-    serializer_class = PasswordChangeSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def create(self, request):
-        serializer = self.serializer_class(data=request.data)
+        serializer = PasswordChangeSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
+        serializer.save()
 
-        user = request.user
-        new_password = serializer.validated_data['new_password']
-
-        # This logic helps in Setting a new password
-        user.set_password(new_password)
-        user.save()
+        # Optional: blacklist refresh token
+        refresh_token = request.data.get("refresh")
+        if refresh_token:
+            try:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            except Exception:
+                pass
 
         return Response(
-            {"message": "Password updated successfully"},
+            {"message": "Password updated successfully. Please log in again."},
             status=status.HTTP_200_OK
         )
-
-
+    
 
 # This is the Setup for MFA (when the superuser is already logged in)
 @extend_schema(request=MFASetupSerializer, responses={200: MFASetupSerializer})
@@ -638,6 +704,64 @@ def mfa_verify(request):
 
     return Response(_build_login_success_payload(user))
 
+# Verify Password for MFA Actions
+@extend_schema(tags=['MFA'])
+class VerifyMFAPasswordView(APIView):
+    serializer_class = MFAPasswordVerifySerializer
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Verify admin password before allowing MFA changes. Returns a temporary MFA settings token."
+    )
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        password = serializer.validated_data['password']
+
+        if not user.check_password(password):
+            return Response({"error": "Incorrect password."}, status=400)
+
+        token = create_mfa_settings_token(user.id)
+        return Response({
+            "message": "Password verified successfully.",
+            "mfa_settings_token": token
+        })
+
+
+
+# MFA Toggle View
+@extend_schema(tags=['MFA'])
+class ToggleMFAView(APIView):
+    serializer_class = MFAToggleSerializer
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Enable or disable MFA securely using the temporary MFA settings token."
+    )
+    def patch(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        mfa_enabled = serializer.validated_data['mfa_enabled']
+        token = serializer.validated_data['mfa_settings_token']
+
+        user_id = verify_mfa_settings_token(token)
+        if not user_id or user_id != request.user.id:
+            return Response({"error": "Invalid or expired MFA settings token."}, status=400)
+
+        user = request.user
+        user.mfa_enabled = mfa_enabled
+        user.save()
+
+        return Response({
+            "message": "MFA setting updated successfully.",
+            "mfa_enabled": user.mfa_enabled
+        })
+
+
+
 # Resetpassword completeview
 @extend_schema(tags=['Authentication'])
 class ResetPasswordCompleteView(viewsets.ViewSet):
@@ -704,86 +828,94 @@ class InviteView(viewsets.ModelViewSet):
 
     Allows employers to:
     - Send email invitations to new employees
-    - View pending invitations
-    - Resend or cancel invitations
+    - View pending / accepted / expired invitations
     """
     serializer_class = EmployeeInvitationCreateSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    
+    # QUERYSET (LIST / FILTER)
+   
     def get_queryset(self):
         employer = None
-
-        # Try to get employer from organization
-        try:
-            organization = Organization.objects.filter(owner=self.request.user).first()
-            if organization:
-                employer, created = Employer.objects.get_or_create(
-                    name=organization.organizationName,
-                    defaults={'is_active': True}
-                )
-        except Exception:
-            pass
-
-        # Try to get employer from employee profile
-        if not employer:
-            try:
-                employee_profile = Employee.objects.filter(user=self.request.user).first()
-                if employee_profile:
-                    employer = employee_profile.employer
-            except Exception:
-                pass
-
-        # If user is staff, get first employer
-        if not employer and self.request.user.is_staff:
-            employer = Employer.objects.first()
-
-        if employer:
-            queryset = EmployeeInvitation.objects.filter(employer=employer).order_by('-created_at')
-            status_param = self.request.query_params.get('status')
-            now = timezone.now()
-
-            if status_param == 'pending':
-                queryset = queryset.filter(accepted=False, otp_expires_at__gt=now)
-            elif status_param == 'accepted':
-                queryset = queryset.filter(accepted=True)
-            elif status_param == 'expired':
-                queryset = queryset.filter(accepted=False, otp_expires_at__lte=now)
-
-            return queryset
-
-        return EmployeeInvitation.objects.none()
-
-    @extend_schema(
-        request=EmployeeInvitationCreateSerializer,
-        responses={201: "Invitation sent successfully", 400: "Bad Request"},
-        description="Send an invitation to a new employee with OTP only"
-    )
-    def create(self, request, *args, **kwargs):
-        """Send an invitation to a new employee (OTP only)"""
-        employer = None
+        user = self.request.user
+        now = timezone.now()
 
         # Get employer from organization
-        try:
-            organization = Organization.objects.filter(owner=request.user).first()
-            if organization:
-                employer, created = Employer.objects.get_or_create(
-                    name=organization.organizationName,
-                    defaults={'is_active': True}
-                )
-        except Exception as e:
-            logger.warning(f"Error getting organization: {str(e)}")
+        organization = Organization.objects.filter(owner=user).first()
+        if organization:
+            employer, _ = Employer.objects.get_or_create(
+                name=organization.organizationName,
+                defaults={'is_active': True}
+            )
 
         # Get employer from employee profile
         if not employer:
-            try:
-                employee_profile = Employee.objects.filter(user=request.user).first()
-                if employee_profile:
-                    employer = employee_profile.employer
-            except Exception:
-                pass
+            employee_profile = Employee.objects.filter(user=user).first()
+            if employee_profile:
+                employer = employee_profile.employer
 
         # Staff fallback
-        if not employer and request.user.is_staff:
+        if not employer and user.is_staff:
+            employer = Employer.objects.first()
+
+        if not employer:
+            return EmployeeInvitation.objects.none()
+
+        queryset = EmployeeInvitation.objects.filter(
+            employer=employer
+        ).order_by('-created_at')
+
+        status_param = self.request.query_params.get('status')
+
+        if status_param == 'pending':
+            queryset = queryset.filter(
+                accepted_at__isnull=True,
+                rejected_at__isnull=True,
+                otp_expires_at__gt=now
+            )
+
+        elif status_param == 'accepted':
+            queryset = queryset.filter(
+                accepted_at__isnull=False
+            )
+
+        elif status_param == 'expired':
+            queryset = queryset.filter(
+                accepted_at__isnull=True,
+                rejected_at__isnull=True,
+                otp_expires_at__lte=now
+            )
+
+        return queryset
+
+   
+    # CREATE INVITATION
+    @extend_schema(
+        request=EmployeeInvitationCreateSerializer,
+        responses={201: EmployeeInvitationResponseSerializer},
+        description="Send an invitation to a new employee with OTP"
+    )
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        employer = None
+
+        # Get employer from organization
+        organization = Organization.objects.filter(owner=user).first()
+        if organization:
+            employer, _ = Employer.objects.get_or_create(
+                name=organization.organizationName,
+                defaults={'is_active': True}
+            )
+
+        # Get employer from employee profile
+        if not employer:
+            employee_profile = Employee.objects.filter(user=user).first()
+            if employee_profile:
+                employer = employee_profile.employer
+
+        # Staff fallback
+        if not employer and user.is_staff:
             employer = Employer.objects.first()
 
         if not employer:
@@ -794,62 +926,47 @@ class InviteView(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(
             data=request.data,
-            context={'employer': employer, 'user': request.user}
+            context={
+                'employer': employer,
+                'user': user
+            }
         )
         serializer.is_valid(raise_exception=True)
         invitation = serializer.save()
 
-        # Send email with OTP only
+        # SEND OTP EMAIL
+        
         try:
             subject = f"Welcome to {employer.name} on Obeeoma!"
-            otp = invitation.otp
-            otp_expiry = invitation.otp_expires_at.strftime('%B %d, %Y at %I:%M %p')  # e.g., December 14, 2025 at 04:32 PM
+            otp_expiry = invitation.otp_expires_at.strftime(
+                '%B %d, %Y at %I:%M %p'
+            )
 
-            text_message = f"""
+            message = f"""
 Hello,
 
-You have been invited to join {employer.name} on Obeeoma by {request.user.username}.
+You have been invited to join {employer.name} on Obeeoma by {user.username}.
 
-{invitation.message if invitation.message else ''}
+{invitation.message or ""}
 
-Your 6-digit verification code is: {otp}
+Your 6-digit verification code is: {invitation.otp}
 
-This code will expire on {otp_expiry} (valid for 7 days).
-
-To complete your registration:
-1. Enter this OTP code to verify your email
-2. Create your username and password
-3. Start using Obeeoma
+This code expires on {otp_expiry} (valid for 7 days).
 
 If you did not expect this invitation, please ignore this email.
 
 Best regards,
 The Obeeoma Team
 """
-            # Send email using Gmail API
-            logger.info(f"Attempting to send invitation email to {invitation.email}")
-            success = send_gmail_api_email(invitation.email, subject, text_message)
-
-            if not success:
-                logger.error(f"Gmail API failed to send invitation email to {invitation.email}")
-                # Still return success but log the failure
-            else:
-                logger.info(f"Successfully sent invitation email to {invitation.email}")
+            send_gmail_api_email(invitation.email, subject, message)
 
         except Exception as e:
-            logger.error(f"Failed to send OTP email: {str(e)}")
-            logger.exception("Full email error traceback:")
+            logger.exception("Failed to send invitation email")
 
-        return Response({
-            "message": "Invitation sent successfully. OTP has been emailed to the user.",
-            "invitation": {
-                "id": invitation.id,
-                "email": invitation.email,
-                "message": invitation.message,
-                "otp_expires_at": invitation.otp_expires_at,
-                "created_at": invitation.created_at,
-            }
-        }, status=status.HTTP_201_CREATED)
+        return Response(
+            EmployeeInvitationResponseSerializer(invitation).data,
+            status=status.HTTP_201_CREATED
+        )
 
 
 
@@ -1014,64 +1131,188 @@ class OverviewView(viewsets.ViewSet):
         })
 
 
+# Employer Dashboard - Mood Trends (aggregated daily moods for visualization)
 @extend_schema(tags=['Employer Dashboard'])
 class TrendsView(viewsets.ReadOnlyModelViewSet):
-    queryset = HotlineActivity.objects.select_related("employer").order_by("-recorded_at")
-    serializer_class = HotlineActivitySerializer
+    serializer_class = None  # returning computed data, not model serializer
     permission_classes = [IsCompanyAdmin]
 
-from rest_framework import viewsets
-from drf_spectacular.utils import extend_schema, extend_schema_view
-from .models import EmployeeEngagement
-from .serializers import EmployeeEngagementSerializer
+    def list(self, request, *args, **kwargs):
+        """
+        GET /dashboard/trends/?days=7 or ?start=YYYY-MM-DD&end=YYYY-MM-DD
 
-@extend_schema_view(
-    list=extend_schema(
-        operation_id="engagement_list",
-        tags=["Employer Dashboard"],
-        description="Returns a list of engagement records."
-    ),
-    retrieve=extend_schema(
-        operation_id="engagement_detail",
-        tags=["Employer Dashboard"],
-        description="Returns details of a single engagement record."
-    ),
-)
+        Returns an array of day buckets:
+        [
+          { "date": "2025-02-01", "avg_score": 4.0, "mood_counts": {"Happy": 3, "Neutral": 1} },
+          ...
+        ]
+
+        Notes:
+        - If no date params are provided, all records are used (continuous).
+        - Frontend can map avg_score to emojis; we only provide numeric scores and counts.
+        - If you need employer scoping, add a filter linking MoodTracking -> Employer.
+        """
+        qs = MoodTracking.objects.select_related("employee", "user")
+
+        # Date filtering
+        start = request.query_params.get("start")
+        end = request.query_params.get("end")
+        days = request.query_params.get("days")
+        today = timezone.now().date()
+
+        if start:
+            qs = qs.filter(checked_in_at__date__gte=start)
+        if end:
+            qs = qs.filter(checked_in_at__date__lte=end)
+        if not start and not end and days:
+            try:
+                days_int = int(days)
+                qs = qs.filter(checked_in_at__date__gte=today - timedelta(days=days_int))
+            except ValueError:
+                pass  # ignore bad days param
+
+        # Aggregate per day
+        trend = {}
+        for entry in qs.values("checked_in_at__date", "mood"):
+            day = entry["checked_in_at__date"]
+            mood = entry["mood"] or "Unknown"
+            score = MOOD_SCORES.get(mood, 0)
+
+            bucket = trend.setdefault(day, {"date": day.isoformat(), "total_score": 0, "count": 0, "mood_counts": {}})
+            bucket["total_score"] += score
+            bucket["count"] += 1
+            bucket["mood_counts"][mood] = bucket["mood_counts"].get(mood, 0) + 1
+
+        data = []
+        for day in sorted(trend.keys()):
+            bucket = trend[day]
+            avg_score = round(bucket["total_score"] / bucket["count"], 2) if bucket["count"] else 0
+            data.append({
+                "date": bucket["date"],
+                "avg_score": avg_score,
+                "mood_counts": bucket["mood_counts"],
+            })
+
+        return Response(data)
+
+
+@extend_schema(tags=['Employer Dashboard'])
 class EmployeeEngagementView(viewsets.ModelViewSet):
     queryset = EmployeeEngagement.objects.select_related("employer").order_by("-month")
     serializer_class = EmployeeEngagementSerializer
-    # permission_classes = [IsCompanyAdmin]
+    
 
-    @extend_schema(
-        operation_id="active_employees",
-        tags=["Employer Dashboard"],
-        description="Returns all active employees with count."
-    )
-    @action(detail=False, methods=['get'])
-    def active(self, request):
-        employees = Employee.objects.filter(status='active')
-        serializer = EmployeeSerializer(employees, many=True)
-        return Response({
-            "count": employees.count(),
-            "employees": serializer.data
-        })
+from reportlab.pdfgen import canvas
 
-    @extend_schema(
-        operation_id="inactive_employees",
-        tags=["Employer Dashboard"],
-        description="Returns all inactive employees with count."
-    )
-    @action(detail=False, methods=['get'])
-    def inactive(self, request):
-        employees = Employee.objects.filter(status='inactive')
-        serializer = EmployeeSerializer(employees, many=True)
-        return Response({
-            "count": employees.count(),
-            "employees": serializer.data
-        })
+# REPORT 1: DEPARTMENT ANALYSIS REPORT
 
-    @extend_schema(
-        operation_id="employee_summary",
+class DepartmentAnalysisReportView(APIView):
+    """
+    Generates a downloadable PDF containing department analysis.
+
+    Binary download means:
+    - Response is not JSON
+    - It is a PDF file returned as bytes
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Create temporary buffer in memory
+        buffer = io.BytesIO()
+
+        # Generate PDF using reportlab
+        p = canvas.Canvas(buffer)
+
+        p.drawString(100, 800, "DEPARTMENT ANALYSIS REPORT")
+        p.drawString(100, 780, f"Requested by: {request.user.username}")
+        p.drawString(100, 760, "-----------------------------------------")
+        p.drawString(100, 740, "Department statistics go here...")
+
+        p.showPage()
+        p.save()
+
+        buffer.seek(0)
+
+        # Response as downloadable PDF
+        response = HttpResponse(buffer, content_type="application/pdf")
+        response['Content-Disposition'] = 'attachment; filename=\"department-analysis.pdf\"'
+
+        return response
+
+
+#############################################
+# REPORT 2: RISK ASSESSMENT REPORT
+#############################################
+
+class RiskAssessmentReportView(APIView):
+    """
+    Downloads a risk assessment report in PDF format.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        buffer = io.BytesIO()
+        p = canvas.Canvas(buffer)
+
+        p.drawString(100, 800, "RISK ASSESSMENT REPORT")
+        p.drawString(100, 780, f"Requested by: {request.user.username}")
+        p.drawString(100, 760, "-----------------------------------------")
+        p.drawString(100, 740, "Risk metrics go here...")
+
+        p.showPage()
+        p.save()
+        buffer.seek(0)
+
+        response = HttpResponse(buffer, content_type="application/pdf")
+        response['Content-Disposition'] = 'attachment; filename=\"risk-assessment.pdf\"'
+
+        return response
+
+
+#############################################
+# REPORT 3: ENGAGEMENT REPORT
+#############################################
+
+class EngagementReportView(APIView):
+    """
+    Downloads an employee engagement report as PDF.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        buffer = io.BytesIO()
+        p = canvas.Canvas(buffer)
+
+        p.drawString(100, 800, "ENGAGEMENT REPORT")
+        p.drawString(100, 780, f"Requested by: {request.user.username}")
+        p.drawString(100, 760, "-----------------------------------------")
+        p.drawString(100, 740, "Employee engagement trends go here...")
+
+        p.showPage()
+        p.save()
+        buffer.seek(0)
+
+        response = HttpResponse(buffer, content_type="application/pdf")
+        response['Content-Disposition'] = 'attachment; filename=\"engagement.pdf\"'
+
+        return response
+
+
+
+
+
+@extend_schema_view(
+    list=extend_schema(
+        operation_id="features_usage_list",
+        tags=["Employer Dashboard"]
+    ),
+    by_category=extend_schema(
+        operation_id="features_usage_by_category",
         tags=["Employer Dashboard"],
         description="Returns summary of active/inactive employees with percentages."
     )
@@ -1125,12 +1366,27 @@ class UsersView(viewsets.ModelViewSet):
     serializer_class = EmployeeSerializer
     # permission_classes = [IsCompanyAdmin]
 
-
+# REPORTS VIEW with DOWNLOAD ACTION
 @extend_schema(tags=['Employer Dashboard'])
 class ReportsView(viewsets.ReadOnlyModelViewSet):
     queryset = RecentActivity.objects.select_related("employer").order_by("-timestamp")
     serializer_class = RecentActivitySerializer
-    # permission_classes = [IsCompanyAdmin]
+
+    # This is the New action for downloading a report
+    @action(detail=True, methods=['get'], url_path='download')
+    def download_report(self, request, pk=None):
+        # Get the report instance
+        report = self.get_object()
+        
+        # Assuming your model has a file_path field (update if different)
+        file_path = getattr(report, 'file_path', None)
+        if not file_path:
+            return Response({"detail": "Report file not found."}, status=404)
+        
+        response = FileResponse(open(file_path, 'rb'))
+        response['Content-Disposition'] = f'attachment; filename="{getattr(report, "title", "report")}.pdf"'
+        return response
+   
 
 # For crisis insights about hotline activities and for which reasons employees are reaching out.
 @extend_schema(tags=['Employer Dashboard'])
@@ -1202,7 +1458,7 @@ class AvatarProfileView(viewsets.ModelViewSet):
 # updated mood tracking view with mood summary action
 
 @extend_schema(tags=['Employee - Mood Tracking'])
-class MoodTrackingView(viewsets.ModelViewSet):
+class  MoodTrackingView(viewsets.ModelViewSet):
     serializer_class = MoodTrackingSerializer
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ['mood']
@@ -2302,45 +2558,108 @@ def initiate_subscription_payment(self, request):
         return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Wellness Reports View   
+from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django.http import HttpResponse
+import io, csv
+
+# Import your models and serializers
+from .models import CommonIssue, ResourceEngagement, MoodTracking, Department
+from .serializers import ChatEngagementSerializer, DepartmentContributionSerializer, OrganizationActivitySerializer
+
 @extend_schema(tags=['Employer Dashboard'])
 class WellnessReportsView(viewsets.ViewSet):
     """Wellness reports and analytics"""
-    permission_classes = [IsCompanyAdmin]
-    
+
+    permission_classes = [IsAuthenticated]
+
+    # JSON summary endpoint
     def list(self, request):
-        # Get common issues count
+        """Return wellness summary as JSON"""
+        
+        # Metrics
         common_issues = CommonIssue.objects.count()
-        
-        # Get resource engagement count
         resource_engagement = ResourceEngagement.objects.filter(completed=True).count()
-        
-        # Get average wellbeing trend
-        avg_wellbeing = MoodTracking.objects.aggregate(avg_score=Avg('score'))['avg_score'] or 0
-        
-        # Get at-risk count
+
+        # Average wellbeing using mood scores
+        MOOD_SCORES = {
+            'Ecstatic': 5, 'Happy': 4, 'Excited': 4, 'Content': 3,
+            'Calm': 3, 'Neutral': 3, 'Tired': 2, 'Anxious': 1,
+            'Stressed': 1, 'Sad': 1, 'Frustrated': 1, 'Angry': 0
+        }
+        moods = MoodTracking.objects.values_list('mood', flat=True)
+        if moods:
+            avg_wellbeing = round(sum(MOOD_SCORES[m] for m in moods) / len(moods), 2)
+        else:
+            avg_wellbeing = 0
+
         at_risk = Department.objects.filter(at_risk=True).count()
-        
-        # Get chat engagement data
-        chat_engagement = ChatEngagement.objects.all()[:5]
-        
-        # Get department contributions
-        department_contributions = DepartmentContribution.objects.select_related('department').all()[:4]
-        
-        # Get recent activities
-        recent_activities = OrganizationActivity.objects.select_related('employer', 'department', 'employee').order_by('-created_at')[:3]
-        
+
+        # JSON response
         data = {
             'common_issues': common_issues,
             'resource_engagement': resource_engagement,
-            'average_wellbeing_trend': round(avg_wellbeing, 2),
-            'at_risk': at_risk,
-            'chat_engagement': ChatEngagementSerializer(chat_engagement, many=True).data,
-            'department_contributions': DepartmentContributionSerializer(department_contributions, many=True).data,
-            'recent_activities': OrganizationActivitySerializer(recent_activities, many=True).data
+            'average_wellbeing_trend': f"{avg_wellbeing:.2f}",
+            'at_risk': at_risk
         }
-        
+
         return Response(data)
 
+    # CSV download endpoint
+   
+    @action(detail=False, methods=['get'], url_path='download-summary')
+    def download_summary(self, request):
+        """
+        Download wellness summary as a professional XLSX file.
+        Columns auto-sized for readability.
+        """
+
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Wellness Summary"
+
+        # Add report title
+        ws.merge_cells('A1:B1')
+        ws['A1'] = "Wellness Summary Report"
+
+        # Leave a blank row for spacing
+        ws.append([])
+
+        # Add header
+        ws.append(['Metric', 'Value'])
+
+        # Compute metrics
+        common_issues = CommonIssue.objects.count()
+        resource_engagement = ResourceEngagement.objects.filter(completed=True).count()
+        MOOD_SCORES = {
+            'Ecstatic': 5, 'Happy': 4, 'Excited': 4, 'Content': 3,
+            'Calm': 3, 'Neutral': 3, 'Tired': 2, 'Anxious': 1,
+            'Stressed': 1, 'Sad': 1, 'Frustrated': 1, 'Angry': 0
+        }
+        moods = MoodTracking.objects.values_list('mood', flat=True)
+        avg_wellbeing = round(sum(MOOD_SCORES[m] for m in moods) / len(moods), 2) if moods else 0
+        at_risk = Department.objects.filter(at_risk=True).count()
+
+        # Write metrics to sheet
+        ws.append(['Common Issues', common_issues])
+        ws.append(['Resource Engagement', resource_engagement])
+        ws.append(['Average Wellbeing Trend', f"{avg_wellbeing:.2f}"])
+        ws.append(['At-Risk Departments', at_risk])
+
+        # Auto-adjust column widths
+        ws.column_dimensions['A'].width = 35
+        ws.column_dimensions['B'].width = 20
+
+        # Return XLSX response
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="wellness_summary.xlsx"'
+        wb.save(response)
+        return response
 
 @extend_schema(tags=['Employer Dashboard'])
 class OrganizationSettingsView(viewsets.ModelViewSet):
@@ -2942,7 +3261,32 @@ class ReportsAnalyticsView(viewsets.ViewSet):
         }
         
         return Response(data)
+    
 
+# Employee Engagement Summary View
+@extend_schema(tags=['Employer Dashboard'])
+class EmployeeEngagementSummaryView(APIView):
+    permission_classes = [IsCompanyAdmin]
+
+    def get(self, request):
+        employees = Employee.objects.filter(employer=request.user.employer)
+
+        total = employees.count()
+        active = employees.filter(is_active=True).count()
+        inactive = total - active
+
+        active_pct = (active / total * 100) if total else 0
+        inactive_pct = (inactive / total * 100) if total else 0
+
+        data = {
+            "activeEmployees": active,
+            "inactiveEmployees": inactive,
+            "totalEmployees": total,
+            "activePercentage": round(active_pct, 2),
+            "inactivePercentage": round(inactive_pct, 2),
+        }
+
+        return Response(data)
 
 @extend_schema(tags=['System Admin'])
 class SystemSettingsView(viewsets.ModelViewSet):
@@ -3397,7 +3741,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     serializer_class = OrganizationSerializer
     permission_classes = [IsSystemAdmin]
 
-
 class AdminUserManagementViewSet(viewsets.ModelViewSet):
     """
     System Admin full control over users.
@@ -3467,6 +3810,24 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
         if user.role == 'system_admin':
             return Response({'detail': 'Cannot delete a system admin account.'}, status=status.HTTP_400_BAD_REQUEST)
         return super().destroy(request, *args, **kwargs)
+
+# ADMIN SUBSCRIPTION MANAGEMENT
+class AdminSubscriptionManagementViewSet(viewsets.ModelViewSet):
+    queryset = Subscription.objects.all()
+    serializer_class = AdminSubscriptionSerializer
+    permission_classes = [IsSystemAdmin]
+# ADMIN BILLING HISTORY (READ-ONLY)
+class AdminBillingHistoryViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    System Admin can view billing history but cannot edit.
+    """
+    queryset = BillingHistory.objects.all()
+    serializer_class = AdminBillingSerializer
+    permission_classes = [IsSystemAdmin]
+
+
+
+# SETTINGS VIEW
 @extend_schema(tags=['User - Settings'])
 class SettingsViewSet(viewsets.ModelViewSet):
     serializer_class = SettingsSerializer

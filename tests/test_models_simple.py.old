@@ -1,22 +1,23 @@
 """
-Simplified model tests that only test existing models
+Simplified model and serializer tests for EmployeeInvitation
 """
+
 from django.test import TestCase
 from django.contrib.auth import get_user_model
+from django.utils import timezone
+
+from obeeomaapp.models import Employer, EmployeeInvitation
+from obeeomaapp.serializers import EmployeeInvitationCreateSerializer
 
 User = get_user_model()
 
-from obeeomaapp.models import (
-    Employer, EmployeeInvitation, AuthenticationEvent, 
-    SystemSetting, SystemStatus, MentalHealthAssessment,
-    Department, PasswordResetToken, EmployeeProfile,
-    Subscription, SubscriptionPlan
-)
 
-
+# ----------------------
+# User and Employer Tests
+# ----------------------
 class BasicUserModelTest(TestCase):
     """Test User model"""
-    
+
     def test_create_user(self):
         user = User.objects.create_user(
             username='testuser',
@@ -26,7 +27,7 @@ class BasicUserModelTest(TestCase):
         self.assertEqual(user.username, 'testuser')
         self.assertEqual(user.email, 'test@example.com')
         self.assertTrue(user.check_password('testpass123'))
-    
+
     def test_create_superuser(self):
         admin = User.objects.create_superuser(
             username='admin',
@@ -39,7 +40,7 @@ class BasicUserModelTest(TestCase):
 
 class BasicEmployerModelTest(TestCase):
     """Test Employer model"""
-    
+
     def test_create_employer(self):
         employer = Employer.objects.create(
             name='Test Company',
@@ -49,9 +50,12 @@ class BasicEmployerModelTest(TestCase):
         self.assertTrue(employer.is_active)
 
 
+# ----------------------
+# EmployeeInvitation Model Tests
+# ----------------------
 class BasicInvitationModelTest(TestCase):
     """Test EmployeeInvitation model"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user(
             username='employer1',
@@ -62,34 +66,73 @@ class BasicInvitationModelTest(TestCase):
             name='Test Company',
             is_active=True
         )
-    
+
     def test_create_invitation(self):
         invitation = EmployeeInvitation.objects.create(
             employer=self.employer,
             email='employee@example.com',
             invited_by=self.user,
-            token='test-token-123'
+            message='Welcome!',
+            employeephone='1234567890',
+            employeedepartment='Engineering'
         )
+
         self.assertEqual(invitation.email, 'employee@example.com')
         self.assertEqual(invitation.employer, self.employer)
+        self.assertEqual(invitation.message, 'Welcome!')
+        self.assertEqual(invitation.employeephone, '1234567890')
+        self.assertEqual(invitation.employeedepartment, 'Engineering')
+
+        # Check pending status
+        self.assertIsNone(invitation.accepted_at)
+        self.assertIsNone(invitation.rejected_at)
+        self.assertEqual(invitation.status, 'pending')
 
 
-class BasicMentalHealthAssessmentTest(TestCase):
-    """Test MentalHealthAssessment model"""
-    
+# ----------------------
+# EmployeeInvitation Serializer Tests
+# ----------------------
+class EmployeeInvitationCreateSerializerTest(TestCase):
+    """Test EmployeeInvitationCreateSerializer"""
+
     def setUp(self):
         self.user = User.objects.create_user(
-            username='testuser',
-            email='test@example.com',
+            username='employer1',
+            email='employer@example.com',
             password='pass123'
         )
-    
-    def test_create_assessment(self):
-        assessment = MentalHealthAssessment.objects.create(
-            user=self.user,
-            assessment_type='GAD-7',
-            gad7_scores=[2, 1, 0, 1, 2, 1, 0]
+        self.employer = Employer.objects.create(
+            name='Test Company',
+            is_active=True
         )
-        self.assertEqual(assessment.assessment_type, 'GAD-7')
-        self.assertEqual(assessment.user, self.user)
-        self.assertEqual(len(assessment.gad7_scores), 7)
+
+    def test_invitation_creation(self):
+        data = {
+            'email': 'employee@example.com',
+            'message': 'Welcome to the company!',
+            'employeephone': '1234567890',
+            'employeedepartment': 'Engineering'
+        }
+        serializer = EmployeeInvitationCreateSerializer(
+            data=data,
+            context={'employer': self.employer, 'user': self.user}
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        invitation = serializer.save()
+
+        # Check fields
+        self.assertEqual(invitation.email, 'employee@example.com')
+        self.assertEqual(invitation.employer, self.employer)
+        self.assertEqual(invitation.message, 'Welcome to the company!')
+        self.assertEqual(invitation.employeephone, '1234567890')
+        self.assertEqual(invitation.employeedepartment, 'Engineering')
+
+        # OTP should be generated
+        self.assertIsNotNone(invitation.otp)
+        self.assertEqual(len(invitation.otp), 6)
+        self.assertIsNotNone(invitation.otp_expires_at)
+
+        # Check pending status
+        self.assertIsNone(invitation.accepted_at)
+        self.assertIsNone(invitation.rejected_at)
+        self.assertEqual(invitation.status, 'pending')

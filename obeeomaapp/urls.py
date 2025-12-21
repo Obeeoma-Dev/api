@@ -35,7 +35,9 @@ from obeeomaapp.views import (
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView, CBTExerciseViewSet, SettingsViewSet,
     JournalEntryViewSet, UpdatePaymentMethodViewSet,  PSS10AssessmentViewSet,
     ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView,VerifyPasswordResetOTPView,VerifyInvitationOTPView,
-    EngagementLevelViewSet, CompanyMoodViewSet, WellnessGraphViewSet, EmployeeManagementViewSet, NotificationViewSet, InviteView
+    EngagementLevelViewSet, CompanyMoodViewSet, WellnessGraphViewSet, EmployeeManagementViewSet, NotificationViewSet, InviteView, 
+    VerifyMFAPasswordView, ToggleMFAView,AdminSubscriptionManagementViewSet, AdminBillingHistoryViewSet, EmployeeEngagementSummaryView,DepartmentAnalysisReportView,RiskAssessmentReportView,EngagementReportView
+    
 )
 
 
@@ -59,7 +61,6 @@ router = DefaultRouter()
 
 # API routers
 router.register(r'assessments/pss10', PSS10AssessmentViewSet, basename='pss10-assessment')
-router.register(r'organization-signup', OrganizationSignupView, basename='organization-signup')
 router.register(r'payment-methods', UpdatePaymentMethodViewSet, basename='payment-method')
 # router.register(r'employee-first-login', EmployeeFirstLoginViewSet, basename='employee-first-login')
 router.register(r'me/badges', MyBadgesView, basename='my-badges')
@@ -112,8 +113,11 @@ router.register(r'dynamic-questions', DynamicQuestionViewSet, basename='dynamic-
 # ADMIN USER MANAGEMENT ROUTERS
 router.register(r'admin/organizations', OrganizationViewSet, basename='admin-organizations')
 router.register(r'admin/users', AdminUserManagementViewSet, basename='admin-users')
-router.register(r'journal-entries', JournalEntryViewSet, basename='journal-entry')
+# SYSTEM ADMIN – BILLING & SUBSCRIPTIONS(MANAGEMENT)
+router.register(r'admin/subscriptions', AdminSubscriptionManagementViewSet,  basename='admin-subscriptions')    
+router.register( r'admin/billing', AdminBillingHistoryViewSet, basename='admin-billing')
 
+router.register(r'journal-entries', JournalEntryViewSet, basename='journal-entry')
 router.register(r'dashboard/billing/verify-payment', BillingView, basename='verify-payment')
 
 # Assessment Questionnaires (PHQ-9 & GAD-7)
@@ -134,7 +138,6 @@ router.register(r'company-mood', CompanyMoodViewSet, basename='company-mood')
 router.register(r'wellness-graph', WellnessGraphViewSet, basename='wellness-graph')
 router.register(r'employee-management', EmployeeManagementViewSet, basename='employee-mgmt')
 router.register(r'notifications', NotificationViewSet, basename='notification-list')
-router.register(r'invitations', InviteView, basename='invitation')
 urlpatterns = [
     # Content management
     path("content/presign/", PresignUploadView.as_view(), name="content-presign-upload"),
@@ -145,28 +148,43 @@ urlpatterns = [
     path(
         "debug/email-config/", EmailConfigCheckView.as_view(), name="email-config-check"
     ),
-    # Authentication
+    
+    # AUTHENTICATION ENDPOINTS
+    # User Registration & Login
     path("auth/signup/", SignupView.as_view({"post": "create"}), name="signup"),
+    path("auth/organization-signup/", OrganizationSignupView.as_view({"post": "create"}), name="organization-signup"),
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/logout/", LogoutView.as_view(), name="logout"),
+    
+    # Password Management
     path("auth/reset-password/", PasswordResetView.as_view({'post': 'create'}), name="password-reset"),
     path("auth/reset-password/confirm/", PasswordResetConfirmView.as_view({'post': 'create'}), name="password-reset-confirm"),
+    path("auth/reset-password/complete/", ResetPasswordCompleteView.as_view({'post': 'create'}), name='password-reset-complete'),
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
+    
+    # OTP Verification
     path("auth/verify-password-reset-otp/", VerifyPasswordResetOTPView.as_view(), name="verify-password-reset-otp"),
     path("auth/verify-invitation-otp/", VerifyInvitationOTPView.as_view(), name="verify-invitation-otp"),
-    path('auth/reset-password/complete/', ResetPasswordCompleteView.as_view({'post': 'create'}), name='password-reset-complete'),
+    
+    # Onboarding
+    path("auth/complete-onboarding/", CompleteOnboardingView.as_view(), name='complete-onboarding'),
+    
+    # Multi-Factor Authentication (MFA)
     path('auth/mfa/setup/', views.mfa_setup, name='mfa-setup'),
     path('auth/mfa/confirm/', views.mfa_confirm, name='mfa-confirm'),
     path('auth/mfa/verify/', views.mfa_verify, name='mfa-verify'),
+    path('auth/mfa/verify-password/', VerifyMFAPasswordView.as_view(), name='verify-mfa-password'),
+    path('auth/mfa/toggle/', ToggleMFAView.as_view(), name='mfa-toggle'),
 
-    # Hotline Active Endpoint
-    path('auth/hotline/active/', ActiveHotlineView.as_view(), name="active-hotline"),
+    # JWT Token Management
+    path("auth/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("auth/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
 
-    # Organisation detials endpoint
+    # Organization & Employee Management
     path('auth/organizations/<int:org_id>/details/', OrganizationDetailView.as_view(), name='organization-details'),
-
-    # Complete Onboarding Endpoint
-    path('auth/complete-onboarding/', CompleteOnboardingView.as_view(), name='complete-onboarding'),
+    path('auth/invitations/', InviteView.as_view({'post': 'create', 'get': 'list'}), name='invitation'),
+    path('auth/hotline/active/', ActiveHotlineView.as_view(), name="active-hotline"),
 
 
   
@@ -180,6 +198,13 @@ urlpatterns = [
     path("dashboard/overview/", OverviewView.as_view({'get': 'list'}), name="overview"),
     path("dashboard/trends/", TrendsView.as_view({'get': 'list'}), name="trends"),
     path("dashboard/employee-engagement/", EmployeeEngagementView.as_view({'get': 'list', 'post': 'create'}), name="employee-engagement"),
+    # Added Employee Engagement Summary Endpoint
+    path( "dashboard/employee-engagement/summary/",  EmployeeEngagementSummaryView.as_view(), name="employee-engagement-summary"),
+    # Added the dashboard endpoints for downloading reports
+    path("download/department-analysis/", DepartmentAnalysisReportView.as_view()),
+    path("download/risk-assessment/", RiskAssessmentReportView.as_view()),
+    path("download/engagement/", EngagementReportView.as_view()),
+    
     path("dashboard/features-usage/", FeaturesUsageView.as_view({'get': 'list'}), name="features-usage"),
     path("dashboard/billing/", BillingView.as_view({'get': 'list', 'post': 'create'}), name="billing"),
     path("dashboard/users/", UsersView.as_view({'get': 'list', 'post': 'create'}), name="users"),
@@ -217,10 +242,6 @@ urlpatterns = [
 
     # Include router URLs
     path("", include(router.urls)),
-    # JWT Authentication
-    path("auth/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
-    path("auth/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
     # API Schema
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(

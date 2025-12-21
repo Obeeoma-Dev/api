@@ -12,7 +12,7 @@ User = settings.AUTH_USER_MODEL
 import pyotp
 from cryptography.fernet import Fernet
 
-#User and Authentication Models
+#UserModels
 class User(AbstractUser):
     ROLE_CHOICES = (
         ('system_admin', 'Systems Admin'),
@@ -92,28 +92,52 @@ class User(AbstractUser):
 # EMPLOYEE INVITATION
 class EmployeeInvitation(models.Model):
     employer = models.ForeignKey(
-        'Employer', on_delete=models.CASCADE, related_name="invitations"
+        'Employer',
+        on_delete=models.CASCADE,
+        related_name='invitations'
     )
     email = models.EmailField()
     invited_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
     )
     message = models.TextField(blank=True)
 
-    # New fields for employee details
+    # Employee details
     employeephone = models.CharField(max_length=20, blank=True, null=True)
     employeedepartment = models.CharField(max_length=100, blank=True, null=True)
 
-    # OTP for verification
-    otp = models.CharField(max_length=6, null=True, blank=True)
-    otp_expires_at = models.DateTimeField(null=True, blank=True)
+    # OTP
+    otp = models.CharField(max_length=6, blank=True, null=True)
+    otp_expires_at = models.DateTimeField(blank=True, null=True)
 
-    accepted = models.BooleanField(default=False)
+    # Invitation lifecycle (EVENTS, not status)
     accepted_at = models.DateTimeField(blank=True, null=True)
+    rejected_at = models.DateTimeField(blank=True, null=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
+    @property
+    def status(self):
+        if self.accepted_at:
+            return "accepted"
+        if self.rejected_at:
+            return "rejected"
+        return "pending"
+
+    @property
+    def accepted(self):
+        """
+        Backwards-compatible boolean flag indicating if the invitation
+        has been accepted. Older code/tests expect `invitation.accepted`
+        instead of checking `accepted_at` or `status`.
+        """
+        return bool(self.accepted_at)
+
     def __str__(self):
-        return f"Invite {self.email} -> {self.employer.name}"
+        return f"Invite {self.email} → {self.employer.name}"
 
     class Meta:
         indexes = [models.Index(fields=["email"])]
@@ -250,34 +274,36 @@ class SelfAssessment(models.Model):
     class Meta:
         ordering = ['-submitted_at']
 
-# --- Employee Wellbeing Models ---
+
 # Mood Tracking model.
 class MoodTracking(models.Model):
     MOOD_CATEGORIES = {
-    'Ecstatic': 'Positive',
-    'Happy': 'Positive',
-    'Excited': 'Positive',
-    'Content': 'Positive',
-    'Calm': 'Neutral',
-    'Neutral': 'Neutral',
-    'Tired': 'Neutral',
-    'Anxious': 'Negative',
-    'Stressed': 'Negative',
-    'Sad': 'Negative',
-    'Frustrated': 'Negative',
-    'Angry': 'Negative',
-}
+        'Ecstatic': 'Positive',
+        'Happy': 'Positive',
+        'Excited': 'Positive',
+        'Content': 'Positive',
+        'Calm': 'Neutral',
+        'Neutral': 'Neutral',
+        'Tired': 'Neutral',
+        'Anxious': 'Negative',
+        'Stressed': 'Negative',
+        'Sad': 'Negative',
+        'Frustrated': 'Negative',
+        'Angry': 'Negative',
+    }
+
+    MOOD_CHOICES = [(mood, mood) for mood in MOOD_CATEGORIES.keys()]
+
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mood_checkins")
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE, null=True, blank=True, related_name="mood_checkins_employee")
-    mood = models.CharField(max_length=50, blank=True, null=True)
+    mood = models.CharField(max_length=50, choices=MOOD_CHOICES, default='Neutral', )  
+        
+    mood = models.CharField(max_length=50, choices=MOOD_CHOICES)  # this line  validates the mood input
     timestamp = models.DateTimeField(auto_now_add=True)
     checked_in_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-checked_in_at']
-
-    def __str__(self):
-        return f"{self.user.username} - {self.mood} ({self.checked_in_at.date()})"
 
 
 # Self-Help Resources model.
@@ -364,6 +390,8 @@ class HotlineActivity(models.Model):
     class Meta:
         ordering = ['-recorded_at']
         verbose_name_plural = "Hotline Activities"
+
+
 
 # Employee Engagement model.
 class EmployeeEngagement(models.Model):
@@ -1692,11 +1720,7 @@ class PSS10Assessment(models.Model):
     def __str__(self):
         return f"PSS-10 ({self.user.email}) - {self.score} ({self.category})"
 
-# content/models.py
-from django.db import models
-from django.contrib.auth import get_user_model
 
-User = get_user_model()
 
 class ContentArticle(models.Model):
     title = models.CharField(max_length=255)
