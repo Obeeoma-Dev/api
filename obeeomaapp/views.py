@@ -1137,18 +1137,6 @@ class TrendsView(viewsets.ReadOnlyModelViewSet):
     serializer_class = None  # returning computed data, not model serializer
     permission_classes = [IsCompanyAdmin]
 
-<<<<<<< HEAD
-@extend_schema_view(
-    list=extend_schema(
-        operation_id="engagement_list",
-        tags=["Employer Dashboard"]
-    ),
-    retrieve=extend_schema(
-        operation_id="engagement_detail",
-        tags=["Employer Dashboard"]
-    ),
-)
-=======
     def list(self, request, *args, **kwargs):
         """
         GET /dashboard/trends/?days=7 or ?start=YYYY-MM-DD&end=YYYY-MM-DD
@@ -1209,7 +1197,6 @@ class TrendsView(viewsets.ReadOnlyModelViewSet):
 
 
 @extend_schema(tags=['Employer Dashboard'])
->>>>>>> ad16f48ed357961547b0931557cebcb009169401
 class EmployeeEngagementView(viewsets.ModelViewSet):
     queryset = EmployeeEngagement.objects.select_related("employer").order_by("-month")
     serializer_class = EmployeeEngagementSerializer
@@ -1317,10 +1304,6 @@ class EngagementReportView(APIView):
 
 
 
-<<<<<<< HEAD
-    @extend_schema(
-        operation_id="active_employees",
-=======
 
 
 @extend_schema_view(
@@ -1330,10 +1313,14 @@ class EngagementReportView(APIView):
     ),
     by_category=extend_schema(
         operation_id="features_usage_by_category",
->>>>>>> ad16f48ed357961547b0931557cebcb009169401
         tags=["Employer Dashboard"],
         description="Returns all active employees with count."
     )
+)
+class EmployeeDashboardView(viewsets.ModelViewSet):
+    queryset = Employee.objects.all()
+    serializer_class = EmployeeSerializer
+
     @action(detail=False, methods=['get'])
     def active(self, request):
         employees = Employee.objects.filter(status='active')

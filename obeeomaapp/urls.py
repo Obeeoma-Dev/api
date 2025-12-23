@@ -138,6 +138,7 @@ router.register(r'company-mood', CompanyMoodViewSet, basename='company-mood')
 router.register(r'wellness-graph', WellnessGraphViewSet, basename='wellness-graph')
 router.register(r'employee-management', EmployeeManagementViewSet, basename='employee-mgmt')
 router.register(r'notifications', NotificationViewSet, basename='notification-list')
+router.register(r'organization-signup', OrganizationSignupView, basename='organization-signup')
 urlpatterns = [
     # Content management
     path("content/presign/", PresignUploadView.as_view(), name="content-presign-upload"),
@@ -152,7 +153,6 @@ urlpatterns = [
     # AUTHENTICATION ENDPOINTS
     # User Registration & Login
     path("auth/signup/", SignupView.as_view({"post": "create"}), name="signup"),
-    path("auth/organization-signup/", OrganizationSignupView.as_view({"post": "create"}), name="organization-signup"),
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/logout/", LogoutView.as_view(), name="logout"),
     
@@ -163,6 +163,7 @@ urlpatterns = [
     path("auth/change-password/", PasswordChangeView.as_view({'post': 'create'}), name="password-change"),
     
     # OTP Verification
+    path("auth/verify-otp/", VerifyInvitationOTPView.as_view(), name="verify-otp"),
     path("auth/verify-password-reset-otp/", VerifyPasswordResetOTPView.as_view(), name="verify-password-reset-otp"),
     path("auth/verify-invitation-otp/", VerifyInvitationOTPView.as_view(), name="verify-invitation-otp"),
     
