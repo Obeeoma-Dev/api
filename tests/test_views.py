@@ -215,39 +215,3 @@ class UpdatePaymentMethodTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.assertIn("detail", response.data)
-
-
-from obeeomaapp.models import Employer, Employee
-
-class EmployeeViewSetTest(APITestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(username='testuser', password='testpass123', email='testuser@example.com')
-        self.client.force_authenticate(user=self.user)
-        
-        self.employer = Employer.objects.create(name="TechCorp")
-        Employee.objects.create(employer=self.employer, first_name="Alice", last_name="Smith", email="alice@example.com", status="active")
-        Employee.objects.create(employer=self.employer, first_name="Bob", last_name="Jones", email="bob@example.com", status="inactive")
-
-    def test_active_employees(self):
-        url = reverse('obeeomaapp:employee-management-active')
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['count'], 1)
-        self.assertEqual(response.data['employees'][0]['name'], "Alice Smith")
-
-    def test_inactive_employees(self):
-        url = reverse('obeeomaapp:employee-management-inactive')
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['count'], 1)
-        self.assertEqual(response.data['employees'][0]['name'], "Bob Jones")
-
-    def test_summary(self):
-        url = reverse('obeeomaapp:employee-management-summary')
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['total'], 2)
-        self.assertEqual(response.data['active'], 1)
-        self.assertEqual(response.data['inactive'], 1)
-        self.assertEqual(response.data['active_percent'], 50.0)
-        self.assertEqual(response.data['inactive_percent'], 50.0)

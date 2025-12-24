@@ -1314,6 +1314,39 @@ class EngagementReportView(APIView):
     by_category=extend_schema(
         operation_id="features_usage_by_category",
         tags=["Employer Dashboard"],
+        description="Returns all active employees with count."
+    )
+)
+class EmployeeDashboardView(viewsets.ModelViewSet):
+    queryset = Employee.objects.all()
+    serializer_class = EmployeeSerializer
+
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        employees = Employee.objects.filter(status='active')
+        serializer = EmployeeSerializer(employees, many=True)
+        return Response({
+            "count": employees.count(),
+            "employees": serializer.data
+        })
+
+    @extend_schema(
+        operation_id="inactive_employees",
+        tags=["Employer Dashboard"],
+        description="Returns all inactive employees with count."
+    )
+    @action(detail=False, methods=['get'])
+    def inactive(self, request):
+        employees = Employee.objects.filter(status='inactive')
+        serializer = EmployeeSerializer(employees, many=True)
+        return Response({
+            "count": employees.count(),
+            "employees": serializer.data
+        })
+
+    @extend_schema(
+        operation_id="employee_summary",
+        tags=["Employer Dashboard"],
         description="Returns summary of active/inactive employees with percentages."
     )
     @action(detail=False, methods=['get'])
@@ -1321,15 +1354,11 @@ class EngagementReportView(APIView):
         total = Employee.objects.count()
         active = Employee.objects.filter(status='active').count()
         inactive = Employee.objects.filter(status='inactive').count()
-        suspended = Employee.objects.filter(status='suspended').count()
-        pending = Employee.objects.filter(status='pending').count()
 
         return Response({
             "total": total,
             "active": active,
             "inactive": inactive,
-            "suspended": suspended,
-            "pending": pending,
             "active_percent": round((active / total) * 100, 2) if total else 0,
             "inactive_percent": round((inactive / total) * 100, 2) if total else 0,
         })
@@ -1629,16 +1658,88 @@ class ChatSessionView(viewsets.ModelViewSet):
 class ChatMessageView(viewsets.ModelViewSet):
     serializer_class = ChatMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [filters.OrderingFilter]
-    ordering_fields = ['created_at']
-    ordering = ['created_at']
+    ordering = ["timestamp"]
 
     def get_queryset(self):
-        return ChatMessage.objects.filter(session__employee__user=self.request.user)
+        return ChatMessage.objects.filter(
+            session_id=self.kwargs.get("session_id"),
+            session__employee__user=self.request.user
+        )
+
 
     def perform_create(self, serializer):
-        session = get_object_or_404(ChatSession, id=self.kwargs.get("session_id"), employee__user=self.request.user)
-        serializer.save(session=session)
+        """
+        1. Save user message
+        2. Send full conversation to AI
+        3. Save AI response
+        """
+        session = get_object_or_404(
+            ChatSession,
+            id=self.kwargs.get("session_id"),
+            employee__user=self.request.user
+        )
+
+        # 1️⃣ Save user message
+        user_message = serializer.save(
+            session=session,
+            sender="user"
+        )
+
+        # 2️⃣ Ensure system prompt exists (only once)
+        if not session.messages.filter(sender="system").exists():
+            ChatMessage.objects.create(
+                session=session,
+                sender="system",
+                message="You are Sana, a helpful and professional AI assistant."
+            )
+
+        # 3️⃣ Build message history for AI
+        messages_payload = []
+        for msg in session.messages.all():
+            role = "assistant" if msg.sender == "ai" else msg.sender
+            messages_payload.append({
+                "role": role,
+                "content": msg.message
+            })
+
+        if not AI_API_KEY:
+            logger.error("AI API key missing")
+            return
+
+        headers = {
+            "Authorization": f"Bearer {AI_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": AI_MODEL,
+            "messages": messages_payload,
+            "temperature": 0.7,
+            "max_tokens": 500
+        }
+
+        try:
+            response = requests.post(
+                AI_API_URL,
+                headers=headers,
+                json=payload,
+                timeout=60
+            )
+
+            response.raise_for_status()
+            result = response.json()
+
+            ai_reply = result["choices"][0]["message"]["content"]
+
+            # 4️⃣ Save AI response
+            ChatMessage.objects.create(
+                session=session,
+                sender="ai",
+                message=ai_reply
+            )
+
+        except Exception as e:
+            logger.error(f"AI chat error: {str(e)}")
 
 
 @extend_schema(tags=['Employee - Recommendations'])
@@ -1785,7 +1886,6 @@ class EmployerViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         invite = serializer.save()
         return Response({'message': 'Invitation created', 'token': invite.token}, status=status.HTTP_201_CREATED)
-    
 
 
 @extend_schema(tags=['Employee - Progress'])
@@ -2166,45 +2266,6 @@ class EmployeeManagementView(viewsets.ModelViewSet):
             queryset = queryset.filter(status=status)
             
         return queryset
-
-    @action(detail=False, methods=['get'], url_path='active')
-    def active(self, request):
-        """Get all active employees"""
-        active_employees = self.get_queryset().filter(status='active')
-        serializer = self.get_serializer(active_employees, many=True)
-        return Response({
-            'count': active_employees.count(),
-            'employees': serializer.data
-        })
-
-    @action(detail=False, methods=['get'], url_path='inactive')
-    def inactive(self, request):
-        """Get all inactive employees"""
-        inactive_employees = self.get_queryset().filter(status='inactive')
-        serializer = self.get_serializer(inactive_employees, many=True)
-        return Response({
-            'count': inactive_employees.count(),
-            'employees': serializer.data
-        })
-
-    @action(detail=False, methods=['get'], url_path='summary')
-    def summary(self, request):
-        """Get employee summary statistics"""
-        queryset = self.get_queryset()
-        total = queryset.count()
-        active = queryset.filter(status='active').count()
-        inactive = queryset.filter(status='inactive').count()
-        
-        active_percent = (active / total * 100) if total > 0 else 0
-        inactive_percent = (inactive / total * 100) if total > 0 else 0
-        
-        return Response({
-            'total': total,
-            'active': active,
-            'inactive': inactive,
-            'active_percent': active_percent,
-            'inactive_percent': inactive_percent
-        })
     
     def perform_create(self, serializer):
         """

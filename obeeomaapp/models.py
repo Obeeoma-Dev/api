@@ -298,7 +298,7 @@ class MoodTracking(models.Model):
     employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE, null=True, blank=True, related_name="mood_checkins_employee")
     mood = models.CharField(max_length=50, choices=MOOD_CHOICES, default='Neutral', )  
         
-    mood = models.CharField(max_length=50, choices=MOOD_CHOICES)  # this line  validates the mood input
+    # mood = models.CharField(max_length=50, choices=MOOD_CHOICES)  # this line  validates the mood input
     timestamp = models.DateTimeField(auto_now_add=True)
     checked_in_at = models.DateTimeField(auto_now_add=True)
 
@@ -395,13 +395,17 @@ class HotlineActivity(models.Model):
 
 # Employee Engagement model.
 class EmployeeEngagement(models.Model):
+    STATUS_CHOICES =[
+        ('active', 'Active'), 
+        ('inactive', 'Inactive'),
+    ]
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="engagements")
     engagement_rate = models.DecimalField(max_digits=5, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)])
     month = models.DateField()
 
 
     def __str__(self):
-        return f"{self.employer.name} - {self.month}"
+        return f"{self.name} - ({self.status})"
 
     class Meta:
         ordering = ['-month']
@@ -586,13 +590,33 @@ class ChatMessage(models.Model):
         ("ai", "AI Assistant (Sana)"),
         ("system", "System")
     ]
-    session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name="messages")
+
+    session = models.ForeignKey(
+        ChatSession,
+        on_delete=models.CASCADE,
+        related_name="messages"
+    )
     sender = models.CharField(max_length=10, choices=ROLE_CHOICES)
     message = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ["timestamp"]
+
+    def api_role(self):
+        """Maps DB role to OpenAI/DeepSeek role"""
+        if self.sender == "ai":
+            return "assistant"
+        return self.sender
+
+    @property
+    def content(self):
+        return self.message
+
     def __str__(self):
         return f"Message - {self.session.employee.user.username}"
+
+
 
 # Recommendation Logs model.
 class RecommendationLog(models.Model):
