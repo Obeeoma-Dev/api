@@ -6,7 +6,6 @@ from datetime import timedelta
 from cryptography.fernet import Fernet
 
 
-
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -16,12 +15,12 @@ SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret-key")
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 PORT = os.getenv("PORT", "8000")
 
-ALLOWED_HOSTS=["127.0.0.1", "localhost", "64.225.122.101"]
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "64.225.122.101"]
 
 
 # Required for Nginx proxy
 USE_X_FORWARDED_HOST = True
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # If you're getting the duplicate IP issue, add this:
 USE_X_FORWARDED_PORT = True
@@ -33,7 +32,7 @@ FERNET_KEY = os.getenv("FERNET_KEY")
 CSRF_TRUSTED_ORIGINS = [
     "http://64.225.122.101:8000",
     "http://64.225.122.101",
-    "http://64.225.122.101:5173", 
+    "http://64.225.122.101:5173",
 ]
 
 # Database configuration
@@ -52,8 +51,12 @@ elif DATABASE_URL:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.environ.get("PGDATABASE", "neondb"),  # <-- This reads from PGDATABASE
-            "USER": os.environ.get("PGUSER", "neondb_owner"),  # <-- This reads from PGUSER
+            "NAME": os.environ.get(
+                "PGDATABASE", "neondb"
+            ),  # <-- This reads from PGDATABASE
+            "USER": os.environ.get(
+                "PGUSER", "neondb_owner"
+            ),  # <-- This reads from PGUSER
             "PASSWORD": os.environ.get("PGPASSWORD"),  # <-- This reads from PGPASSWORD
             "HOST": os.environ.get("PGHOST"),  # <-- This reads from PGHOST
             "PORT": os.environ.get("PGPORT", "5432"),
@@ -70,6 +73,8 @@ else:
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
+print("DB in use:", DATABASES["default"])
+
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -81,12 +86,12 @@ INSTALLED_APPS = [
     "obeeomaapp",
     "rest_framework",
     "rest_framework_simplejwt",
-    "rest_framework_simplejwt.token_blacklist", 
+    "rest_framework_simplejwt.token_blacklist",
     "django_extensions",
     "drf_yasg",
     "drf_spectacular",
-    'corsheaders',
-    'django_filters',
+    "corsheaders",
+    "django_filters",
 ]
 
 MIDDLEWARE = [
@@ -96,7 +101,6 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     # custom middleware to prevent caching
     "obeeomaapp.Middleware.security_middleware.NoCacheMiddleware",
-    
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -128,7 +132,9 @@ TEMPLATES = [
 WSGI_APPLICATION = "api.wsgi.application"
 
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+    },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
@@ -151,23 +157,23 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
 ]
 CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
 ]
 
 # Frontend URL for email links
@@ -187,86 +193,80 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'UPDATE_LAST_LOGIN': True,
-    'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
-    'AUTH_HEADER_TYPES': ('Bearer',),
-    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
-    'USER_ID_FIELD': 'id',
-    'USER_ID_CLAIM': 'user_id',
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": True,
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
 }
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "My API",
     "DESCRIPTION": "API documentation",
     "VERSION": "1.0.0",
-    'ENUM_NAME_OVERRIDES': {
-        'NameEnum': 'ResourceTypeEnum'
-    },
+    "ENUM_NAME_OVERRIDES": {"NameEnum": "ResourceTypeEnum"},
     "SERVERS": [
-        {
-            "url": "http://64.225.122.101",
-            "description": "Production server"
-        },
-        {
-            "url": "http://127.0.0.1:8000",
-            "description": "Local development server"
-        },
+        {"url": "http://64.225.122.101", "description": "Production server"},
+        {"url": "http://127.0.0.1:8000", "description": "Local development server"},
     ],
 }
 
 # Logging Configuration
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
-            'style': '{',
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "style": "{",
         },
-        'simple': {
-            'format': '{levelname} {message}',
-            'style': '{',
-        },
-    },
-    'handlers': {
-        'file': {
-            'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': 'django.log',
-            'formatter': 'verbose',
-        },
-        'console': {
-            'level': 'INFO',
-            'class': 'logging.StreamHandler',
-            'formatter': 'simple',
+        "simple": {
+            "format": "{levelname} {message}",
+            "style": "{",
         },
     },
-    'root': {
-        'handlers': ['console', 'file'],
-        'level': 'INFO',
-    },
-    'loggers': {
-        'django': {
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
-            'propagate': False,
+    "handlers": {
+        "file": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": "django.log",
+            "formatter": "verbose",
         },
-        'obeeomaapp': {
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
-            'propagate': False,
+        "console": {
+            "level": "INFO",
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
+    },
+    "root": {
+        "handlers": ["console", "file"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "obeeomaapp": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
         },
     },
 }
 
 # EMAIL CONFIGURATION SETTINGS
-EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+)
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in ("true", "1", "t")
@@ -280,7 +280,9 @@ EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "10"))
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://developers.google.com/oauthplayground")
+GOOGLE_REDIRECT_URI = os.getenv(
+    "GOOGLE_REDIRECT_URI", "https://developers.google.com/oauthplayground"
+)
 
 # OAuth Scopes for Gmail API (for the authorization flow)
 GMAIL_SCOPES = [
@@ -290,7 +292,9 @@ GMAIL_SCOPES = [
 # settings.py (add)
 AWS_ACCESS_KEY_ID = os.environ.get("DO_SPACES_KEY")
 AWS_SECRET_ACCESS_KEY = os.environ.get("DO_SPACES_SECRET")
-AWS_STORAGE_BUCKET_NAME = os.environ.get("DO_SPACES_NAME")        # example: "my-space"
-AWS_S3_ENDPOINT_URL = os.environ.get("DO_SPACES_ENDPOINT")       # e.g. "https://nyc3.digitaloceanspaces.com"
-AWS_S3_REGION_NAME = os.environ.get("DO_SPACES_REGION")          # e.g. "nyc3"
+AWS_STORAGE_BUCKET_NAME = os.environ.get("DO_SPACES_NAME")  # example: "my-space"
+AWS_S3_ENDPOINT_URL = os.environ.get(
+    "DO_SPACES_ENDPOINT"
+)  # e.g. "https://nyc3.digitaloceanspaces.com"
+AWS_S3_REGION_NAME = os.environ.get("DO_SPACES_REGION")  # e.g. "nyc3"
 AWS_S3_SIGNATURE_VERSION = "s3v4"
