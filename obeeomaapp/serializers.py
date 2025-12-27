@@ -1660,9 +1660,9 @@ class ArticleSerializer(serializers.ModelSerializer):
 
     author = serializers.CharField()
 
-    date = serializers.DateTimeField(required=False)
+    published_date = serializers.DateTimeField(required=False)
 
-    imageUrl = serializers.CharField(required=False, allow_blank=True)
+    featured_image = serializers.ImageField(required=False, allow_null=True)
 
     class Meta:
         model = Article
@@ -1670,10 +1670,10 @@ class ArticleSerializer(serializers.ModelSerializer):
             "id",
             "title",
             "category",
-            "date",
+            "published_date",
             "status",
             "excerpt",
-            "imageUrl",
+            "featured_image",
             "author",
             "content",
             "featured",

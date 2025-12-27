@@ -3907,7 +3907,11 @@ class AdminOrReadOnly(BasePermission):
 class ArticleViewSet(viewsets.ModelViewSet):  # Full CRUD support
     queryset = Article.objects.all()
     serializer_class = ArticleSerializer
-    permission_classes = [AdminOrReadOnly]  #  Restrict edits/deletes to admins
+    permission_classes = [AllowAny] 
+
+    # Disabling JWT requirements here. 
+    authentication_classes = [] 
+    
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
