@@ -150,18 +150,21 @@ class Organization(models.Model):
     contact_person = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
-        related_name='managed_organization',
+        related_name='managed_organizations',
         limit_choices_to={'role': 'employer'},
+        null=True,       
+        blank=True        
+       
     )
 
-    organizationName = models.CharField(max_length=255, unique=True)
+    organizationName = models.CharField(max_length=255)
     organisationSize = models.CharField(max_length=50)
     phoneNumber = models.CharField(max_length=20)
     companyEmail = models.EmailField(unique=True)
     Location = models.CharField(max_length=255)
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     def __str__(self):
         return self.organizationName
