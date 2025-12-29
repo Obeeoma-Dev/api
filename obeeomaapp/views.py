@@ -115,6 +115,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import (
     EmployeeProfileSerializer
 )
+from sana_ai.services.mental_health_ai import get_ai_service
 
 # Mood score mapping for trends (used to provide numeric scores to frontend)
 MOOD_SCORES = {
@@ -1694,53 +1695,32 @@ class ChatMessageView(viewsets.ModelViewSet):
                 message="You are Sana, a helpful and professional AI assistant."
             )
 
-        # 3️⃣ Build message history for AI
-        messages_payload = []
+        # 3️⃣ Build conversation history for AI
+        conversation_history = []
         for msg in session.messages.all():
-            role = "assistant" if msg.sender == "ai" else msg.sender
-            messages_payload.append({
+            role = "assistant" if msg.sender == "ai" else "user"
+            conversation_history.append({
                 "role": role,
                 "content": msg.message
             })
 
-        if not AI_API_KEY:
-            logger.error("AI API key missing")
-            return
-
-        headers = {
-            "Authorization": f"Bearer {AI_API_KEY}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "model": AI_MODEL,
-            "messages": messages_payload,
-            "temperature": 0.7,
-            "max_tokens": 500
-        }
-
+        # 4️⃣ Call shared AI service (uses OPENAI_API_KEY / settings)
         try:
-            response = requests.post(
-                AI_API_URL,
-                headers=headers,
-                json=payload,
-                timeout=60
+            ai_service = get_ai_service()
+            ai_reply = ai_service.get_response(
+                user_message=getattr(user_message, "message", ""),
+                conversation_history=conversation_history,
+                user_context=None,
             )
 
-            response.raise_for_status()
-            result = response.json()
-
-            ai_reply = result["choices"][0]["message"]["content"]
-
-            # 4️⃣ Save AI response
+            # 5️⃣ Save AI response
             ChatMessage.objects.create(
                 session=session,
                 sender="ai",
                 message=ai_reply
             )
-
         except Exception as e:
-            logger.error(f"AI chat error: {str(e)}")
+            logger.error(f"AI chat error in ChatMessageView.perform_create: {str(e)}")
 
 
 @extend_schema(tags=['Employee - Recommendations'])
