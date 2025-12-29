@@ -11,7 +11,8 @@ from .models import Media
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
-from .models import Organization, ContactPerson
+from .models import Organization
+from .models import User
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from obeeomaapp.utils.gmail_http_api import send_gmail_api_email

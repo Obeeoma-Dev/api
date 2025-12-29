@@ -150,8 +150,8 @@ class Organization(models.Model):
     contact_person = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
-        related_name='organization',
-        limit_choices_to={'role': 'employer'}
+        related_name='managed_organization',
+        limit_choices_to={'role': 'employer'},
     )
 
     organizationName = models.CharField(max_length=255, unique=True)
