@@ -157,72 +157,92 @@ class SignupSerializer(serializers.ModelSerializer):
         user.save()
 
         return user
+    
 
-        return user
+# CONTACT PERSON INPUT SERIALIZER
+class ContactPersonInputSerializer(serializers.Serializer):
+    """
+    This serializer exists ONLY for:
+    - API validation
+    - Swagger / schema display
+    - Frontend contract
 
-  
-# SERIALIZER FOR CREATING AN ORGANIZATION
-class ContactPersonSerializer(serializers.ModelSerializer):
-    firstName = serializers.CharField(source='first_name')
-    lastName = serializers.CharField(source='last_name')
+    It does NOT map to a database table.
+    """
+
+    firstName = serializers.CharField()
+    lastName = serializers.CharField()
     role = serializers.CharField()
     email = serializers.EmailField()
 
-    class Meta:
-        model = ContactPerson
-        fields = ['firstName', 'lastName', 'role', 'email']
- # Gmail OAuth helper
-class OrganizationCreateSerializer(serializers.ModelSerializer):
-    contactPerson = ContactPersonSerializer()
+  
+# SERIALIZER FOR CREATING AN ORGANIZATION
+class OrganizationCreateSerializer(serializers.Serializer):
+    """
+    Handles organization signup together with contact person (employer).
+    """
+
+    # Organization fields
+    organizationName = serializers.CharField()
+    organisationSize = serializers.CharField()
+    phoneNumber = serializers.CharField()
+    companyEmail = serializers.EmailField()
+    Location = serializers.CharField()
+
+    # Authentication fields (User-related)
+    password = serializers.CharField(write_only=True)
     confirmPassword = serializers.CharField(write_only=True)
+
+    # Nested contact person object (employer)
+    contactPerson = ContactPersonInputSerializer()
+
+    # Read-only fields
     created_at = serializers.DateTimeField(read_only=True)
-
-    class Meta:
-        model = Organization
-
-        fields = [
-            'organizationName',
-            'organisationSize',
-            'phoneNumber',
-            'companyEmail',
-            'Location',
-            'password',
-            'confirmPassword',
-            'contactPerson',
-            'created_at',
-        ]
-        extra_kwargs = {'password': {'write_only': True}}
-
+    # VALIDATION
     def validate(self, data):
+        """
+        Ensure passwords match and meet Django's password rules.
+        """
         if data['password'] != data['confirmPassword']:
-            raise serializers.ValidationError({"confirmPassword": "Passwords do not match."})
+            raise serializers.ValidationError(
+                {"confirmPassword": "Passwords do not match"}
+            )
+
         validate_password(data['password'])
         return data
 
+    
+    # CREATION LOGIC
+    @transaction.atomic
     def create(self, validated_data):
+        """
+        1. Create Employer (User) from contactPerson
+        2. Create Organization and link employer as contact person
+        """
+
+        # Extract nested & auth data
         contact_data = validated_data.pop('contactPerson')
+        password = validated_data.pop('password')
         validated_data.pop('confirmPassword')
 
-        # Create user
-        user = User.objects.create(
-            username=validated_data['companyEmail'],
-            email=validated_data['companyEmail'],
-            role='employer'
+        #CREATE EMPLOYER USER
+        user = User.objects.create_user(
+            username=contact_data['email'],     
+            email=contact_data['email'],
+            first_name=contact_data['firstName'],
+            last_name=contact_data['lastName'],
+            role='employer',
+            password=password
         )
-        user.set_password(validated_data['password'])
-        user.save()
 
-        # Create contact person
-        contact_person = ContactPerson.objects.create(**contact_data)
+        #CREATE ORGANIZATION
 
-        # Create organization
-        validated_data['password'] = make_password(validated_data['password'])
-        validated_data['owner'] = user
-        validated_data['contactPerson'] = contact_person
-        organization = Organization.objects.create(**validated_data)
+        organization = Organization.objects.create(
+            contact_person=user,
+            **validated_data
+        )
 
         # Send email via Gmail API (OAuth)
-        
         org_email = organization.companyEmail
         org_name = organization.organizationName
 

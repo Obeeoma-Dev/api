@@ -144,31 +144,29 @@ class EmployeeInvitation(models.Model):
 
 
 #MODELS FOR CREATING AN ORGANIZATION
-class ContactPerson(models.Model):
-    first_name = models.CharField(max_length=100, null=True, blank=True)
-    last_name = models.CharField(max_length=100, null=True, blank=True)
-    role = models.CharField(max_length=100)
-    email = models.EmailField()
 
-    def __str__(self):
-        return f"{self.first_name} {self.last_name} - {self.role}"
-
-# --- Organization Model ---
 class Organization(models.Model):
-    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='organizations', null=True, blank=True)
+    # The CONTACT PERSON is the EMPLOYER (User)
+    contact_person = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='organization',
+        limit_choices_to={'role': 'employer'}
+    )
+
     organizationName = models.CharField(max_length=255, unique=True)
     organisationSize = models.CharField(max_length=50)
     phoneNumber = models.CharField(max_length=20)
     companyEmail = models.EmailField(unique=True)
     Location = models.CharField(max_length=255)
-    password = models.CharField(max_length=128)
-    contactPerson = models.OneToOneField(ContactPerson, on_delete=models.CASCADE, related_name='organization', null=True, blank=True)
-    # ADDED THESE DATE FIELDS
-    created_at = models.DateTimeField(auto_now_add=True, blank=True, null=True)  
-    updated_at = models.DateTimeField(auto_now=True, blank=True, null=True)       
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.organizationName
+
+        
 
 # MODELS FOR VERIFYING THE OTP
 class PasswordResetOTP(models.Model):
