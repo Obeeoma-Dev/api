@@ -147,13 +147,13 @@ class EmployeeInvitation(models.Model):
 
 class Organization(models.Model):
     # The CONTACT PERSON is the EMPLOYER (User)
-    contact_person = models.OneToOneField(
+    contact_person = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         related_name='managed_organizations',
         limit_choices_to={'role': 'employer'},
         null=True,       
-        blank=True        
+        blank=True       
        
     )
 

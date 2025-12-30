@@ -178,6 +178,7 @@ class ContactPersonInputSerializer(serializers.Serializer):
 
   
 # SERIALIZER FOR CREATING AN ORGANIZATION
+
 class OrganizationCreateSerializer(serializers.Serializer):
     """
     Handles organization signup together with contact person (employer).
@@ -199,11 +200,8 @@ class OrganizationCreateSerializer(serializers.Serializer):
 
     # Read-only fields
     created_at = serializers.DateTimeField(read_only=True)
-    # VALIDATION
+
     def validate(self, data):
-        """
-        Ensure passwords match and meet Django's password rules.
-        """
         if data['password'] != data['confirmPassword']:
             raise serializers.ValidationError(
                 {"confirmPassword": "Passwords do not match"}
@@ -212,38 +210,38 @@ class OrganizationCreateSerializer(serializers.Serializer):
         validate_password(data['password'])
         return data
 
-    
-    # CREATION LOGIC
+    # CREATION LOGIC 
     @transaction.atomic
     def create(self, validated_data):
-        """
-        1. Create Employer (User) from contactPerson
-        2. Create Organization and link employer as contact person
-        """
 
         # Extract nested & auth data
         contact_data = validated_data.pop('contactPerson')
         password = validated_data.pop('password')
         validated_data.pop('confirmPassword')
 
-        #CREATE EMPLOYER USER
-        user = User.objects.create_user(
-            username=contact_data['email'],     
-            email=contact_data['email'],
-            first_name=contact_data['firstName'],
-            last_name=contact_data['lastName'],
-            role='employer',
-            password=password
+        #  CREATE OR REUSE EMPLOYER USER
+        user, created = User.objects.get_or_create(
+            username=contact_data['email'],   # email identifies employer
+            defaults={
+                'email': contact_data['email'],
+                'first_name': contact_data['firstName'],
+                'last_name': contact_data['lastName'],
+                'role': 'employer',
+            }
         )
 
-        #CREATE ORGANIZATION
+        #  Set password ONLY if this is a new employer
+        if created:
+            user.set_password(password)
+            user.save()
 
+        #CREATE ORGANIZATION
         organization = Organization.objects.create(
             contact_person=user,
             **validated_data
         )
 
-        # Send email via Gmail API (OAuth)
+        # EMAIL LOGIC 
         org_email = organization.companyEmail
         org_name = organization.organizationName
 
@@ -251,18 +249,20 @@ class OrganizationCreateSerializer(serializers.Serializer):
         message = (
             f"Hello {org_name},\n\n"
             f"Your organization has been successfully registered on our platform.\n\n"
-            f"You can now log in using your registered organization name and password.\n\n"
             f"Thank you for registering with us!"
         )
 
         try:
-            send_gmail_api_email(to_email=org_email, subject=subject, body=message)
+            send_gmail_api_email(
+                to_email=org_email,
+                subject=subject,
+                body=message
+            )
         except Exception as e:
-            # Log the error, but don't stop registration
             print("Failed to send email:", e)
 
         return organization
-    
+
 # serilaizer for organisation detials
 class OrganizationDetailSerializer(serializers.ModelSerializer):
     employee_count = serializers.SerializerMethodField()
