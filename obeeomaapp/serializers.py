@@ -160,30 +160,25 @@ class SignupSerializer(serializers.ModelSerializer):
         return user
     
 
-# CONTACT PERSON INPUT SERIALIZER
+
+# Input serializer for contact person (employer)
 class ContactPersonInputSerializer(serializers.Serializer):
-    """
-    This serializer exists ONLY for:
-    - API validation
-    - Swagger / schema display
-    - Frontend contract
-
-    It does NOT map to a database table.
-    """
-
     firstName = serializers.CharField()
     lastName = serializers.CharField()
     role = serializers.CharField()
     email = serializers.EmailField()
 
-  
-# SERIALIZER FOR CREATING AN ORGANIZATION
 
+# Output serializer for contact person (employer)
+class ContactPersonOutputSerializer(serializers.Serializer):
+    firstName = serializers.CharField(source='first_name', read_only=True)
+    lastName = serializers.CharField(source='last_name', read_only=True)
+    email = serializers.EmailField(source='email', read_only=True)
+    role = serializers.CharField(source='role', read_only=True)
+
+
+# Main serializer for organization creation
 class OrganizationCreateSerializer(serializers.Serializer):
-    """
-    Handles organization signup together with contact person (employer).
-    """
-
     # Organization fields
     organizationName = serializers.CharField()
     organisationSize = serializers.CharField()
@@ -191,72 +186,77 @@ class OrganizationCreateSerializer(serializers.Serializer):
     companyEmail = serializers.EmailField()
     Location = serializers.CharField()
 
-    # Authentication fields (User-related)
+    # Authentication fields
     password = serializers.CharField(write_only=True)
     confirmPassword = serializers.CharField(write_only=True)
 
-    # Nested contact person object (employer)
-    contactPerson = ContactPersonInputSerializer()
+    # Nested input
+    contactPerson = ContactPersonInputSerializer(write_only=True)
 
-    # Read-only fields
+    # Nested output
+    contactPersonOutput = ContactPersonOutputSerializer(source='contact_person', read_only=True)
+
+    # Read-only timestamps
     created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
 
+    # Validate passwords
     def validate(self, data):
         if data['password'] != data['confirmPassword']:
-            raise serializers.ValidationError(
-                {"confirmPassword": "Passwords do not match"}
-            )
-
+            raise serializers.ValidationError({"confirmPassword": "Passwords do not match"})
         validate_password(data['password'])
         return data
 
-    # CREATION LOGIC 
     @transaction.atomic
     def create(self, validated_data):
-
-        # Extract nested & auth data
+        # Extract nested data
         contact_data = validated_data.pop('contactPerson')
         password = validated_data.pop('password')
         validated_data.pop('confirmPassword')
 
-        #  CREATE OR REUSE EMPLOYER USER
+        email = contact_data.get('email')
+        first_name = contact_data.get('firstName')
+        last_name = contact_data.get('lastName')
+        role = contact_data.get('role', 'employer')
+
+        # Reuse or create employer user
         user, created = User.objects.get_or_create(
-            username=contact_data['email'],   # email identifies employer
+            username=email,
             defaults={
-                'email': contact_data['email'],
-                'first_name': contact_data['firstName'],
-                'last_name': contact_data['lastName'],
-                'role': 'employer',
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'role': role,
             }
         )
 
-        #  Set password ONLY if this is a new employer
         if created:
             user.set_password(password)
             user.save()
 
-        #CREATE ORGANIZATION
+        # Check unique company email
+        if Organization.objects.filter(companyEmail=validated_data['companyEmail']).exists():
+            raise serializers.ValidationError({
+                'companyEmail': 'Organization with this email already exists.'
+            })
+
+        # Create organization
         organization = Organization.objects.create(
             contact_person=user,
             **validated_data
         )
 
-        # EMAIL LOGIC 
-        org_email = organization.companyEmail
-        org_name = organization.organizationName
-
-        subject = "Organization Registered Successfully"
-        message = (
-            f"Hello {org_name},\n\n"
-            f"Your organization has been successfully registered on our platform.\n\n"
-            f"Thank you for registering with us!"
-        )
-
+        # Send confirmation email
         try:
             send_gmail_api_email(
-                to_email=org_email,
-                subject=subject,
-                body=message
+                to_email=organization.companyEmail,
+                subject="Organization Registered Successfully",
+                body=(
+                    f"Hello {organization.organizationName},\n\n"
+                    "Your organization has been successfully registered on our platform.\n\n"
+                    "you can now log in and start using our services.\n\n"
+                    "Thank you for registering!"
+                )
             )
         except Exception as e:
             print("Failed to send email:", e)
