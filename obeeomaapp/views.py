@@ -4717,27 +4717,21 @@ class ContentArticleViewSet(viewsets.ModelViewSet):
 
 class ContentMediaViewSet(viewsets.ModelViewSet):
     serializer_class = ContentMediaSerializer
-    permission_classes = [IsSystemAdminOrReadOnly]
+    authentication_classes = []  # No authentication required
+    permission_classes = [permissions.AllowAny]  # Allow anyone to access
 
     def get_queryset(self):
-        if (
-            self.request.user
-            and self.request.user.is_authenticated
-            and (
-                self.request.user.is_superuser
-                or self.request.user.role == "system_admin"
-            )
-        ):
-            # System admin sees all media
-            return ContentMedia.objects.all().order_by("-created_at")
-        else:
-            # Employees see only uploaded and processed media
-            return ContentMedia.objects.filter(uploaded=True, processed=True).order_by(
-                "-created_at"
-            )
+        # Since authentication is disabled, show all media for testing
+        # In production, re-enable proper authentication and permissions
+        return ContentMedia.objects.all().order_by("-created_at")
 
     def perform_create(self, serializer):
-        serializer.save(owner=self.request.user)
+        # If no user authenticated, use the superuser
+        owner = self.request.user
+        if not owner or not owner.is_authenticated:
+            from obeeomaapp.models import User
+            owner = User.objects.filter(is_superuser=True).first()
+        serializer.save(owner=owner)
 
 
 # New views for the requested endpoints

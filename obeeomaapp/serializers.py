@@ -2188,35 +2188,6 @@ class ContentArticleSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "author", "created_at", "updated_at"]
 
 
-class ContentMediaSerializer(serializers.ModelSerializer):
-    owner = serializers.StringRelatedField(read_only=True)
-
-    class Meta:
-        model = ContentMedia
-        fields = [
-            "id",
-            "title",
-            "description",
-            "media_type",
-            "s3_key",
-            "public_url",
-            "duration_seconds",
-            "uploaded",
-            "processed",
-            "owner",
-            "created_at",
-        ]
-        read_only_fields = [
-            "id",
-            "s3_key",
-            "public_url",
-            "uploaded",
-            "processed",
-            "owner",
-            "created_at",
-        ]
-
-
 # New serializers for the requested endpoints
 
 

@@ -251,7 +251,7 @@ router.register(r"media", MediaViewSet, basename="media")
 
 # Content management
 router.register(r"blogs", ArticleViewSet, basename="blog")
-router.register(r"content/media", ContentMediaViewSet, basename="content-media")
+router.register(r"content", ContentMediaViewSet, basename="content-media")
 
 # New endpoints
 router.register(
@@ -508,7 +508,7 @@ urlpatterns = [
     ),
     path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
     # Sana_ai.
-    # path("api/", include("sana_ai.urls")),
+    path("sana/", include("sana_ai.urls")),
     # This exposes /api/blogs/ and other router endpoints
-    path("api/", include(router.urls)),
+    path("", include(router.urls)),
 ]
