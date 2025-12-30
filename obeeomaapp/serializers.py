@@ -284,45 +284,25 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
 # Login Serializer
 
 class LoginSerializer(serializers.Serializer):
-    username = serializers.CharField()
+    email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        username = attrs.get('username')
+        email = attrs.get('email')
         password = attrs.get('password')
 
-        if not username or not password:
-            raise serializers.ValidationError('Both username and password are required.')
+        if not email or not password:
+            raise serializers.ValidationError('Both email and password are required.')
 
-        # First try regular user authentication
+        # Authenticate using email & password
         user = authenticate(
             request=self.context.get('request'),
-            username=username,
+            email=email,
             password=password
         )
 
-        # This says,If regular authentication fails, try organization authentication
         if not user:
-            try:
-                # These lines help to Check if username matches an organization name
-                from .models import Organization
-                organization = Organization.objects.get(organizationName=username)
-                
-                # Verify the organization password
-                from django.contrib.auth.hashers import check_password
-                if check_password(password, organization.password):
-                    if organization.owner and organization.owner.is_active:
-                        user = organization.owner
-                    else:
-                        raise serializers.ValidationError('Organization account is not properly configured.')
-                else:
-                    raise serializers.ValidationError('Invalid username or password.')
-                    
-            except Organization.DoesNotExist:
-                raise serializers.ValidationError('Invalid username or password.')
-
-        if not user:
-            raise serializers.ValidationError('Invalid username or password.')
+            raise serializers.ValidationError('Invalid email or password.')
 
         if not user.is_active:
             raise serializers.ValidationError('Account is not yet active.')
@@ -330,21 +310,20 @@ class LoginSerializer(serializers.Serializer):
         attrs['user'] = user
         return attrs
 
-
 # custom serializer for token obtain pair
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
         user = self.user
 
-        
-        data['username'] = user.username
+
+
+        data['email'] = user.email
         data['role'] = getattr(user, 'role', None)
 
         # Just Including only the relevant user data
         user_data = {
             "id": user.id,
-            "username": user.username,
             "email": user.email,
             "role": user.role,
             "date_joined": user.date_joined,

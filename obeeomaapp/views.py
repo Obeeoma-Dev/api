@@ -299,7 +299,6 @@ def _build_login_success_payload(user):
 
     user_data = {
         "id": user.id,
-        "username": user.username,
         "email": user.email,
         "role": user.role,
         "date_joined": user.date_joined,

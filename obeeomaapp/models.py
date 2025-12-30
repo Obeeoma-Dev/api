@@ -19,6 +19,8 @@ class User(AbstractUser):
         ('employer', 'Employer'),
         ('employee', 'Employee'),
     )
+    username = None
+    email = models.EmailField(unique=True)
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
      # Added this logic to get the number of employees under a particular organisation
@@ -38,10 +40,12 @@ class User(AbstractUser):
     mfa_secret = models.CharField(max_length=255, blank=True, null=True)
 
     avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
-    email = models.EmailField(blank=True, default='')  # Override AbstractUser's email to make it optional
+     # Login using email
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = []  # No other required fields besides email & password
 
     def __str__(self):
-        return f"{self.username} ({self.role})"
+        return f"{self.email} ({self.role})"
 
     # These are the MFA Utility Methods
     def generate_mfa_secret(self):
