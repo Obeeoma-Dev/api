@@ -132,29 +132,29 @@ class SignupSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('username', 'password', 'confirm_password')
+        fields = ('email', 'password', 'confirm_password')
 
     def validate(self, attrs):
-        username = attrs.get('username')
+        email = attrs.get('email')
         password = attrs.get('password')
         confirm_password = attrs.get('confirm_password')
 
         if password != confirm_password:
             raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
 
-        if User.objects.filter(username__iexact=username).exists():
-            raise serializers.ValidationError({"username": "This username is already taken."})
+        if User.objects.filter(email__iexact=email).exists():
+            raise serializers.ValidationError({"email": "This email is already taken."})
 
         return attrs
 
     def create(self, validated_data):
         validated_data.pop('confirm_password')
 
-        user = User(username=validated_data['username'])
+        user = User(email=validated_data['email'])
         user.set_password(validated_data['password'])
         user.onboarding_completed = False
         user.is_first_time = True  # This allows automatic login for first time only
-        user.role = "employee"  # default role for signup
+        user.role = "employee"  
         user.save()
 
         return user
@@ -173,8 +173,8 @@ class ContactPersonInputSerializer(serializers.Serializer):
 class ContactPersonOutputSerializer(serializers.Serializer):
     firstName = serializers.CharField(source='first_name', read_only=True)
     lastName = serializers.CharField(source='last_name', read_only=True)
-    email = serializers.EmailField(read_only=True)  # removed source
-    role = serializers.CharField(read_only=True)   # removed source since field name matches
+    email = serializers.EmailField(read_only=True) 
+    role = serializers.CharField(read_only=True)  
 
 
 # Main serializer for organization creation
@@ -221,7 +221,7 @@ class OrganizationCreateSerializer(serializers.Serializer):
 
         # Reuse or create employer user
         user, created = User.objects.get_or_create(
-            username=email,
+            email=email,
             defaults={
                 'email': email,
                 'first_name': first_name,
