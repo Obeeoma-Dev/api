@@ -173,8 +173,8 @@ class ContactPersonInputSerializer(serializers.Serializer):
 class ContactPersonOutputSerializer(serializers.Serializer):
     firstName = serializers.CharField(source='first_name', read_only=True)
     lastName = serializers.CharField(source='last_name', read_only=True)
-    email = serializers.EmailField(source='email', read_only=True)
-    role = serializers.CharField(source='role', read_only=True)
+    email = serializers.EmailField(read_only=True)  # removed source
+    role = serializers.CharField(read_only=True)   # removed source since field name matches
 
 
 # Main serializer for organization creation
