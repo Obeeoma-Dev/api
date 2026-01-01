@@ -12,7 +12,7 @@ User = get_user_model()
 def create_test_user(**kwargs):
     """Create a test user with default values"""
     defaults = {
-        'username': 'testuser',
+        # email is the unique identifier (no username)
         'email': 'test@example.com',
         'password': 'testpass123',
     }
@@ -47,12 +47,10 @@ class PSS10AssessmentTests(APITestCase):
     def setUp(self):
         # Create two users to test ownership
         self.user1 = User.objects.create_user(
-            username="user1",
             email="user1@example.com",
             password="pass12345"
         )
         self.user2 = User.objects.create_user(
-            username="user2",
             email="user2@example.com",
             password="pass12345"
         )
@@ -127,7 +125,6 @@ class UpdatePaymentMethodTests(APITestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="testuser",
             email="testuser@example.com",
             password="pass12345"
         )

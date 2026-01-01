@@ -219,20 +219,30 @@ class OrganizationCreateSerializer(serializers.Serializer):
         last_name = contact_data.get('lastName')
         role = contact_data.get('role', 'employer')
 
-        # Reuse or create employer user
-        user, created = User.objects.get_or_create(
-            email=email,
-            defaults={
-                'email': email,
-                'first_name': first_name,
-                'last_name': last_name,
-                'role': role,
-            }
-        )
+       # Create or reuse employer account
+        user = User.objects.filter(email=email).first()
 
-        if created:
-            user.set_password(password)
+        if user:
+            # Ensure account is usable
+            if not user.has_usable_password():
+                user.set_password(password)
+
+            user.first_name = first_name
+            user.last_name = last_name
+            user.role = role
+            user.is_active = True
+            user.is_first_time = True
+            user.onboarding_completed = False
             user.save()
+
+        else:
+            user = User.objects.create_user(
+                email=email,
+                password=password,
+                first_name=first_name,
+                last_name=last_name,
+                role=role,
+            )
 
         # Check unique company email
         if Organization.objects.filter(companyEmail=validated_data['companyEmail']).exists():

@@ -49,12 +49,11 @@ User = get_user_model()
 class LoginSerializerTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
-            username='testuser',
             email='test@example.com',
             password='testpass123'
         )
         self.valid_data = {
-            'username': 'testuser',
+            'email': 'test@example.com',
             'password': 'testpass123'
         }
 
@@ -77,7 +76,6 @@ class EmployerSerializerTest(TestCase):
 class EmployeeInvitationSerializerTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
-            username='employer',
             email='employer@example.com',
             password='pass123'
         )
@@ -104,7 +102,6 @@ class EmployeeInvitationSerializerTest(TestCase):
 class MentalHealthAssessmentSerializerTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
-            username='testuser',
             email='test@example.com',
             password='pass123'
         )

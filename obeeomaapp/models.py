@@ -2,7 +2,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.conf import settings
-from django.contrib.auth.models import User
+from django.contrib.auth.base_user import BaseUserManager
 from django.utils.text import slugify
 from django.conf import settings
 from django.utils import timezone
@@ -11,6 +11,46 @@ from datetime import datetime
 User = settings.AUTH_USER_MODEL
 import pyotp
 from cryptography.fernet import Fernet
+
+# Custom user manager to support email-based authentication.
+# The default manager for AbstractUser expects a `username` field when
+# calling `create_user`/`create_superuser`. Our custom user model removes
+# the `username` field (we set `username = None`), so we provide a manager
+# that uses `email` as the unique identifier and quietly ignores any
+# incoming `username` kwarg to maintain compatibility with existing
+# code/tests that still pass `username`.
+class CustomUserManager(BaseUserManager):
+    """Manager for User where email is the unique identifier."""
+
+    use_in_migrations = True
+
+    def _create_user(self, email, password, **extra_fields):
+        if not email:
+            raise ValueError('The given email must be set')
+        email = self.normalize_email(email)
+        # Remove `username` kwarg if present to avoid passing unexpected
+        # keyword arguments into the model constructor.
+        extra_fields.pop('username', None)
+        user = self.model(email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_user(self, email, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', False)
+        extra_fields.setdefault('is_superuser', False)
+        return self._create_user(email, password, **extra_fields)
+
+    def create_superuser(self, email, password, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Superuser must have is_staff=True.')
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('Superuser must have is_superuser=True.')
+
+        return self._create_user(email, password, **extra_fields)
 
 #UserModels
 class User(AbstractUser):
@@ -44,8 +84,24 @@ class User(AbstractUser):
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []  # No other required fields besides email & password
 
+    # Attach custom manager that knows `email` is the USERNAME_FIELD.
+    # Using this manager prevents the default manager from trying to
+    # pass a `username` kwarg into the model constructor (which causes
+    # TypeError when `username = None`). The manager also tolerates a
+    # `username` kwarg for backward compatibility by ignoring it.
+    objects = CustomUserManager()
+
     def __str__(self):
         return f"{self.email} ({self.role})"
+
+    # Backwards-compatibility shim: some existing code/tests still
+    # reference `user.username`. Since this project uses email as the
+    # unique identifier (`USERNAME_FIELD = 'email'` and `username = None`),
+    # provide a `username` property that returns the email. This avoids
+    # widespread edits across the codebase while keeping behavior clear.
+    @property
+    def username(self):
+        return self.email
 
     # These are the MFA Utility Methods
     def generate_mfa_secret(self):
@@ -77,7 +133,8 @@ class User(AbstractUser):
         if not secret:
             return None
         return pyotp.totp.TOTP(secret).provisioning_uri(
-            name=self.username,
+            # Use email as the human-readable identifier for MFA apps.
+            name=self.email,
             issuer_name="ObeeomaApp"
         )
 
@@ -186,7 +243,8 @@ class PasswordResetOTP(models.Model):
         return timezone.now() > self.created_at + timedelta(minutes=5)
 
     def __str__(self):
-        return f"{self.user.username} - {self.code}"
+        # Use email as the readable identifier (username was removed).
+        return f"{getattr(self.user, 'email', str(self.user))} - {self.code}"
 
 
 # --- Employers Model. ---

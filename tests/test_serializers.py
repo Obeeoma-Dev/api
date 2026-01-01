@@ -17,12 +17,11 @@ User = get_user_model()
 class LoginSerializerTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
-            username='testuser',
             email='test@example.com',
             password='testpass123'
         )
         self.valid_data = {
-            'username': 'testuser',
+            'email': 'test@example.com',
             'password': 'testpass123'
         }
 
@@ -35,7 +34,7 @@ class LoginSerializerTest(TestCase):
 
     def test_invalid_credentials(self):
         invalid_data = {
-            'username': 'testuser',
+            'email': 'test@example.com',
             'password': 'wrongpassword'
         }
         serializer = LoginSerializer(data=invalid_data, context={'request': None})
@@ -43,12 +42,12 @@ class LoginSerializerTest(TestCase):
             serializer.validate(invalid_data)
 
     def test_missing_fields(self):
-        missing_username = {'password': 'testpass123'}
-        serializer = LoginSerializer(data=missing_username, context={'request': None})
+        missing_email = {'password': 'testpass123'}
+        serializer = LoginSerializer(data=missing_email, context={'request': None})
         with self.assertRaises(ValidationError):
-            serializer.validate(missing_username)
+            serializer.validate(missing_email)
 
-        missing_password = {'username': 'testuser'}
+        missing_password = {'email': 'test@example.com'}
         serializer = LoginSerializer(data=missing_password, context={'request': None})
         with self.assertRaises(ValidationError):
             serializer.validate(missing_password)
@@ -90,7 +89,6 @@ class PasswordResetSerializerTest(TestCase):
 class UserSerializerTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
-            username='testuser',
             email='test@example.com',
             password='testpass123',
             role='employee'
@@ -100,7 +98,8 @@ class UserSerializerTest(TestCase):
         serializer = UserSerializer(instance=self.user)
         expected_fields = ['id', 'username', 'email', 'role', 'avatar', 'onboarding_completed']
         self.assertEqual(set(serializer.data.keys()), set(expected_fields))
-        self.assertEqual(serializer.data['username'], 'testuser')
+        # Since username property returns email, both should be the same
+        self.assertEqual(serializer.data['username'], 'test@example.com')
         self.assertEqual(serializer.data['email'], 'test@example.com')
         self.assertEqual(serializer.data['role'], 'employee')
 
@@ -118,7 +117,6 @@ class EmployerSerializerTest(TestCase):
 class EmployeeSerializerTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
-            username='employee1',
             email='employee@example.com',
             password='pass123'
         )
@@ -148,7 +146,6 @@ class EmployeeSerializerTest(TestCase):
 class MentalHealthAssessmentSerializerTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
-            username='testuser',
             email='test@example.com',
             password='testpass123'
         )
@@ -225,8 +222,8 @@ class AssessmentResponseSerializerTest(TestCase):
 class EmployeeInvitationCreateSerializerTest(TestCase):
     def setUp(self):
         self.employer = Employer.objects.create(name='Test Company')
+        # Create an employer user using email (username removed in custom user)
         self.user = User.objects.create_user(
-            username='admin',
             email='admin@example.com',
             password='testpass123',
             role='employer'
@@ -391,8 +388,8 @@ class DepartmentSerializerTest(TestCase):
             name='Engineering'
         )
         # Create some employees
-        user1 = User.objects.create_user(username='emp1', email='emp1@example.com', password='pass')
-        user2 = User.objects.create_user(username='emp2', email='emp2@example.com', password='pass')
+        user1 = User.objects.create_user(email='emp1@example.com', password='pass')
+        user2 = User.objects.create_user(email='emp2@example.com', password='pass')
         self.employee1 = Employee.objects.create(
             user=user1,
             employer=self.employer,
@@ -522,7 +519,6 @@ class DepartmentSerializerTest(TestCase):
 class SelfAssessmentSerializerTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
-            username='testuser',
             email='test@example.com',
             password='testpass123'
         )
@@ -542,7 +538,6 @@ class SelfAssessmentSerializerTest(TestCase):
 class ChatSessionSerializerTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
-            username='testuser',
             email='test@example.com',
             password='testpass123'
         )
@@ -657,7 +652,6 @@ class HotlineCallSerializerTest(TestCase):
 class EmployeeProfileSerializerTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
-            username='testuser',
             email='test@example.com',
             password='testpass123'
         )
@@ -790,15 +784,14 @@ class SerializerEdgeCasesTest(TestCase):
     def test_partial_updates(self):
         """Test serializers with partial data"""
         user = User.objects.create_user(
-            username='testuser',
             email='test@example.com',
             password='testpass123'
         )
         
-        # Test partial update
+        # Test partial update with valid email
         serializer = UserSerializer(
             instance=user, 
-            data={'username': 'updateduser'}, 
+            data={'email': 'updated@example.com'}, 
             partial=True
         )
         self.assertTrue(serializer.is_valid())
@@ -806,7 +799,6 @@ class SerializerEdgeCasesTest(TestCase):
     def test_read_only_fields(self):
         """Test that read-only fields are respected"""
         user = User.objects.create_user(
-            username='testuser',
             email='test@example.com',
             password='testpass123'
         )
@@ -814,7 +806,7 @@ class SerializerEdgeCasesTest(TestCase):
         # Try to update read-only field
         serializer = UserSerializer(
             instance=user,
-            data={'id': 999, 'username': 'newusername'},  # id should be read-only
+            data={'id': 999, 'email': 'newemail@example.com'},  # id should be read-only
             partial=True
         )
         if serializer.is_valid():
