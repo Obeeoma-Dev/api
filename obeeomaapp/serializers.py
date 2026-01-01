@@ -256,6 +256,10 @@ class OrganizationCreateSerializer(serializers.Serializer):
             **validated_data
         )
 
+        # Link user back to organization (bidirectional relationship)
+        user.organization = organization
+        user.save()
+
         # Send confirmation email
         try:
             send_gmail_api_email(
