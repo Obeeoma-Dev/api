@@ -843,7 +843,7 @@ class InviteView(viewsets.ModelViewSet):
         now = timezone.now()
 
         # Get employer from organization
-        organization = Organization.objects.filter(owner=user).first()
+        organization = Organization.objects.filter(contact_person=user).first()
         if organization:
             employer, _ = Employer.objects.get_or_create(
                 name=organization.organizationName,
@@ -902,7 +902,7 @@ class InviteView(viewsets.ModelViewSet):
         employer = None
 
         # Get employer from organization
-        organization = Organization.objects.filter(owner=user).first()
+        organization = Organization.objects.filter(contact_person=user).first()
         if organization:
             employer, _ = Employer.objects.get_or_create(
                 name=organization.organizationName,
