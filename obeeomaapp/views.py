@@ -208,10 +208,29 @@ class IsCompanyAdmin(BasePermission):
 # # SIGNUP VIEW
 @extend_schema(tags=['Authentication'])
 class SignupView(viewsets.ModelViewSet):
-     queryset = User.objects.all()
-     serializer_class = SignupSerializer
-     permission_classes = [permissions.AllowAny]
-        
+    queryset = User.objects.all()
+    serializer_class = SignupSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            "message": "Employee account created successfully",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "role": user.role,
+            },
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+            "onboarding_required": True,
+            "redirect_url": "/onboarding/"
+        }, status=status.HTTP_201_CREATED)
 
 # VIEWS FOR CREATING AN ORGANIZATION
 @extend_schema(
