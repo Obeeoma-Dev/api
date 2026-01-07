@@ -368,7 +368,7 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
     - ALL assessments are saved
     """
 
-    username = serializers.CharField(required=True)
+    email = serializers.EmailField(required=True)
     password = serializers.CharField(write_only=True, required=True)
     confirm_password = serializers.CharField(write_only=True, required=True)
     avatar = serializers.ImageField(required=True)
