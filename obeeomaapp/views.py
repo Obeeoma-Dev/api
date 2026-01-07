@@ -1504,110 +1504,87 @@ class AvatarProfileView(viewsets.ModelViewSet):
     def get_queryset(self):
         return AvatarProfile.objects.filter(employee__user=self.request.user)
 # updated mood tracking view with mood summary action
-
 @extend_schema(tags=['Employee - Mood Tracking'])
-class  MoodTrackingView(viewsets.ModelViewSet):
+class MoodTrackingView(viewsets.ModelViewSet):
     serializer_class = MoodTrackingSerializer
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ['mood']
     search_fields = ['note']
 
     def get_queryset(self):
+        # Employees only see their own data
         return MoodTracking.objects.filter(employee__user=self.request.user)
 
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(user=self.request.user, employee=employee)
 
+    # ============================
+    # EMPLOYEE: Weekly Mood Summary
+    # ============================
     @action(detail=False, methods=['get'], url_path='mood-summary')
     def mood_summary(self, request):
         employee = get_object_or_404(EmployeeProfile, user=request.user)
         today = now().date()
-        start_date = today - timedelta(days=6)  # Last 7 days
+        start_date = today - timedelta(days=6)
 
-        # Aggregate moods per day
-        mood_data = (
-            MoodTracking.objects
-            .filter(employee=employee, checked_in_at__date__gte=start_date)
-            .values('checked_in_at__date', 'mood')
-            .annotate(count=Count('id'))
+        # Pre-fill all days as "Missed"
+        week_days = [(start_date + timedelta(days=i)) for i in range(7)]
+        summary = {day.strftime('%A'): "Missed" for day in week_days}
+
+        checkins = MoodTracking.objects.filter(
+            employee=employee,
+            checked_in_at__date__range=(start_date, today)
         )
 
-        # Format response
-        summary = {}
-        for entry in mood_data:
-            day = entry['checked_in_at__date'].strftime('%a')  # e.g. 'Mon'
-            mood = entry['mood']
-            count = entry['count']
-            summary.setdefault(day, {}).update({mood: count})
-
-        return Response(summary)
-@action(detail=False, methods=['get'], url_path='mood-summary')
-def mood_summary(self, request):
-    employee = get_object_or_404(EmployeeProfile, user=request.user)
-    today = now().date()
-    start_date = today - timedelta(days=6)  # Last 7 days
-
-    # Pre-fill all 7 days with "Missed"
-    week_days = [(start_date + timedelta(days=i)) for i in range(7)]
-    summary = {day.strftime('%A'): "Missed" for day in week_days}
-
-    # Get actual check-ins
-    checkins = MoodTracking.objects.filter(
-        employee=employee,
-        checked_in_at__date__range=(start_date, today)
-    )
-
-    for checkin in checkins:
-        day_name = checkin.checked_in_at.strftime('%A')
-        if checkin.mood:
+        for checkin in checkins:
+            day_name = checkin.checked_in_at.strftime('%A')
             summary[day_name] = checkin.mood
 
-    return Response(summary)
-@action(
-    detail=False,
-    methods=['get'],
-    url_path='employer-summary',
-    permission_classes=[IsAdminUser]
-)
-def employer_mood_summary(self, request):
-    today = now().date()
-    start_date = today - timedelta(days=6)
+        return Response(summary)
 
-    qs = MoodTracking.objects.filter(
-        checked_in_at__date__range=(start_date, today)
+    # ============================
+    # EMPLOYER: Company Mood Summary
+    # ============================
+    @extend_schema(tags=['Employer - Mood Tracking'])
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='employer-summary',
+        permission_classes=[IsAdminUser]
     )
+    def employer_mood_summary(self, request):
+        today = now().date()
+        start_date = today - timedelta(days=6)
 
-    # Overall average mood
-    overall = qs.aggregate(
-        average_mood=Avg('mood'),
-        total_entries=Count('id')
-    )
+        qs = MoodTracking.objects.filter(
+            checked_in_at__date__range=(start_date, today)
+        )
 
-    # Mood distribution
-    distribution = (
-        qs.values('mood')
-        .annotate(count=Count('mood'))
-        .order_by('mood')
-    )
+        overall = qs.aggregate(
+            average_mood=Avg('mood'),
+            total_entries=Count('id')
+        )
 
-    # Per-day average (for charts)
-    daily_avg = (
-        qs.values('checked_in_at__date')
-        .annotate(avg_mood=Avg('mood'))
-        .order_by('checked_in_at__date')
-    )
+        distribution = (
+            qs.values('mood')
+            .annotate(count=Count('mood'))
+            .order_by('mood')
+        )
 
-    return Response({
-        "period": "last_7_days",
-        "average_mood": round(overall['average_mood'], 2) if overall['average_mood'] else 0,
-        "total_entries": overall['total_entries'],
-        "mood_distribution": distribution,
-        "daily_average": daily_avg
-    })
+        daily_avg = (
+            qs.values('checked_in_at__date')
+            .annotate(avg_mood=Avg('mood'))
+            .order_by('checked_in_at__date')
+        )
 
-
-
+        return Response({
+            "period": "last_7_days",
+            "average_mood": round(overall['average_mood'], 2) if overall['average_mood'] else 0,
+            "total_entries": overall['total_entries'],
+            "mood_distribution": distribution,
+            "daily_average": daily_avg
+        })
 @extend_schema(tags=['Employee - Assessments'])
 @extend_schema(tags=['Resources'])
 class SelfHelpResourceView(viewsets.ModelViewSet):
