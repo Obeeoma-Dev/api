@@ -3,6 +3,8 @@ from rest_framework.routers import DefaultRouter
 from rest_framework import permissions
 from . import views
 from .views import OrganizationViewSet, AdminUserManagementViewSet
+from rest_framework.routers import DefaultRouter
+from .views import FeatureUsageViewSet
 
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi  
@@ -133,6 +135,7 @@ router.register(r'content/articles', ContentArticleViewSet, basename='content-ar
 router.register(r'content/media', ContentMediaViewSet, basename='content-media')
 
 # New endpoints
+router.register(r'feature-usage', FeatureUsageViewSet, basename='feature-usage')
 router.register(r'engagement-level', EngagementLevelViewSet, basename='engagement-level')
 router.register(r'company-mood', CompanyMoodViewSet, basename='company-mood')
 router.register(r'wellness-graph', WellnessGraphViewSet, basename='wellness-graph')

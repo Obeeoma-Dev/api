@@ -104,6 +104,12 @@ import hmac
 import hashlib
 from openpyxl import Workbook
 import requests
+from .models import FeatureUsage
+from .serializers import FeatureUsageSerializer
+from .utils.feature import FeatureUsageCalculator
+
+
+
 
 from django.views.decorators.csrf import csrf_exempt  #  Make sure this is present
 from django.http import HttpResponse
@@ -446,6 +452,34 @@ class CompleteOnboardingView(APIView):
             },
             status=status.HTTP_200_OK
         )
+# Feature Usage ViewSet
+class FeatureUsageViewSet(viewsets.ModelViewSet):
+    """
+    Handles listing, creating, and tracking feature usage
+    """
+    serializer_class = FeatureUsageSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # Users only see their own usage
+        return FeatureUsage.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        feature_name = serializer.validated_data['feature']
+        # Increment existing or create new
+        usage = FeatureUsageCalculator.track_feature(self.request.user, feature_name)
+        serializer.instance = usage
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """
+        GET /feature-usage/stats/
+        Returns feature usage percentages for the logged-in user
+        """
+        data = FeatureUsageCalculator.calculate_percentage_for_user(request.user)
+        return Response(data)
+
+
 # LOGOUT VIEW
 @extend_schema(
     tags=["Authentication"],
