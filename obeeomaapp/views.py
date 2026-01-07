@@ -6,7 +6,6 @@ from .models import Media
 from .serializers import MediaSerializer
 from .permissions import IsSystemAdminOrReadOnly
 from django_filters.rest_framework import DjangoFilterBackend
-
 from rest_framework.permissions import IsAdminUser, AllowAny, SAFE_METHODS, BasePermission
 from django.http import JsonResponse
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -1565,6 +1564,47 @@ def mood_summary(self, request):
             summary[day_name] = checkin.mood
 
     return Response(summary)
+@action(
+    detail=False,
+    methods=['get'],
+    url_path='employer-summary',
+    permission_classes=[IsAdminUser]
+)
+def employer_mood_summary(self, request):
+    today = now().date()
+    start_date = today - timedelta(days=6)
+
+    qs = MoodTracking.objects.filter(
+        checked_in_at__date__range=(start_date, today)
+    )
+
+    # Overall average mood
+    overall = qs.aggregate(
+        average_mood=Avg('mood'),
+        total_entries=Count('id')
+    )
+
+    # Mood distribution
+    distribution = (
+        qs.values('mood')
+        .annotate(count=Count('mood'))
+        .order_by('mood')
+    )
+
+    # Per-day average (for charts)
+    daily_avg = (
+        qs.values('checked_in_at__date')
+        .annotate(avg_mood=Avg('mood'))
+        .order_by('checked_in_at__date')
+    )
+
+    return Response({
+        "period": "last_7_days",
+        "average_mood": round(overall['average_mood'], 2) if overall['average_mood'] else 0,
+        "total_entries": overall['total_entries'],
+        "mood_distribution": distribution,
+        "daily_average": daily_avg
+    })
 
 
 
