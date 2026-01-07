@@ -125,6 +125,8 @@ import logging
 from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import EmployeeProfileSerializer
 from sana_ai.services.mental_health_ai import get_ai_service
+from .Services.groq_service import GroqService
+
 
 # Mood score mapping for trends (used to provide numeric scores to frontend)
 MOOD_SCORES = {
@@ -1731,22 +1733,31 @@ class ChatMessageView(viewsets.ModelViewSet):
     ordering = ["timestamp"]
 
     def get_queryset(self):
+        """
+        Restrict messages to the current user's session.
+        Ensures employees can only access their own chat sessions.
+        """
         return ChatMessage.objects.filter(
             session_id=self.kwargs.get("session_id"),
             session__employee__user=self.request.user,
         )
 
     def perform_create(self, serializer):
+        """
+        Handles saving a new user message, ensures system prompt exists,
+        builds conversation history, calls Groq AI, and saves the AI reply.
+        """
+        # Get the chat session for the current user
         session = get_object_or_404(
             ChatSession,
             id=self.kwargs.get("session_id"),
             employee__user=self.request.user,
         )
 
-        # Save user message
+        # Save the incoming user message
         user_message = serializer.save(session=session, sender="user")
 
-        # Ensure system prompt exists
+        # Ensure a system prompt exists in the session (only once per session)
         if not session.messages.filter(sender="system").exists():
             ChatMessage.objects.create(
                 session=session,
@@ -1754,13 +1765,14 @@ class ChatMessageView(viewsets.ModelViewSet):
                 message="You are Sana, a helpful and professional AI assistant.",
             )
 
-        # Build conversation history
+        # Build conversation history for Groq API
         conversation_history = []
         for msg in session.messages.all():
-            role = "assistant" if msg.sender == "ai" else "user"
+            # Use the model's api_role() helper to map DB roles to Groq roles
+            role = msg.api_role()
             conversation_history.append({"role": role, "content": msg.message})
 
-        # Call Groq service
+        # Call Groq service to generate AI reply
         try:
             groq_service = GroqService()
             ai_reply = groq_service.get_response(
@@ -1768,10 +1780,18 @@ class ChatMessageView(viewsets.ModelViewSet):
                 conversation_history=conversation_history,
             )
 
-            # Save AI response
+            # Save AI response back into the database
             ChatMessage.objects.create(session=session, sender="ai", message=ai_reply)
+
         except Exception as e:
+            # Log error for debugging
             logger.error(f"Groq chat error: {str(e)}")
+
+            # Return error response to client instead of failing silently
+            raise Response(
+                {"error": "AI service failed. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 @extend_schema(tags=["Employee - Recommendations"])
