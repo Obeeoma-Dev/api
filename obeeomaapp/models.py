@@ -61,7 +61,7 @@ class User(AbstractUser):
     )
     username = None
     email = models.EmailField(unique=True)
-    display_name = models.CharField(max_length=100, blank=True, null=True, help_text="Public display name for privacy")
+    # display_name = models.CharField(max_length=100, blank=True, null=True, help_text="Public display name for privacy")
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
      # Added this logic to get the number of employees under a particular organisation
@@ -1710,7 +1710,6 @@ class UserAchievement(models.Model):
         return min(100, int((self.progress_count / self.achievement.target_count) * 100))
 
     def increment_progress(self, count=1):
-        from notifications.models import Notification
 
         if self.achieved:
             return

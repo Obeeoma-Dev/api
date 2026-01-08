@@ -130,17 +130,17 @@ User = get_user_model()
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
-    display_name = serializers.CharField(max_length=100, required=True, help_text="Display name for your profile (for privacy)")
+    # display_name = serializers.CharField(max_length=100, required=True, help_text="Display name for your profile (for privacy)")
 
     class Meta:
         model = User
-        fields = ('email', 'display_name', 'password', 'confirm_password')
+        fields = ('email', 'password', 'confirm_password')
 
     def validate(self, attrs):
         email = attrs.get('email')
         password = attrs.get('password')
         confirm_password = attrs.get('confirm_password')
-        display_name = attrs.get('display_name')
+        # display_name = attrs.get('display_name')
 
         if password != confirm_password:
             raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
@@ -148,8 +148,8 @@ class SignupSerializer(serializers.ModelSerializer):
         if User.objects.filter(email__iexact=email).exists():
             raise serializers.ValidationError({"email": "This email is already taken."})
         
-        if not display_name or len(display_name.strip()) < 2:
-            raise serializers.ValidationError({"display_name": "Display name must be at least 2 characters."})
+        # if not display_name or len(display_name.strip()) < 2:
+        #     raise serializers.ValidationError({"display_name": "Display name must be at least 2 characters."})
 
         return attrs
 
@@ -157,8 +157,8 @@ class SignupSerializer(serializers.ModelSerializer):
         validated_data.pop('confirm_password')
 
         user = User(
-            email=validated_data['email'],
-            display_name=validated_data['display_name']
+            email=validated_data['email']
+            # display_name=validated_data['display_name']
         )
         user.set_password(validated_data['password'])
         user.onboarding_completed = False
