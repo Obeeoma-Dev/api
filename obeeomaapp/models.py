@@ -1034,7 +1034,46 @@ class PlatformUsage(models.Model):
 
     class Meta:
         ordering = ['week_number']
-#-- Subscription Revenue Model. --
+
+# Feature Usage Model.
+
+class FeatureUsage(models.Model):
+    """
+    Tracks feature usage for analytics
+    """
+    FEATURE_CHOICES = (
+        ('sana_ai', 'Sana AI'),
+        ('journaling', 'Journaling'),
+        ('education', 'Educational Resources'),
+        ('assessment', 'Self Assessment'),
+    )
+    
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='feature_usages'
+    )
+    feature = models.CharField(max_length=20, choices=FEATURE_CHOICES)
+    use_count = models.PositiveIntegerField(default=0)
+    first_used_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ('user', 'feature')
+        verbose_name = "Feature Usage"
+        verbose_name_plural = "Feature Usages"
+    
+    def __str__(self):
+        return f"{self.user.email} - {self.feature}: {self.use_count} times"
+    
+    def increment_usage(self):
+        """Increment usage count and update last used time"""
+        self.use_count += 1
+        self.last_used_at = timezone.now()
+        self.save()
+
+
+#Subscription Revenue Model.
 class SubscriptionRevenue(models.Model):
     month = models.CharField(max_length=10)  # Jan, Feb, etc.
     revenue = models.DecimalField(max_digits=12, decimal_places=2)
@@ -1047,7 +1086,8 @@ class SubscriptionRevenue(models.Model):
     class Meta:
         ordering = ['year', 'month']
 
-#-- System Activity Model. --
+
+#System Activity Model.
 class SystemActivity(models.Model):
     ACTIVITY_TYPES = [
         ('new_organization', 'New Organization'),
