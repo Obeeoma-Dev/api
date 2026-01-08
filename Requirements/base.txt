@@ -1,0 +1,18 @@
+# Minimal production dependencies
+# For production deploy (Render, Droplet, Neon):
+Django==5.2.7
+djangorestframework==3.16.1
+django-filter==25.2
+django-cors-headers==4.9.0
+django-extensions==4.1
+djangorestframework_simplejwt==5.5.1
+drf-spectacular==0.28.0
+drf-yasg==1.21.11
+gunicorn==23.0.0
+whitenoise==6.11.0
+dj-database-url==3.0.1
+psycopg2-binary==2.9.10
+python-dotenv==1.1.1
+cryptography==46.0.3
+requests==2.32.5
+groq==1.0.0

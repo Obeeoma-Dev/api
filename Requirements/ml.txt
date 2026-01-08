@@ -1,0 +1,11 @@
+# Extends base with heavy ML packages
+# requirements/ml.txt
+-r base.txt
+torch==2.9.0+cpu   # use CPU build to avoid CUDA wheels
+transformers==4.57.1
+huggingface-hub==0.36.0
+tokenizers==0.22.1
+safetensors==0.6.2
+numpy==2.3.4
+sympy==1.14.0
+tqdm==4.67.1
