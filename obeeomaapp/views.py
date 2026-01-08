@@ -1716,9 +1716,6 @@ class NotificationView(viewsets.ModelViewSet):
     def get_queryset(self):
         return Notification.objects.filter(employee__user=self.request.user)
 
-
-@extend_schema(tags=["Employee - Engagement"])
-
     @action(detail=True, methods=['post'])
     def mark_read(self, request, pk=None):
         notification = self.get_object()
