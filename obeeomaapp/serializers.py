@@ -16,6 +16,7 @@ from .models import User
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from obeeomaapp.utils.gmail_http_api import send_gmail_api_email
+from django.template.loader import render_to_string
 from django.contrib.auth.password_validation import validate_password
 from obeeomaapp.models import *
 from .models import EmployeeInvitation
@@ -260,17 +261,27 @@ class OrganizationCreateSerializer(serializers.Serializer):
         user.organization = organization
         user.save()
 
-        # Send confirmation email
+        # Send confirmation email with HTML template
         try:
+            # Render HTML template
+            html_content = render_to_string('emails/organization_success.html', {
+                'organization_name': organization.organizationName,
+                'admin_email': organization.companyEmail
+            })
+            
+            # Plain text version for fallback
+            body = (
+                f"Hello {organization.organizationName},\n\n"
+                "Your organization has been successfully registered on our platform.\n\n"
+                "you can now log in and start using our services.\n\n"
+                "Thank you for registering!"
+            )
+            
             send_gmail_api_email(
                 to_email=organization.companyEmail,
                 subject="Organization Registered Successfully",
-                body=(
-                    f"Hello {organization.organizationName},\n\n"
-                    "Your organization has been successfully registered on our platform.\n\n"
-                    "you can now log in and start using our services.\n\n"
-                    "Thank you for registering!"
-                )
+                body=body,
+                html_body=html_content
             )
         except Exception as e:
             print("Failed to send email:", e)

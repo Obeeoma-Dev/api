@@ -82,6 +82,7 @@ from .serializers import *
 from .serializers import EmployeeInvitationCreateSerializer, EmployeeInvitationResponseSerializer
 from django.core.mail import send_mail, EmailMultiAlternatives
 from .utils.gmail_http_api import send_gmail_api_email
+from django.template.loader import render_to_string
 from django.conf import settings
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -354,7 +355,7 @@ def _build_login_success_payload(user):
     request=LoginSerializer,
     responses={200: OpenApiTypes.OBJECT},
     tags=['Authentication'],
-    description="Login using username and password. MFA integrated if enabled."
+    description="Login using email and password. MFA integrated if enabled."
 )
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -551,8 +552,18 @@ class PasswordResetView(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        # Send email using Gmail API
+        # Send email using Gmail API with HTML template
         subject = "Password Reset Verification Code - Obeeoma"
+        
+        # Render HTML template
+        html_content = render_to_string('emails/reset.html', {
+            'user_email': email,
+            'user_name': user.username,
+            'otp_code': code,
+            'otp_expiry': '5 minutes'
+        })
+        
+        # Plain text version for fallback
         message = f"""
 Hello {user.username},
 
@@ -569,7 +580,19 @@ Obeeoma Team
 """
 
         try:
-            success = send_gmail_api_email(email, subject, message)
+            # Add detailed logging
+            logger.info(f"Attempting to send password reset email to: {email}")
+            logger.info(f"Subject: {subject}")
+            logger.info(f"User: {user.username}")
+            logger.info(f"Reset code: {code}")
+            
+            success = send_gmail_api_email(email, subject, message, html_body=html_content)
+            
+            if success:
+                logger.info(f"Password reset email sent successfully to {email}")
+            else:
+                logger.error(f"Failed to send password reset email to {email}")
+                
             if not success:
                 raise Exception("Gmail API failed to send email")
 
@@ -987,14 +1010,26 @@ class InviteView(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         invitation = serializer.save()
 
-        # SEND OTP EMAIL
+        # SEND OTP EMAIL with HTML template
         
         try:
-            subject = f"Welcome to {employer.name} on Obeeoma!"
             otp_expiry = invitation.otp_expires_at.strftime(
                 '%B %d, %Y at %I:%M %p'
             )
+            subject = f"Welcome to {employer.name} on Obeeoma!"
 
+            # Render HTML template
+            html_content = render_to_string('emails/org.html', {
+                'employer_name': employer.name,
+                'employee_name': "Team Member",  # No employeeName field in model
+                'invitation_code': invitation.otp,
+                'expiry_date': otp_expiry,
+                'department': invitation.employeedepartment,
+                'position': None,  # No position field in model
+                'message': invitation.message
+            })
+            
+            # Plain text version for fallback
             message = f"""
 Hello,
 
@@ -1011,10 +1046,29 @@ If you did not expect this invitation, please ignore this email.
 Best regards,
 The Obeeoma Team
 """
-            send_gmail_api_email(invitation.email, subject, message)
-
+            
+            # Send email with detailed logging
+            logger.info(f"Attempting to send invitation email to: {invitation.email}")
+            logger.info(f"Subject: {subject}")
+            logger.info(f"Employer: {employer.name}")
+            logger.info(f"Invitation code: {invitation.otp}")
+            
+            # Try HTML email first
+            success = send_gmail_api_email(invitation.email, subject, message, html_body=html_content)
+            
+            if success:
+                logger.info(f"Invitation email sent successfully to {invitation.email}")
+            else:
+                logger.error(f"HTML email failed, trying plain text to {invitation.email}")
+                # Fallback to plain text only
+                success = send_gmail_api_email(invitation.email, subject, message)
+                if success:
+                    logger.info(f"Plain text invitation email sent to {invitation.email}")
+                else:
+                    logger.error(f"Both HTML and plain text email failed to {invitation.email}")
+                
         except Exception as e:
-            logger.exception("Failed to send invitation email")
+            logger.exception(f"Failed to send invitation email to {invitation.email}: {str(e)}")
 
         return Response(
             EmployeeInvitationResponseSerializer(invitation).data,
