@@ -1608,15 +1608,7 @@ class CrisisTriggerView(viewsets.ModelViewSet):
 
 
 # notifications/views.py
-from rest_framework import viewsets, permissions
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters
-from drf_spectacular.utils import extend_schema
 
-from .models import Notification
-from .serializers import NotificationSerializer
 
 @extend_schema(tags=['Employee - Notifications'])
 class NotificationView(viewsets.ModelViewSet):
@@ -3798,38 +3790,25 @@ class DynamicQuestionViewSet(viewsets.ModelViewSet):
 
 class UserAchievementViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UserAchievementSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return UserAchievement.objects.filter(user=self.request.user).select_related('achievement')
-
-    @action(detail=False, methods=['post'])
-    def update_progress(self, request):
-        """Increment progress for a given achievement"""
-        achievement_title = request.data.get('title')
-        increment = int(request.data.get('increment', 1))
-
-        achievement = get_object_or_404(Achievement, title=achievement_title, is_active=True)
-        ua, _ = UserAchievement.objects.get_or_create(user=request.user, achievement=achievement)
-        ua.increment_progress(increment)
-
-        serializer = self.get_serializer(ua)
-        return Response(serializer.data)
+        return UserAchievement.objects.filter(
+            user=self.request.user
+        ).select_related('achievement')
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
-        """Return overall summary of achievements"""
-        achievements = self.get_queryset()
-        total = achievements.count()
-        completed = achievements.filter(achieved=True).count()
-        serializer = self.get_serializer(achievements, many=True)
+        qs = self.get_queryset()
+        total = qs.count()
+        completed = qs.filter(achieved=True).count()
 
+        serializer = self.get_serializer(qs, many=True)
         return Response({
-            'total_achievements': total,
-            'completed': completed,
-            'progress': serializer.data
+            "total_achievements": total,
+            "completed": completed,
+            "progress": serializer.data
         })
-
 
 # VIEWS FOR ADMIN USER MANAGEMENT
 class OrganizationViewSet(viewsets.ModelViewSet):

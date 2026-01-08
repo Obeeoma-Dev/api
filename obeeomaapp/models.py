@@ -1623,29 +1623,38 @@ class AssessmentResponse(models.Model):
 
 
 
+# achievements/models.py
+
+
+from django.db import models
+from django.conf import settings
+from django.utils import timezone
+
 class Achievement(models.Model):
     CATEGORY_CHOICES = [
         ('assessment', 'Assessment'),
-        ('moodtracking', 'MoodTracking'),
+        ('moodtracking', 'Mood Tracking'),
         ('yourprogress', 'Your Progress'),
         ('educationalresource', 'Educational Resource'),
     ]
 
     title = models.CharField(max_length=100, unique=True)
-    description = models.TextField()
-    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
-    target_count = models.PositiveIntegerField()
-    is_active = models.BooleanField(default=True)
+    description = models.CharField(max_length=500, blank=True, null=True)
+    category = models.CharField(max_length=30, choices=CATEGORY_CHOICES)
+    target_count = models.PositiveIntegerField(null=True, blank=True, help_text="Number of actions required to unlock this achievement. Leave blank for one-time achievements.")
+    is_active = models.BooleanField(default=True, blank=True,null=True)
 
     def __str__(self):
         return self.title
 
-# from django.conf import settings
-# from django.db import models
 
 class UserAchievement(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    achievement = models.ForeignKey("Achievement", on_delete=models.CASCADE, related_name="user_achievements", blank=True, null=True)
+    achievement = models.ForeignKey(
+        Achievement,
+        on_delete=models.CASCADE,
+        related_name="user_achievements", default=None
+    )
 
     progress_count = models.PositiveIntegerField(default=0)
     achieved = models.BooleanField(default=False)
@@ -1654,16 +1663,35 @@ class UserAchievement(models.Model):
     class Meta:
         unique_together = ('user', 'achievement')
 
-
     def progress_percentage(self):
+        if self.achievement.target_count == 0:
+            return 0
         return min(100, int((self.progress_count / self.achievement.target_count) * 100))
 
     def increment_progress(self, count=1):
+        from notifications.models import Notification
+
+        if self.achieved:
+            return
+
         self.progress_count += count
-        if not self.achieved and self.progress_count >= self.achievement.target_count:
+
+        if self.progress_count >= self.achievement.target_count:
             self.achieved = True
             self.achieved_date = timezone.now().date()
+
+            # 🔔 Send notification
+            if hasattr(self.user, 'employee'):
+                Notification.objects.create(
+                    employee=self.user.employee,
+                    title="Achievement Unlocked 🏆",
+                    message=f"You unlocked: {self.achievement.title}",
+                    action_url="/achievements/"
+                )
+
         self.save()
+
+
 
 # Media models for systems admin.
 class Media(models.Model):
