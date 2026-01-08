@@ -6,13 +6,7 @@ from .models import Media
 from .serializers import MediaSerializer
 from .permissions import IsSystemAdminOrReadOnly
 from django_filters.rest_framework import DjangoFilterBackend
-
-from rest_framework.permissions import (
-    IsAdminUser,
-    AllowAny,
-    SAFE_METHODS,
-    BasePermission,
-)
+from rest_framework.permissions import IsAdminUser, AllowAny, SAFE_METHODS, BasePermission
 from django.http import JsonResponse
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.db.models import Avg, Count, Sum
@@ -116,6 +110,12 @@ import hmac
 import hashlib
 from openpyxl import Workbook
 import requests
+from .models import FeatureUsage
+from .serializers import FeatureUsageSerializer
+from .utils.feature import FeatureUsageCalculator
+
+
+
 
 from django.views.decorators.csrf import csrf_exempt  #  Make sure this is present
 from django.http import HttpResponse
@@ -221,6 +221,25 @@ class SignupView(viewsets.ModelViewSet):
     serializer_class = SignupSerializer
     permission_classes = [permissions.AllowAny]
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            "message": "Employee account created successfully",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "role": user.role,
+            },
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+            "onboarding_required": True,
+            "redirect_url": "/onboarding/"
+        }, status=status.HTTP_201_CREATED)
 
 # VIEWS FOR CREATING AN ORGANIZATION
 @extend_schema(
@@ -436,6 +455,32 @@ class CompleteOnboardingView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+# Feature Usage ViewSet
+class FeatureUsageViewSet(viewsets.ModelViewSet):
+    """
+    Handles listing, creating, and tracking feature usage
+    """
+    serializer_class = FeatureUsageSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # Users only see their own usage
+        return FeatureUsage.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        feature_name = serializer.validated_data['feature']
+        # Increment existing or create new
+        usage = FeatureUsageCalculator.track_feature(self.request.user, feature_name)
+        serializer.instance = usage
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """
+        GET /feature-usage/stats/
+        Returns feature usage percentages for the logged-in user
+        """
+        data = FeatureUsageCalculator.calculate_percentage_for_user(request.user)
+        return Response(data)
 
 
 # LOGOUT VIEW
@@ -1552,9 +1597,7 @@ class AvatarProfileView(viewsets.ModelViewSet):
 
 
 # updated mood tracking view with mood summary action
-
-
-@extend_schema(tags=["Employee - Mood Tracking"])
+@extend_schema(tags=['Employee - Mood Tracking'])
 class MoodTrackingView(viewsets.ModelViewSet):
     serializer_class = MoodTrackingSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -1562,63 +1605,81 @@ class MoodTrackingView(viewsets.ModelViewSet):
     search_fields = ["note"]
 
     def get_queryset(self):
+        # Employees only see their own data
         return MoodTracking.objects.filter(employee__user=self.request.user)
 
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(user=self.request.user, employee=employee)
 
-    @action(detail=False, methods=["get"], url_path="mood-summary")
+    # ============================
+    # EMPLOYEE: Weekly Mood Summary
+    # ============================
+    @action(detail=False, methods=['get'], url_path='mood-summary')
     def mood_summary(self, request):
         employee = get_object_or_404(EmployeeProfile, user=request.user)
         today = now().date()
-        start_date = today - timedelta(days=6)  # Last 7 days
+        start_date = today - timedelta(days=6)
 
-        # Aggregate moods per day
-        mood_data = (
-            MoodTracking.objects.filter(
-                employee=employee, checked_in_at__date__gte=start_date
-            )
-            .values("checked_in_at__date", "mood")
-            .annotate(count=Count("id"))
+        # Pre-fill all days as "Missed"
+        week_days = [(start_date + timedelta(days=i)) for i in range(7)]
+        summary = {day.strftime('%A'): "Missed" for day in week_days}
+
+        checkins = MoodTracking.objects.filter(
+            employee=employee,
+            checked_in_at__date__range=(start_date, today)
         )
 
-        # Format response
-        summary = {}
-        for entry in mood_data:
-            day = entry["checked_in_at__date"].strftime("%a")  # e.g. 'Mon'
-            mood = entry["mood"]
-            count = entry["count"]
-            summary.setdefault(day, {}).update({mood: count})
+        for checkin in checkins:
+            day_name = checkin.checked_in_at.strftime('%A')
+            summary[day_name] = checkin.mood
 
         return Response(summary)
 
-
-@action(detail=False, methods=["get"], url_path="mood-summary")
-def mood_summary(self, request):
-    employee = get_object_or_404(EmployeeProfile, user=request.user)
-    today = now().date()
-    start_date = today - timedelta(days=6)  # Last 7 days
-
-    # Pre-fill all 7 days with "Missed"
-    week_days = [(start_date + timedelta(days=i)) for i in range(7)]
-    summary = {day.strftime("%A"): "Missed" for day in week_days}
-
-    # Get actual check-ins
-    checkins = MoodTracking.objects.filter(
-        employee=employee, checked_in_at__date__range=(start_date, today)
+    # ============================
+    # EMPLOYER: Company Mood Summary
+    # ============================
+    @extend_schema(tags=['Employer - Mood Tracking'])
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='employer-summary',
+        permission_classes=[IsAdminUser]
     )
+    def employer_mood_summary(self, request):
+        today = now().date()
+        start_date = today - timedelta(days=6)
 
-    for checkin in checkins:
-        day_name = checkin.checked_in_at.strftime("%A")
-        if checkin.mood:
-            summary[day_name] = checkin.mood
+        qs = MoodTracking.objects.filter(
+            checked_in_at__date__range=(start_date, today)
+        )
 
-    return Response(summary)
+        overall = qs.aggregate(
+            average_mood=Avg('mood'),
+            total_entries=Count('id')
+        )
 
+        distribution = (
+            qs.values('mood')
+            .annotate(count=Count('mood'))
+            .order_by('mood')
+        )
 
-@extend_schema(tags=["Employee - Assessments"])
-@extend_schema(tags=["Resources"])
+        daily_avg = (
+            qs.values('checked_in_at__date')
+            .annotate(avg_mood=Avg('mood'))
+            .order_by('checked_in_at__date')
+        )
+
+        return Response({
+            "period": "last_7_days",
+            "average_mood": round(overall['average_mood'], 2) if overall['average_mood'] else 0,
+            "total_entries": overall['total_entries'],
+            "mood_distribution": distribution,
+            "daily_average": daily_avg
+        })
+@extend_schema(tags=['Employee - Assessments'])
+@extend_schema(tags=['Resources'])
 class SelfHelpResourceView(viewsets.ModelViewSet):
     queryset = SelfHelpResource.objects.all()
     serializer_class = SelfHelpResourceSerializer

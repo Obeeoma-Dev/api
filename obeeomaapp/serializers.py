@@ -368,7 +368,7 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
     - ALL assessments are saved
     """
 
-    username = serializers.CharField(required=True)
+    email = serializers.EmailField(required=True)
     password = serializers.CharField(write_only=True, required=True)
     confirm_password = serializers.CharField(write_only=True, required=True)
     avatar = serializers.ImageField(required=True)
@@ -723,11 +723,18 @@ class EmployeeUserCreateSerializer(serializers.ModelSerializer):
 
 
 
+#  FeatureUsageSerializer
+class FeatureUsageSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source='user.email', read_only=True)
+
+    class Meta:
+        model = FeatureUsage
+        fields = ['id', 'user_email', 'feature', 'use_count', 'first_used_at', 'last_used_at']
+        read_only_fields = ['id', 'user_email', 'use_count', 'first_used_at', 'last_used_at']
 
 
-# --- Employee Profile ---
 
-
+# --- Employee Profile 
 class EmployeeProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmployeeProfile

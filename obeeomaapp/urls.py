@@ -3,6 +3,8 @@ from rest_framework.routers import DefaultRouter
 from rest_framework import permissions
 from . import views
 from .views import OrganizationViewSet, AdminUserManagementViewSet
+from rest_framework.routers import DefaultRouter
+from .views import FeatureUsageViewSet
 
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi  
@@ -35,7 +37,7 @@ from obeeomaapp.views import (
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView, CBTExerciseViewSet, SettingsViewSet,
     JournalEntryViewSet, UpdatePaymentMethodViewSet,  PSS10AssessmentViewSet,
     ContentArticleViewSet, ContentMediaViewSet, PresignUploadView, ConfirmUploadView,SignupView,VerifyPasswordResetOTPView,VerifyInvitationOTPView,
-    EngagementLevelViewSet, CompanyMoodViewSet, WellnessGraphViewSet, EmployeeManagementViewSet, NotificationViewSet, InviteView, 
+    EngagementLevelViewSet, CompanyMoodViewSet, WellnessGraphViewSet, NotificationViewSet, InviteView, 
     VerifyMFAPasswordView, ToggleMFAView,AdminSubscriptionManagementViewSet, AdminBillingHistoryViewSet, EmployeeEngagementSummaryView,DepartmentAnalysisReportView,RiskAssessmentReportView,EngagementReportView
     
 )
@@ -133,10 +135,10 @@ router.register(r'content/articles', ContentArticleViewSet, basename='content-ar
 router.register(r'content/media', ContentMediaViewSet, basename='content-media')
 
 # New endpoints
+router.register(r'feature-usage', FeatureUsageViewSet, basename='feature-usage')
 router.register(r'engagement-level', EngagementLevelViewSet, basename='engagement-level')
 router.register(r'company-mood', CompanyMoodViewSet, basename='company-mood')
 router.register(r'wellness-graph', WellnessGraphViewSet, basename='wellness-graph')
-router.register(r'employee-management', EmployeeManagementViewSet, basename='employee-mgmt')
 router.register(r'notifications', NotificationViewSet, basename='notification-list')
 router.register(r'organization-signup', OrganizationSignupView, basename='organization-signup')
 urlpatterns = [
