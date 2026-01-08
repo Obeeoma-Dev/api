@@ -61,6 +61,7 @@ class User(AbstractUser):
     )
     username = None
     email = models.EmailField(unique=True)
+    display_name = models.CharField(max_length=100, blank=True, null=True, help_text="Public display name for privacy")
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
      # Added this logic to get the number of employees under a particular organisation
