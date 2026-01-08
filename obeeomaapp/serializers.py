@@ -130,28 +130,36 @@ User = get_user_model()
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
+    display_name = serializers.CharField(max_length=100, required=True, help_text="Display name for your profile (for privacy)")
 
     class Meta:
         model = User
-        fields = ('email', 'password', 'confirm_password')
+        fields = ('email', 'display_name', 'password', 'confirm_password')
 
     def validate(self, attrs):
         email = attrs.get('email')
         password = attrs.get('password')
         confirm_password = attrs.get('confirm_password')
+        display_name = attrs.get('display_name')
 
         if password != confirm_password:
             raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
 
         if User.objects.filter(email__iexact=email).exists():
             raise serializers.ValidationError({"email": "This email is already taken."})
+        
+        if not display_name or len(display_name.strip()) < 2:
+            raise serializers.ValidationError({"display_name": "Display name must be at least 2 characters."})
 
         return attrs
 
     def create(self, validated_data):
         validated_data.pop('confirm_password')
 
-        user = User(email=validated_data['email'])
+        user = User(
+            email=validated_data['email'],
+            display_name=validated_data['display_name']
+        )
         user.set_password(validated_data['password'])
         user.onboarding_completed = False
         user.is_first_time = True  # This allows automatic login for first time only
@@ -633,14 +641,12 @@ class EmployeeSerializer(serializers.ModelSerializer):
         model = Employee
         fields = ['id', 'employer', 'employer_name', 'department', 'department_name', 'first_name', 'last_name', 'name', 'email', 'status', 'joined_date', 'last_active', 'avatar']
 
-
+# notifications/serializers.py
 class NotificationSerializer(serializers.ModelSerializer):
-    is_read = serializers.BooleanField(source='read', read_only=True)  # Add this field
-    
     class Meta:
         model = Notification
-        fields = ['id', 'employee', 'message', 'sent_on', 'read', 'is_read']  # Include both
-        read_only_fields = ['employee', 'sent_on']
+        fields = "__all__"
+
 
 class AIManagementSerializer(serializers.ModelSerializer):
     class Meta:
@@ -1547,20 +1553,27 @@ class AssessmentQuestionsResponseSerializer(serializers.Serializer):
     difficulty_question = serializers.CharField()
     difficulty_options = serializers.ListField()
 
+# achievements/serializers.py
 
 class UserAchievementSerializer(serializers.ModelSerializer):
     title = serializers.CharField(source='achievement.title')
     description = serializers.CharField(source='achievement.description')
     category = serializers.CharField(source='achievement.category')
-    target_count = serializers.IntegerField(source='achievement.target_count')
+    target = serializers.IntegerField(source='achievement.target_count')
     progress_percentage = serializers.SerializerMethodField()
 
     class Meta:
         model = UserAchievement
         fields = [
-            'title', 'description', 'category',
-            'progress_count', 'target_count',
-            'progress_percentage', 'achieved', 'achieved_date'
+            'id',
+            'title',
+            'description',
+            'category',
+            'progress_count',
+            'target',
+            'progress_percentage',
+            'achieved',
+            'achieved_date',
         ]
 
     def get_progress_percentage(self, obj):
