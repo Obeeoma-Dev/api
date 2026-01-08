@@ -622,14 +622,12 @@ class EmployeeSerializer(serializers.ModelSerializer):
         model = Employee
         fields = ['id', 'employer', 'employer_name', 'department', 'department_name', 'first_name', 'last_name', 'name', 'email', 'status', 'joined_date', 'last_active', 'avatar']
 
-
+# notifications/serializers.py
 class NotificationSerializer(serializers.ModelSerializer):
-    is_read = serializers.BooleanField(source='read', read_only=True)  # Add this field
-    
     class Meta:
         model = Notification
-        fields = ['id', 'employee', 'message', 'sent_on', 'read', 'is_read']  # Include both
-        read_only_fields = ['employee', 'sent_on']
+        fields = "__all__"
+
 
 class AIManagementSerializer(serializers.ModelSerializer):
     class Meta:

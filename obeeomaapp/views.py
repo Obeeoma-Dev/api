@@ -1607,17 +1607,36 @@ class CrisisTriggerView(viewsets.ModelViewSet):
 
 
 
+# notifications/views.py
+from rest_framework import viewsets, permissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
+from drf_spectacular.utils import extend_schema
+
+from .models import Notification
+from .serializers import NotificationSerializer
+
 @extend_schema(tags=['Employee - Notifications'])
 class NotificationView(viewsets.ModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['read']  # Use the actual field name 'read' instead of 'is_read'
+    filterset_fields = ['read']
     ordering_fields = ['sent_on']
     ordering = ['-sent_on']
 
     def get_queryset(self):
         return Notification.objects.filter(employee__user=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        notification = self.get_object()
+        notification.read = True
+        notification.save()
+        return Response({"status": "read"})
+
 @extend_schema(tags=['Employee - Engagement'])
 class EngagementTrackerView(viewsets.ModelViewSet):
     serializer_class = EngagementTrackerSerializer

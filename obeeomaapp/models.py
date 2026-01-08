@@ -597,10 +597,10 @@ class CrisisTrigger(models.Model):
 
 # Notifications model.
 class Notification(models.Model):
-    employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE)
-    message = models.CharField(max_length=255, blank=True, null=True)
-    content_type = models.CharField(max_length=50, blank=True, null=True)  
-    object_id = models.PositiveIntegerField(blank=True, null=True)
+    employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE, related_name="notifications")
+    title = models.CharField(max_length=100, blank=True, null=True)
+
+    message = models.CharField(max_length=255, blank=True, null=True) 
     sent_on = models.DateTimeField(auto_now_add=True)
     read = models.BooleanField(default=False)
 
