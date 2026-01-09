@@ -125,7 +125,7 @@ from rest_framework.decorators import api_view, permission_classes
 import logging
 from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import EmployeeProfileSerializer
-from sana_ai.services.mental_health_ai import get_ai_service
+# from sana_ai.services.mental_health_ai import get_ai_service  # TODO: Add sana_ai app
 from .Services.groq_service import GroqService
 
 
@@ -2290,14 +2290,15 @@ class OrganizationOverviewView(viewsets.ViewSet):
         # Count unique users who have used the AI Chatbot (Sana)
         ai_chatbot_count = 0
         try:
-            from sana_ai.models import ChatSession
+            # from sana_ai.models import ChatSession  # TODO: Add sana_ai app
+            pass  # Placeholder until sana_ai app is added
 
-            ai_chatbot_count = (
-                ChatSession.objects.filter(
-                    user__in=employee_queryset.values_list("user", flat=True)
-                )
-                .values("user")
-                .distinct()
+            # ai_chatbot_count = (
+            #     ChatSession.objects.filter(
+            #         user__in=employee_queryset.values_list("user", flat=True)
+            #     )
+            #     .values("user")
+            #     .distinct()
                 .count()
             )
         except:
