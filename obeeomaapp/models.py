@@ -267,7 +267,7 @@ class Employee(models.Model):
         ('suspended', 'Suspended'),
     ]
     
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="employee_profile", null=True, blank=True)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="employee_record", null=True, blank=True)
     employer = models.ForeignKey(Employer, on_delete=models.CASCADE, related_name="employees")
     department = models.ForeignKey('Department', on_delete=models.SET_NULL, null=True, blank=True, related_name="employees")
     first_name = models.CharField(max_length=100, default='')
@@ -537,7 +537,7 @@ class EmployeeProfile(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='employee_profile'
+        related_name='employee_public_profile'
     )
 
     # Public display name (safe for UI)

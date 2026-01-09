@@ -145,9 +145,6 @@ class SignupSerializer(serializers.ModelSerializer):
         if User.objects.filter(email__iexact=email).exists():
             raise serializers.ValidationError({"email": "This email is already taken."})
         
-        # if not display_name or len(display_name.strip()) < 2:
-        #     raise serializers.ValidationError({"display_name": "Display name must be at least 2 characters."})
-
         return attrs
 
     def create(self, validated_data):
@@ -155,7 +152,6 @@ class SignupSerializer(serializers.ModelSerializer):
 
         user = User(
             email=validated_data['email']
-            # display_name=validated_data['display_name']
         )
         user.set_password(validated_data['password'])
         user.onboarding_completed = False

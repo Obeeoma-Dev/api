@@ -1641,8 +1641,9 @@ class EmployeeProfileView(viewsets.ModelViewSet):
 
     def get_object(self):
         return self.request.user.employee_profile
+    
 
-
+# AvatarProfileView
 @extend_schema(tags=["Employee - Profile"])
 class AvatarProfileView(viewsets.ModelViewSet):
     serializer_class = AvatarProfileSerializer
@@ -1652,7 +1653,7 @@ class AvatarProfileView(viewsets.ModelViewSet):
         return AvatarProfile.objects.filter(employee__user=self.request.user)
 
 
-# updated mood tracking view with mood summary action
+#mood tracking view 
 @extend_schema(tags=['Employee - Mood Tracking'])
 class MoodTrackingView(viewsets.ModelViewSet):
     serializer_class = MoodTrackingSerializer
@@ -1668,9 +1669,8 @@ class MoodTrackingView(viewsets.ModelViewSet):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
         serializer.save(user=self.request.user, employee=employee)
 
-    # ============================
+   
     # EMPLOYEE: Weekly Mood Summary
-    # ============================
     @action(detail=False, methods=['get'], url_path='mood-summary')
     def mood_summary(self, request):
         employee = get_object_or_404(EmployeeProfile, user=request.user)
