@@ -82,8 +82,6 @@ router.register(r'employee/crisis', CrisisTriggerView, basename='crisis-trigger'
 router.register(r'employee/notifications', NotificationView, basename='notifications')
 router.register(r'employee/engagement', EngagementTrackerView, basename='engagement-tracker')
 router.register(r'employee/feedback', FeedbackView, basename='feedback')
-router.register(r'sana/sessions', ChatSessionView, basename='chat-sessions')
-router.register(r'sana/messages', ChatMessageView, basename='chat-messages')
 router.register(r'employee/recommendations', RecommendationLogView, basename='recommendation-log')
 
 router.register(r'dashboard/organization-overview', OrganizationOverviewView, basename='organization-overview')
@@ -235,8 +233,6 @@ urlpatterns = [
     path('employee/notifications/', NotificationView.as_view({'get': 'list', 'post': 'create'}), name='notifications'),
     path('employee/engagement/', EngagementTrackerView.as_view({'get': 'list', 'post': 'create'}), name='engagement-tracker'),
     path('employee/feedback/', FeedbackView.as_view({'get': 'list', 'post': 'create'}), name='feedback'),
-    path('sana/sessions/', ChatSessionView.as_view({'get': 'list', 'post': 'create'}), name='chat-sessions'),
-    path('sana/sessions/<int:session_id>/messages/', ChatMessageView.as_view({'get': 'list', 'post': 'create'}), name='chat-messages'),
     path('employee/recommendations/', RecommendationLogView.as_view({'get': 'list', 'post': 'create'}), name='recommendation-log'),
 
 
@@ -259,7 +255,4 @@ urlpatterns = [
         name="schema-swagger-ui",
     ),
     path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
-
-    # Sana_ai.
-    path("api/", include("sana_ai.urls")),
 ]
