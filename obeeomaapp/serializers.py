@@ -130,8 +130,6 @@ User = get_user_model()
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
-    # display_name = serializers.CharField(max_length=100, required=True, help_text="Display name for your profile (for privacy)")
-
     class Meta:
         model = User
         fields = ('email', 'password', 'confirm_password')
@@ -140,7 +138,6 @@ class SignupSerializer(serializers.ModelSerializer):
         email = attrs.get('email')
         password = attrs.get('password')
         confirm_password = attrs.get('confirm_password')
-        # display_name = attrs.get('display_name')
 
         if password != confirm_password:
             raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
@@ -165,6 +162,12 @@ class SignupSerializer(serializers.ModelSerializer):
         user.is_first_time = True  # This allows automatic login for first time only
         user.role = "employee"  
         user.save()
+          # Automatically create employee profile
+        EmployeeProfile.objects.create(
+            user=user,
+            organization="",
+            role="Employee"
+        )
 
         return user
     
@@ -751,17 +754,27 @@ class FeatureUsageSerializer(serializers.ModelSerializer):
 
 
 
-# --- Employee Profile 
+# Employee Profile 
 class EmployeeProfileSerializer(serializers.ModelSerializer):
+    """
+    Used during onboarding and profile editing.
+    """
+
+    public_name = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = EmployeeProfile
-        exclude = ['user', 'joined_on']  # Exclude these from input
+        exclude = ['user', 'joined_on']
 
-    def update(self, instance, validated_data):
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
+    def get_public_name(self, obj):
+        return obj.get_public_name()
+
+    def validate_display_name(self, value):
+        if value and len(value.strip()) < 2:
+            raise serializers.ValidationError(
+                "Display name must be at least 2 characters."
+            )
+        return value
    
 
 

@@ -61,8 +61,6 @@ class User(AbstractUser):
     )
     username = None
     email = models.EmailField(unique=True)
-    # display_name = models.CharField(max_length=100, blank=True, null=True, help_text="Public display name for privacy")
-
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
      # Added this logic to get the number of employees under a particular organisation
     organization = models.ForeignKey(
@@ -529,22 +527,71 @@ class RecentActivity(models.Model):
         verbose_name_plural = "Recent Activities"
 
 
-# --- Employee Wellbeing ---
-
+# EmployeeProfile
 class EmployeeProfile(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    """
+    Public-facing employee profile.
+    This is what the frontend should use.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='employee_profile'
+    )
+
+    # Public display name (safe for UI)
+    display_name = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Public name shown in the app"
+    )
+
+    avatar = models.ImageField(
+        upload_to='avatars/',
+        blank=True,
+        null=True
+    )
+
     organization = models.CharField(max_length=100)
     role = models.CharField(max_length=50)
+
     joined_on = models.DateField(auto_now_add=True)
-    subscription_tier = models.CharField(max_length=20, choices=[('freemium', 'Freemium'), ('premium', 'Premium')])
+
+    subscription_tier = models.CharField(
+        max_length=20,
+        choices=[
+            ('freemium', 'Freemium'),
+            ('premium', 'Premium')
+        ],
+        default='freemium'
+    )
+
     is_premium_active = models.BooleanField(default=False)
+
+    # Privacy flag
     is_anonymous = models.BooleanField(default=False)
+
     receive_notifications = models.BooleanField(default=True)
-    current_wellness_status = models.CharField(max_length=50, blank=True)
+
+    current_wellness_status = models.CharField(
+        max_length=50,
+        blank=True
+    )
+
+    def get_public_name(self):
+        """
+        SINGLE source of truth for what name is shown publicly.
+        """
+        if self.is_anonymous:
+            return "Anonymous Employee"
+        return self.display_name or "Employee"
 
     def __str__(self):
-        return f"{self.user.username} - {self.organization}"
+        return f"{self.get_public_name()} - {self.organization}"
+
+    
 
 # Avatar Customization model.
 class AvatarProfile(models.Model):

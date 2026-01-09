@@ -1628,19 +1628,19 @@ class EmailConfigCheckView(APIView):
         return Response(config)
 
 
-# --- Employee App ---
 
 
+# EmployeeProfileView
 @extend_schema(tags=["Employee - Profile"])
 class EmployeeProfileView(viewsets.ModelViewSet):
+    """
+    Employee can view/update their own profile.
+    """
     serializer_class = EmployeeProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
-        return EmployeeProfile.objects.filter(user=self.request.user)
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+    def get_object(self):
+        return self.request.user.employee_profile
 
 
 @extend_schema(tags=["Employee - Profile"])
