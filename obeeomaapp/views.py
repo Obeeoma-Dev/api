@@ -2299,8 +2299,8 @@ class OrganizationOverviewView(viewsets.ViewSet):
             #     )
             #     .values("user")
             #     .distinct()
-                .count()
-            )
+            #     .count()
+            # )
         except:
             pass
 
