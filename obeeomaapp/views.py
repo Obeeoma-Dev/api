@@ -1186,6 +1186,9 @@ class AssessmentResponseViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+        # Track assessment feature usage
+        from .utils.feature import FeatureUsageCalculator
+        FeatureUsageCalculator.track_feature(self.request.user, 'assessment')
 
     @extend_schema(
         description="Get user's assessment history",
@@ -1885,6 +1888,10 @@ class ChatMessageView(viewsets.ModelViewSet):
 
         # Save the incoming user message
         user_message = serializer.save(session=session, sender="user")
+        
+        # Track sana_ai feature usage
+        from .utils.feature import FeatureUsageCalculator
+        FeatureUsageCalculator.track_feature(self.request.user, 'sana_ai')
 
         # Ensure a system prompt exists in the session (only once per session)
         if not session.messages.filter(sender="system").exists():
@@ -3868,6 +3875,13 @@ class EducationalResourceViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["name", "description"]
     ordering_fields = ["name", "created_at"]
+    
+    def retrieve(self, request, *args, **kwargs):
+        # Track education feature usage when user views a resource
+        if request.user.is_authenticated:
+            from .utils.feature import FeatureUsageCalculator
+            FeatureUsageCalculator.track_feature(request.user, 'education')
+        return super().retrieve(request, *args, **kwargs)
 
 
 class AdminOrReadOnly(BasePermission):
@@ -4532,6 +4546,9 @@ class JournalEntryViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+        # Track journaling feature usage
+        from .utils.feature import FeatureUsageCalculator
+        FeatureUsageCalculator.track_feature(self.request.user, 'journaling')
 
 
 from rest_framework import viewsets
