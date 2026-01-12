@@ -1786,7 +1786,7 @@ class MoodTrackingView(viewsets.ModelViewSet):
         detail=False,
         methods=['get'],
         url_path='employer-summary',
-        permission_classes=[permissions.IsAuthenticated]
+        permission_classes=[IsAuthenticated]
     )
     def employer_mood_summary(self, request):
         today = now().date()

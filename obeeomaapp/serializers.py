@@ -140,6 +140,15 @@ class SignupSerializer(serializers.ModelSerializer):
         email = attrs.get('email')
         password = attrs.get('password')
         confirm_password = attrs.get('confirm_password')
+        display_name = attrs.get('display_name')
+
+        # Validate display_name is provided
+        if not display_name or display_name.strip() == '':
+            raise serializers.ValidationError({"display_name": "This field is required."})
+        
+        # Validate display_name length
+        if len(display_name.strip()) < 2:
+            raise serializers.ValidationError({"display_name": "Display name must be at least 2 characters."})
 
         if password != confirm_password:
             raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
