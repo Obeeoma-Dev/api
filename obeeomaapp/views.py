@@ -1726,7 +1726,7 @@ class EmployeeProfileView(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
-        return self.request.user.employee_profile
+        return self.request.user.employee_public_profile
     
 
 # AvatarProfileView
@@ -2095,7 +2095,7 @@ class EmployerViewSet(viewsets.ModelViewSet):
         """
         employer = serializer.save()
         # Create an employee profile linking the user to this organization
-        if not hasattr(self.request.user, "employee_profile"):
+        if not hasattr(self.request.user, "employee_record"):
             Employee.objects.create(
                 employer=employer,
                 user=self.request.user,
