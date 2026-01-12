@@ -32,7 +32,7 @@ from obeeomaapp.views import (
     home, OrganizationSignupView,
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet,
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, MediaViewSet,
-     CompleteOnboardingView,
+     CompleteOnboardingView, MarkOnboardingCompleteView,
     DynamicQuestionViewSet, UserAchievementViewSet,
     AssessmentQuestionViewSet, AssessmentResponseViewSet, ActiveHotlineView,ResetPasswordCompleteView,OrganizationDetailView, CBTExerciseViewSet, SettingsViewSet,
     JournalEntryViewSet, UpdatePaymentMethodViewSet,  PSS10AssessmentViewSet,
@@ -169,6 +169,7 @@ urlpatterns = [
     
     # Onboarding
     path("auth/complete-onboarding/", CompleteOnboardingView.as_view(), name='complete-onboarding'),
+    path("auth/mark-onboarding-complete/", MarkOnboardingCompleteView.as_view(), name='mark-onboarding-complete'),
     
     # Multi-Factor Authentication (MFA)
     path('auth/mfa/setup/', views.mfa_setup, name='mfa-setup'),

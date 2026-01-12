@@ -414,10 +414,7 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
     )
 
     # Field-level validation 
-    def validate_username(self, value):
-        if User.objects.filter(username=value).exists():
-            raise serializers.ValidationError("Username already taken.")
-        return value
+    # Removed validate_username since we use email as USERNAME_FIELD
 
     def validate(self, attrs):
         if attrs["password"] != attrs["confirm_password"]:
@@ -435,7 +432,8 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
         """
 
         # Update user profile
-        user.username = validated_data["username"]
+        # Note: We don't update email/username since user is already authenticated
+        # Only update password and avatar for onboarding completion
         user.set_password(validated_data["password"])
         user.avatar = validated_data["avatar"]
 
@@ -444,7 +442,6 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
         user.is_first_time = False
 
         user.save(update_fields=[
-            "username",
             "password",
             "avatar",
             "onboarding_completed",

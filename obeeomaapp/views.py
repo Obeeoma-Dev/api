@@ -456,6 +456,89 @@ class CompleteOnboardingView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+#  MarkOnboardingCompleteView
+class MarkOnboardingCompleteView(APIView):
+    """
+    Marks user onboarding as completed without requiring additional data.
+    
+    PURPOSE:
+    - Frontend saves data incrementally (avatar, assessments separately)
+    - Original complete-onboarding endpoint requires password + all data at once
+    - This endpoint only sets the onboarding_completed flag to True
+    
+    USE CASE:
+    - Called after frontend has already saved all onboarding data separately
+    - User is already authenticated (no password needed)
+    - Prevents duplicate assessment creation
+    - Solves the issue where onboarding_completed never gets set to True
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        tags=["Onboarding"],
+        description="Mark onboarding as complete after incremental saves.",
+    )
+    @transaction.atomic
+    def post(self, request):
+        """
+        Sets onboarding_completed = True for authenticated user.
+        
+        This endpoint is designed to be called AFTER the frontend has:
+        1. Already saved the user's avatar through separate endpoint
+        2. Already saved all assessments through separate endpoints
+        3. User is already authenticated (no password required)
+        
+        The original complete-onboarding endpoint cannot be used because:
+        - It requires password (user already logged in)
+        - It would create duplicate assessments
+        - It requires all data at once (frontend saves incrementally)
+        """
+        user = request.user
+
+        # Check if onboarding is already completed
+        if user.onboarding_completed:
+            return Response(
+                {
+                    "message": "Onboarding already completed.",
+                    "onboarding_completed": True,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        # Mark onboarding as completed
+        user.onboarding_completed = True
+        user.is_first_time = False
+        
+        # Save only the onboarding-related fields
+        user.save(update_fields=[
+            "onboarding_completed",
+            "is_first_time"
+        ])
+
+        # Update onboarding state tracking (for UX analytics)
+        OnboardingState.objects.update_or_create(
+            user=user, 
+            defaults={
+                "completed": True, 
+                "first_action_done": True
+            }
+        )
+
+        # Ensure database is up-to-date
+        user.refresh_from_db()
+
+        return Response(
+            {
+                "message": "Onboarding marked as completed successfully.",
+                "onboarding_completed": user.onboarding_completed,
+                "is_first_time": user.is_first_time,
+            },
+            status=status.HTTP_200_OK,
+        )
 # Feature Usage ViewSet
 class FeatureUsageViewSet(viewsets.ModelViewSet):
     """
