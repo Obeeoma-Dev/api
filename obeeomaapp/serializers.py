@@ -130,9 +130,11 @@ User = get_user_model()
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
+    display_name = serializers.CharField(max_length=100, required=True)
+    
     class Meta:
         model = User
-        fields = ('email', 'password', 'confirm_password')
+        fields = ('email', 'display_name', 'password', 'confirm_password')
 
     def validate(self, attrs):
         email = attrs.get('email')
@@ -149,6 +151,7 @@ class SignupSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('confirm_password')
+        display_name = validated_data.pop('display_name', '')
 
         user = User(
             email=validated_data['email']
@@ -162,7 +165,8 @@ class SignupSerializer(serializers.ModelSerializer):
         EmployeeProfile.objects.create(
             user=user,
             organization="",
-            role="Employee"
+            role="Employee",
+            display_name=display_name
         )
 
         return user
@@ -423,7 +427,7 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
             )
         return attrs
 
-    # ---- Onboarding execution ----
+    # Onboarding execution
     def update(self, user, validated_data):
         """
         This method FINALIZES onboarding.
