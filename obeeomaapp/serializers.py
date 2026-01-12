@@ -170,13 +170,31 @@ class SignupSerializer(serializers.ModelSerializer):
         user.is_first_time = True  # This allows automatic login for first time only
         user.role = "employee"  
         user.save()
-          # Automatically create employee profile
+        
+        # Automatically create employee profile
         EmployeeProfile.objects.create(
             user=user,
             organization="",
             role="Employee",
             display_name=display_name
         )
+        
+        # Also create Employee record if we can determine the employer
+        # For employees signing up directly, we'll need to associate them with an employer
+        # This might need to be based on invitation code or domain matching
+        # For now, let's create a placeholder or find the first employer
+        from .models import Employer
+        employer = Employer.objects.first()  # This should be improved based on business logic
+        
+        if employer:
+            Employee.objects.create(
+                user=user,
+                employer=employer,
+                email=user.email,
+                first_name=user.first_name or '',
+                last_name=user.last_name or '',
+                status='active'
+            )
 
         return user
     
