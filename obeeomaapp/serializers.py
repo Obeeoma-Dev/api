@@ -1396,7 +1396,7 @@ class AudioSerializer(serializers.ModelSerializer):
 # Article Serializer
 class ArticleSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
-    author_name = serializers.CharField(source='Title.username', read_only=True, allow_null=True)
+    author_name = serializers.CharField(source='author', read_only=True, allow_null=True)
     is_saved = serializers.SerializerMethodField()
 
     class Meta:

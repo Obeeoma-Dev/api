@@ -1397,7 +1397,9 @@ class Audio(models.Model):
 #-- Article Model. --
 class Article(models.Model):
     title = models.CharField(max_length=200)    
-    content = models.TextField()     
+    content = models.TextField()
+    # Store author as free-text instead of linking to User
+    author = models.CharField(max_length=255, blank=True, null=True)
     category = models.ForeignKey(
         "EducationalResource",
         on_delete=models.CASCADE,

@@ -11,6 +11,12 @@ db.sqlite3
 .env.prod
 .env.dev
 .env.example
+.env.test
+.env.development
+.env.production
+
+# Settings split (not used - use single api.settings instead)
+api/settings_split/
 
 # Virtual environment
 venv/
@@ -63,6 +69,7 @@ htmlcov/
 test_*.py
 *test*.py
 fix_*.py
+check_env.py
 
 # Temporary documentation
 INVITATION_FLOW*.md

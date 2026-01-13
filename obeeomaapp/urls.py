@@ -84,6 +84,9 @@ router.register(r'employee/engagement', EngagementTrackerView, basename='engagem
 router.register(r'employee/feedback', FeedbackView, basename='feedback')
 router.register(r'employee/recommendations', RecommendationLogView, basename='recommendation-log')
 
+# AI Chat endpoints (Groq-powered)
+router.register(r'sana/sessions', ChatSessionView, basename='chat-session')
+
 router.register(r'dashboard/organization-overview', OrganizationOverviewView, basename='organization-overview')
 router.register(r'dashboard/employees', EmployeeManagementView, basename='employee-management')
 router.register(r'dashboard/departments', DepartmentManagementView, basename='department-management')
@@ -235,9 +238,17 @@ urlpatterns = [
     path('employee/feedback/', FeedbackView.as_view({'get': 'list', 'post': 'create'}), name='feedback'),
     path('employee/recommendations/', RecommendationLogView.as_view({'get': 'list', 'post': 'create'}), name='recommendation-log'),
 
-
-
-
+    # AI Chat endpoints (Groq-powered) - Nested routing for messages
+    path('sana/sessions/<int:session_id>/messages/', ChatMessageView.as_view({
+        'get': 'list',
+        'post': 'create'
+    }), name='chat-message-list'),
+    path('sana/sessions/<int:session_id>/messages/<int:pk>/', ChatMessageView.as_view({
+        'get': 'retrieve',
+        'put': 'update',
+        'patch': 'partial_update',
+        'delete': 'destroy'
+    }), name='chat-message-detail'),
 
     # Include router URLs
     path("", include(router.urls)),
