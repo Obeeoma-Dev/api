@@ -456,6 +456,89 @@ class CompleteOnboardingView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+#  MarkOnboardingCompleteView
+class MarkOnboardingCompleteView(APIView):
+    """
+    Marks user onboarding as completed without requiring additional data.
+    
+    PURPOSE:
+    - Frontend saves data incrementally (avatar, assessments separately)
+    - Original complete-onboarding endpoint requires password + all data at once
+    - This endpoint only sets the onboarding_completed flag to True
+    
+    USE CASE:
+    - Called after frontend has already saved all onboarding data separately
+    - User is already authenticated (no password needed)
+    - Prevents duplicate assessment creation
+    - Solves the issue where onboarding_completed never gets set to True
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        tags=["Onboarding"],
+        description="Mark onboarding as complete after incremental saves.",
+    )
+    @transaction.atomic
+    def post(self, request):
+        """
+        Sets onboarding_completed = True for authenticated user.
+        
+        This endpoint is designed to be called AFTER the frontend has:
+        1. Already saved the user's avatar through separate endpoint
+        2. Already saved all assessments through separate endpoints
+        3. User is already authenticated (no password required)
+        
+        The original complete-onboarding endpoint cannot be used because:
+        - It requires password (user already logged in)
+        - It would create duplicate assessments
+        - It requires all data at once (frontend saves incrementally)
+        """
+        user = request.user
+
+        # Check if onboarding is already completed
+        if user.onboarding_completed:
+            return Response(
+                {
+                    "message": "Onboarding already completed.",
+                    "onboarding_completed": True,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        # Mark onboarding as completed
+        user.onboarding_completed = True
+        user.is_first_time = False
+        
+        # Save only the onboarding-related fields
+        user.save(update_fields=[
+            "onboarding_completed",
+            "is_first_time"
+        ])
+
+        # Update onboarding state tracking (for UX analytics)
+        OnboardingState.objects.update_or_create(
+            user=user, 
+            defaults={
+                "completed": True, 
+                "first_action_done": True
+            }
+        )
+
+        # Ensure database is up-to-date
+        user.refresh_from_db()
+
+        return Response(
+            {
+                "message": "Onboarding marked as completed successfully.",
+                "onboarding_completed": user.onboarding_completed,
+                "is_first_time": user.is_first_time,
+            },
+            status=status.HTTP_200_OK,
+        )
 # Feature Usage ViewSet
 class FeatureUsageViewSet(viewsets.ModelViewSet):
     """
@@ -1186,6 +1269,9 @@ class AssessmentResponseViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+        # Track assessment feature usage
+        from .utils.feature import FeatureUsageCalculator
+        FeatureUsageCalculator.track_feature(self.request.user, 'assessment')
 
     @extend_schema(
         description="Get user's assessment history",
@@ -1640,7 +1726,7 @@ class EmployeeProfileView(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
-        return self.request.user.employee_profile
+        return self.request.user.employee_public_profile
     
 
 # AvatarProfileView
@@ -1700,7 +1786,7 @@ class MoodTrackingView(viewsets.ModelViewSet):
         detail=False,
         methods=['get'],
         url_path='employer-summary',
-        permission_classes=[IsAdminUser]
+        permission_classes=[IsAuthenticated]
     )
     def employer_mood_summary(self, request):
         today = now().date()
@@ -1885,6 +1971,10 @@ class ChatMessageView(viewsets.ModelViewSet):
 
         # Save the incoming user message
         user_message = serializer.save(session=session, sender="user")
+        
+        # Track sana_ai feature usage
+        from .utils.feature import FeatureUsageCalculator
+        FeatureUsageCalculator.track_feature(self.request.user, 'sana_ai')
 
         # Ensure a system prompt exists in the session (only once per session)
         if not session.messages.filter(sender="system").exists():
@@ -2005,7 +2095,7 @@ class EmployerViewSet(viewsets.ModelViewSet):
         """
         employer = serializer.save()
         # Create an employee profile linking the user to this organization
-        if not hasattr(self.request.user, "employee_profile"):
+        if not hasattr(self.request.user, "employee_record"):
             Employee.objects.create(
                 employer=employer,
                 user=self.request.user,
@@ -3868,6 +3958,13 @@ class EducationalResourceViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["name", "description"]
     ordering_fields = ["name", "created_at"]
+    
+    def retrieve(self, request, *args, **kwargs):
+        # Track education feature usage when user views a resource
+        if request.user.is_authenticated:
+            from .utils.feature import FeatureUsageCalculator
+            FeatureUsageCalculator.track_feature(request.user, 'education')
+        return super().retrieve(request, *args, **kwargs)
 
 
 class AdminOrReadOnly(BasePermission):
@@ -4532,6 +4629,9 @@ class JournalEntryViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+        # Track journaling feature usage
+        from .utils.feature import FeatureUsageCalculator
+        FeatureUsageCalculator.track_feature(self.request.user, 'journaling')
 
 
 from rest_framework import viewsets

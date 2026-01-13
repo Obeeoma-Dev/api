@@ -130,14 +130,25 @@ User = get_user_model()
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
+    display_name = serializers.CharField(max_length=100, required=True)
+    
     class Meta:
         model = User
-        fields = ('email', 'password', 'confirm_password')
+        fields = ('email', 'display_name', 'password', 'confirm_password')
 
     def validate(self, attrs):
         email = attrs.get('email')
         password = attrs.get('password')
         confirm_password = attrs.get('confirm_password')
+        display_name = attrs.get('display_name')
+
+        # Validate display_name is provided
+        if not display_name or display_name.strip() == '':
+            raise serializers.ValidationError({"display_name": "This field is required."})
+        
+        # Validate display_name length
+        if len(display_name.strip()) < 2:
+            raise serializers.ValidationError({"display_name": "Display name must be at least 2 characters."})
 
         if password != confirm_password:
             raise serializers.ValidationError({"confirm_password": "Passwords don't match."})
@@ -149,6 +160,7 @@ class SignupSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('confirm_password')
+        display_name = validated_data.pop('display_name', '')
 
         user = User(
             email=validated_data['email']
@@ -158,12 +170,31 @@ class SignupSerializer(serializers.ModelSerializer):
         user.is_first_time = True  # This allows automatic login for first time only
         user.role = "employee"  
         user.save()
-          # Automatically create employee profile
+        
+        # Automatically create employee profile
         EmployeeProfile.objects.create(
             user=user,
             organization="",
-            role="Employee"
+            role="Employee",
+            display_name=display_name
         )
+        
+        # Also create Employee record if we can determine the employer
+        # For employees signing up directly, we'll need to associate them with an employer
+        # This might need to be based on invitation code or domain matching
+        # For now, let's create a placeholder or find the first employer
+        from .models import Employer
+        employer = Employer.objects.first()  # This should be improved based on business logic
+        
+        if employer:
+            Employee.objects.create(
+                user=user,
+                employer=employer,
+                email=user.email,
+                first_name=user.first_name or '',
+                last_name=user.last_name or '',
+                status='active'
+            )
 
         return user
     
@@ -414,10 +445,7 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
     )
 
     # Field-level validation 
-    def validate_username(self, value):
-        if User.objects.filter(username=value).exists():
-            raise serializers.ValidationError("Username already taken.")
-        return value
+    # Removed validate_username since we use email as USERNAME_FIELD
 
     def validate(self, attrs):
         if attrs["password"] != attrs["confirm_password"]:
@@ -426,7 +454,7 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
             )
         return attrs
 
-    # ---- Onboarding execution ----
+    # Onboarding execution
     def update(self, user, validated_data):
         """
         This method FINALIZES onboarding.
@@ -435,7 +463,8 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
         """
 
         # Update user profile
-        user.username = validated_data["username"]
+        # Note: We don't update email/username since user is already authenticated
+        # Only update password and avatar for onboarding completion
         user.set_password(validated_data["password"])
         user.avatar = validated_data["avatar"]
 
@@ -444,7 +473,6 @@ class EmployeeOnboardingSerializer(serializers.Serializer):
         user.is_first_time = False
 
         user.save(update_fields=[
-            "username",
             "password",
             "avatar",
             "onboarding_completed",
