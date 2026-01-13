@@ -1396,29 +1396,31 @@ class Audio(models.Model):
 
 #-- Article Model. --
 class Article(models.Model):
-    title = models.CharField(max_length=200)    
+    title = models.CharField(max_length=200)
     content = models.TextField()
-    # Store author as free-text instead of linking to User
-    author = models.CharField(max_length=255, blank=True, null=True)
-    category = models.ForeignKey(
-        "EducationalResource",
-        on_delete=models.CASCADE,
-        related_name="articles"
-    )
-    featured_image = models.ImageField(upload_to="articles/", blank=True, null=True)
+    excerpt = models.TextField(blank=True, null=True)
+    category = models.CharField(max_length=100, null=True)
+    
+    featured_image = models.ImageField(blank=True, null=True)
     reading_time = models.IntegerField(default=5, help_text="Minutes to read")
     views = models.IntegerField(default=0)
+    status = models.CharField(
+        max_length=10,
+        choices=[("draft", "Draft"), ("published", "Published")],
+        default="draft",
+    )
+    featured = models.BooleanField(default=False)
+    author = models.CharField(max_length=100, null=True)
+    
     is_public = models.BooleanField(default=True)
     published_date = models.DateTimeField(auto_now_add=True)
     created_at = models.DateTimeField(default=timezone.now)
-    updated_at = models.DateTimeField(auto_now=True)  
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "Article"
-        verbose_name_plural = "Articles"
         ordering = ["-published_date"]
 
-    def _str_(self):
+    def __str__(self):
         return self.title
 
 
