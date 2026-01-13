@@ -225,7 +225,7 @@ urlpatterns = [
     path("admin/feature-flags/by-category/", FeaturesUsageView.as_view({'get': 'by_category'}), name="feature-flags-by-category"),
 
     # Employee endpoints
-    path('employee/profile/', EmployeeProfileView.as_view({'get': 'list', 'post': 'create'}), name='employee-profile'),
+    path('employee/profile/', EmployeeProfileView.as_view({'get': 'list', 'post': 'create', 'put': 'update', 'patch': 'partial_update'}), name='employee-profile'),
     path('employee/avatar/', AvatarProfileView.as_view({'get': 'list', 'post': 'create'}), name='avatar-profile'),
     path('resources/self-help/', SelfHelpResourceView.as_view({'get': 'list', 'post': 'create'}), name='self-help-resources'),
 

@@ -1727,7 +1727,29 @@ class EmployeeProfileView(viewsets.ModelViewSet):
 
     def get_object(self):
         return self.request.user.employee_public_profile
-    
+
+    def get_queryset(self):
+        # Only return current user's profile
+        return EmployeeProfile.objects.filter(user=self.request.user)
+
+    def update(self, request, *args, **kwargs):
+        """Handle PUT requests to update profile"""
+        partial = False
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def partial_update(self, request, *args, **kwargs):
+        """Handle PATCH requests to update profile"""
+        partial = True
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
 
 # AvatarProfileView
 @extend_schema(tags=["Employee - Profile"])
