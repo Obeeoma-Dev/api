@@ -1423,21 +1423,25 @@ class AudioSerializer(serializers.ModelSerializer):
 
 # Article Serializer
 class ArticleSerializer(serializers.ModelSerializer):
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    author_name = serializers.CharField(source='Title.username', read_only=True, allow_null=True)
-    is_saved = serializers.SerializerMethodField()
+    category = serializers.CharField()
+    author = serializers.CharField()
+    published_date = serializers.DateTimeField(required=False)
+    featured_image = serializers.ImageField(required=False, allow_null=True)
 
     class Meta:
         model = Article
-        fields = '__all__'
-        read_only_fields = ['views']
-
-    @extend_schema_field(serializers.BooleanField())
-    def get_is_saved(self, obj) -> bool:
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return SavedResource.objects.filter(user=request.user, article=obj).exists()
-        return False
+        fields = [
+            "id",
+            "title",
+            "category",
+            "published_date",
+            "status",
+            "excerpt",
+            "featured_image",
+            "author",
+            "content",
+            "featured",
+        ]
 # Meditation Technique Serializer
 
 class MeditationTechniqueSerializer(serializers.ModelSerializer):

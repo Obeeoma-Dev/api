@@ -2,6 +2,7 @@
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
 from .models import Media
 from .serializers import MediaSerializer
 from .permissions import IsSystemAdminOrReadOnly
@@ -4146,9 +4147,14 @@ class AdminOrReadOnly(BasePermission):
 
 
 class ArticleViewSet(viewsets.ModelViewSet):  # Full CRUD support
-    queryset = Article.objects.filter(is_public=True)
+    queryset = Article.objects.all()
     serializer_class = ArticleSerializer
-    permission_classes = [AdminOrReadOnly]  #  Restrict edits/deletes to admins
+    permission_classes = [AllowAny]
+
+    # Disabling JWT requirements here.
+    authentication_classes = []
+    parser_classes = [MultiPartParser, FormParser]
+
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,

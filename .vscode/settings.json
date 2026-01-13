@@ -1,3 +1,25 @@
 {
-    "kiroAgent.configureMCP": "Disabled"
+    "kiroAgent.configureMCP": "Disabled",
+    // Python interpreter - use the virtual environment
+    "python.defaultInterpreterPath": "${workspaceFolder}/venv/Scripts/python.exe",
+    "python.terminal.activateEnvironment": true,
+    
+    // Environment variables - load from .env file
+    "python.envFile": "${workspaceFolder}/.env",
+    
+    // Terminal environment variables - FORCE override any system/user env vars
+    "terminal.integrated.env.windows": {
+        "DJANGO_SETTINGS_MODULE": "api.settings"
+    },
+    
+    // Ensure .env file is loaded in terminal
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    
+    // For Git Bash terminal specifically
+    "terminal.integrated.env.linux": {
+        "DJANGO_SETTINGS_MODULE": "api.settings"
+    },
+    
+    // For all terminals - ensure we override
+    "terminal.integrated.inheritEnv": false
 }
