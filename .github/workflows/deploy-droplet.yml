@@ -17,7 +17,7 @@ jobs:
           command_timeout: 30m
           script: |
             # Pull latest code
-            cd ~/obeeoma_project/api
+            cd /home/obeeoma/obeeoma_project/api
             git pull origin main
             
             # Rebuild and restart Docker containers
