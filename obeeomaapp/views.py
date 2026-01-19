@@ -540,6 +540,7 @@ class MarkOnboardingCompleteView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+    
 # Feature Usage ViewSet
 class FeatureUsageViewSet(viewsets.ModelViewSet):
     """
