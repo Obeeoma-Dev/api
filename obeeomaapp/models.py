@@ -1771,7 +1771,7 @@ class UserAchievement(models.Model):
             self.achieved = True
             self.achieved_date = timezone.now().date()
 
-            # Send notification
+        # Send notification
             if hasattr(self.user, 'employee'):
                 Notification.objects.create(
                     employee=self.user.employee,
