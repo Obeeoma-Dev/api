@@ -19,8 +19,10 @@ class GroqService:
         for msg in conversation_history:
             messages.append({"role": msg["role"], "content": msg["content"]})
 
-        # Add the latest user message
-        messages.append({"role": "user", "content": user_message})
+        # The user message is already in conversation_history, so don't add it again
+        # Add the latest user message (only if not already in history)
+        if not conversation_history or conversation_history[-1]["content"] != user_message:
+            messages.append({"role": "user", "content": user_message})
 
         # Call Groq
         chat_completion = self.client.chat.completions.create(
