@@ -5,7 +5,10 @@ from groq import Groq
 # Groq ai logic.
 class GroqService:
     def __init__(self):
-        self.client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+        api_key = os.environ.get("GROQ_API_KEY")
+        if not api_key:
+            raise ValueError("GROQ_API_KEY environment variable is not set")
+        self.client = Groq(api_key=api_key)
 
     def get_response(self, user_message, conversation_history):
         """

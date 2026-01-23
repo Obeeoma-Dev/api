@@ -2041,6 +2041,13 @@ class ChatMessageView(viewsets.ModelViewSet):
             # Save AI response back into the database
             ChatMessage.objects.create(session=session, sender="ai", message=ai_reply)
 
+        except ValueError as e:
+            # Handle missing API key
+            logger.error(f"Groq API configuration error: {str(e)}")
+            raise Response(
+                {"error": "AI service not configured. Please contact support."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         except Exception as e:
             # Log error for debugging
             logger.error(f"Groq chat error: {str(e)}")
