@@ -2039,7 +2039,15 @@ class ChatMessageView(viewsets.ModelViewSet):
             )
 
             # Save AI response back into the database
-            ChatMessage.objects.create(session=session, sender="ai", message=ai_reply)
+            ai_message = ChatMessage.objects.create(session=session, sender="ai", message=ai_reply)
+            
+            # Return the AI response to the client
+            return Response({
+                "id": ai_message.id,
+                "sender": ai_message.sender,
+                "message": ai_message.message,
+                "timestamp": ai_message.timestamp
+            })
 
         except ValueError as e:
             # Handle missing API key
