@@ -97,10 +97,11 @@ import string
 import pyotp, qrcode, io, base64
 from django.utils.crypto import get_random_string
 from django.core.cache import cache
-from .models import Organization
+from .models import Organization, ChatSession, EmployeeProfile
 from .serializers import (
     PasswordResetOTPVerificationSerializer,
     InvitationOTPVerificationSerializer,
+    ChatSessionSerializer,
 )
 from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string
@@ -1940,11 +1941,25 @@ class ChatSessionView(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ["is_active"]
-    ordering_fields = ["created_at", "last_message_at"]
-    ordering = ["-last_message_at"]
+    ordering_fields = ["started_at", "last_message_at"]
+    ordering = ["-started_at"]
 
     def get_queryset(self):
         return ChatSession.objects.filter(employee__user=self.request.user)
+
+    def perform_create(self, serializer):
+        # Get or create EmployeeProfile for the user
+        employee, created = EmployeeProfile.objects.get_or_create(
+            user=self.request.user,
+            defaults={
+                'display_name': self.request.user.username,
+                'public_name': self.request.user.username,
+            }
+        )
+        if created:
+            print(f"Created EmployeeProfile for user: {self.request.user.email}")
+        
+        serializer.save(employee=employee)
 
     @action(detail=False, methods=["get"])
     def active(self, request):

@@ -26,3 +26,19 @@ class GroqService:
         )
 
         return chat_completion.choices[0].message.content
+
+    def get_ai_response(self, user_message):
+        """
+        Simple method for direct AI responses without conversation history.
+        """
+        messages = [
+            {"role": "system", "content": "You are Sana, a helpful and professional AI assistant."},
+            {"role": "user", "content": user_message}
+        ]
+        
+        chat_completion = self.client.chat.completions.create(
+            messages=messages,
+            model="llama-3.3-70b-versatile",
+        )
+        
+        return chat_completion.choices[0].message.content

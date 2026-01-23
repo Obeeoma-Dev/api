@@ -1,0 +1,40 @@
+#!/bin/bash
+# Deployment script to fix EmployeeProfile issue on Digital Ocean
+
+echo "Deploying EmployeeProfile fix to Digital Ocean..."
+
+# SSH into your Digital Ocean server and apply the fix
+# You'll need to run these commands on your server:
+
+echo "Commands to run on Digital Ocean server:"
+echo "1. SSH into your server:"
+echo "   ssh root@64.225.122.101"
+echo ""
+echo "2. Navigate to your project directory:"
+echo "   cd /path/to/your/backend/api"
+echo ""
+echo "3. Create a backup of the current views.py:"
+echo "   cp obeeomaapp/views.py obeeomaapp/views.py.backup"
+echo ""
+echo "4. Apply the fix to ChatSessionView.perform_create method:"
+echo "   Find the perform_create method in ChatSessionView (around line 1950)"
+echo "   Replace this:"
+echo "       employee = get_object_or_404(EmployeeProfile, user=self.request.user)"
+echo "   With this:"
+echo "       # Get or create EmployeeProfile for the user"
+echo "       employee, created = EmployeeProfile.objects.get_or_create("
+echo "           user=self.request.user,"
+echo "           defaults={"
+echo "               'display_name': self.request.user.username,"
+echo "               'public_name': self.request.user.username,"
+echo "           }"
+echo "       )"
+echo "       if created:"
+echo "           print(f'Created EmployeeProfile for user: {self.request.user.email}')"
+echo ""
+echo "5. Restart the server:"
+echo "   sudo systemctl restart gunicorn  # or whatever service you use"
+echo "   sudo systemctl restart nginx"
+echo ""
+echo "6. Verify the fix:"
+echo "   curl -X GET 'http://64.225.122.101/api/v1/sana/sessions/' -H 'Authorization: Bearer YOUR_TOKEN'"
