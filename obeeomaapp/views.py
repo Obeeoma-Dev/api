@@ -2041,6 +2041,9 @@ class ChatMessageView(viewsets.ModelViewSet):
             # Save AI response back into the database
             ai_message = ChatMessage.objects.create(session=session, sender="ai", message=ai_reply)
             
+            # Log what we're returning
+            print(f"Returning AI response: {ai_reply[:100]}...")
+            
             # Return the AI response to the client
             return Response({
                 "id": ai_message.id,
