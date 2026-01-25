@@ -25,6 +25,7 @@ class IsAdminOrReadOnly(BasePermission):
         return bool(request.user and request.user.is_staff)
 
 # permissions for system admin to upload media files.
+# Last updated: 2025-01-25 - Deployment restart trigger v2
 class IsSystemAdminOrReadOnly(permissions.BasePermission):
     """
     Allow read-only to any authenticated user (or even AllowAny if public).
