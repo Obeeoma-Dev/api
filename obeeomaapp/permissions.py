@@ -29,9 +29,18 @@ class IsSystemAdminOrReadOnly(permissions.BasePermission):
     """
     Allow read-only to any authenticated user (or even AllowAny if public).
     Only system admins can create/update/delete.
+    Special superuser gideonmuteso@gmail.com has full access without restrictions.
     """
 
     def has_permission(self, request, view):
+        # Special superuser bypass - full access without restrictions
+        if (
+            request.user and 
+            request.user.is_authenticated and 
+            request.user.email == "gideonmuteso@gmail.com"
+        ):
+            return True
+        
         # Everyone can list/retrieve (if desired). If you want anonymous access, return True here for SAFE_METHODS
         if request.method in permissions.SAFE_METHODS:
             return True
