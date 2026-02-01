@@ -1,8 +1,9 @@
 # Keep only these imports (external modules)
 from rest_framework import viewsets, filters, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import IsAuthenticated
 from .models import Media
 from .serializers import MediaSerializer
 from .permissions import IsSystemAdminOrReadOnly
@@ -97,11 +98,12 @@ import string
 import pyotp, qrcode, io, base64
 from django.utils.crypto import get_random_string
 from django.core.cache import cache
-from .models import Organization, ChatSession, EmployeeProfile
+from .models import Organization, ChatSession, ChatMessage, EmployeeProfile
 from .serializers import (
     PasswordResetOTPVerificationSerializer,
     InvitationOTPVerificationSerializer,
     ChatSessionSerializer,
+    ChatMessageSerializer,
 )
 from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string
@@ -381,6 +383,28 @@ class LoginView(APIView):
         if user.mfa_enabled:
             temp_token = get_random_string(32)
             cache.set(temp_token, user.id, timeout=300)  # valid 5 minutes
+            
+            # Always return MFA setup data for first-time login
+            if user.mfa_secret:
+                totp = pyotp.TOTP(user.mfa_secret)
+                otpauth_uri = totp.provisioning_uri(name=user.email, issuer_name="Obeeoma System Admin")
+                
+                # Generate QR code
+                qr = qrcode.make(otpauth_uri)
+                buffer = io.BytesIO()
+                qr.save(buffer, format="PNG")
+                qr_b64 = base64.b64encode(buffer.getvalue()).decode()
+                
+                return Response({
+                    "mfa_required": True, 
+                    "temp_token": temp_token,
+                    "mfa_setup_data": {
+                        "qr_code_base64": qr_b64,
+                        "secret": user.mfa_secret,
+                        "otpauth_uri": otpauth_uri
+                    }
+                })
+            
             return Response({"mfa_required": True, "temp_token": temp_token})
 
         # Onboarding required ONLY for employees
@@ -1953,7 +1977,8 @@ class ChatSessionView(viewsets.ModelViewSet):
             user=self.request.user,
             defaults={
                 'display_name': self.request.user.username,
-                'public_name': self.request.user.username,
+                'organization': 'Default Organization',
+                'role': 'Employee',
             }
         )
         if created:
@@ -5131,4 +5156,20 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        return Response({"presigned_get_url": url})
+
+# Server-side authentication check endpoint
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def auth_check(request):
+    """
+    Check if user is authenticated on server side
+    This is used as a backup for client-side authentication
+    """
+    return Response({
+        'authenticated': True,
+        'user': {
+            'id': request.user.id,
+            'email': request.user.email,
+            'role': request.user.role
+        }
+    })

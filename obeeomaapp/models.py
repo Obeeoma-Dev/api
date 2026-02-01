@@ -121,8 +121,15 @@ class User(AbstractUser):
         """
         if not self.mfa_secret:
             return None
+        
         fernet = Fernet(settings.FERNET_KEY)
-        return fernet.decrypt(self.mfa_secret.encode()).decode()
+        
+        try:
+            # Try to decrypt (if it's encrypted)
+            return fernet.decrypt(self.mfa_secret.encode()).decode()
+        except Exception:
+            # If decryption fails, assume it's plain text
+            return self.mfa_secret
 
     def get_otpauth_url(self):
         """

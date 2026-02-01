@@ -39,40 +39,13 @@ CSRF_TRUSTED_ORIGINS = [
     "http://64.225.122.101:5173", 
 ]
 
-# Database configuration
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if DATABASE_URL and DATABASE_URL.startswith("sqlite"):
-    # Use SQLite for testing/CI
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
+# Database configuration - SQLite for local testing
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
-elif DATABASE_URL:
-    # Use PostgreSQL for production (Neon DB)
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.environ.get("PGDATABASE", "neondb"),  # <-- This reads from PGDATABASE
-            "USER": os.environ.get("PGUSER", "neondb_owner"),  # <-- This reads from PGUSER
-            "PASSWORD": os.environ.get("PGPASSWORD"),  # <-- This reads from PGPASSWORD
-            "HOST": os.environ.get("PGHOST"),  # <-- This reads from PGHOST
-            "PORT": os.environ.get("PGPORT", "5432"),
-            "OPTIONS": {
-                "sslmode": os.environ.get("PGSSLMODE", "require"),
-            },
-        }
-    }
-else:
-    # Fallback to SQLite if no DATABASE_URL
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
-    }
+}
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -99,6 +72,8 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     # custom middleware to prevent caching
     "obeeomaapp.Middleware.security_middleware.NoCacheMiddleware",
+    # frontend authentication middleware
+    "obeeomaapp.Middleware.frontend_auth_middleware.FrontendAuthMiddleware",
     
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
