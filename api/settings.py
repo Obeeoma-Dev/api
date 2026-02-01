@@ -39,13 +39,21 @@ CSRF_TRUSTED_ORIGINS = [
     "http://64.225.122.101:5173", 
 ]
 
-# Database configuration - SQLite for local testing
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+# Database configuration - PostgreSQL for production, SQLite for local
+if os.getenv('DATABASE_URL'):
+    # Production: Use PostgreSQL
+    import dj_database_url
+    DATABASES = {
+        'default': dj_database_url.parse(os.getenv('DATABASE_URL'))
     }
-}
+else:
+    # Local development: Use SQLite
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 INSTALLED_APPS = [
     "django.contrib.admin",
