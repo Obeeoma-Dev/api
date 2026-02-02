@@ -333,6 +333,7 @@ def _build_login_success_payload(user):
 
     user_data = {
         "id": user.id,
+        "username": user.email,  # Use email as username since USERNAME_FIELD = 'email'
         "email": user.email,
         "role": user.role,
         "date_joined": user.date_joined,
@@ -2021,10 +2022,9 @@ class ChatMessageView(viewsets.ModelViewSet):
             session__employee__user=self.request.user,
         )
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
         """
-        Handles saving a new user message, ensures system prompt exists,
-        builds conversation history, calls Groq AI, and saves the AI reply.
+        Override create to handle the AI chat flow and return AI response
         """
         # Get the chat session for the current user
         session = get_object_or_404(
@@ -2034,6 +2034,8 @@ class ChatMessageView(viewsets.ModelViewSet):
         )
 
         # Save the incoming user message
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         user_message = serializer.save(session=session, sender="user")
         
         # Track sana_ai feature usage
@@ -2080,7 +2082,7 @@ class ChatMessageView(viewsets.ModelViewSet):
         except ValueError as e:
             # Handle missing API key
             logger.error(f"Groq API configuration error: {str(e)}")
-            raise Response(
+            return Response(
                 {"error": "AI service not configured. Please contact support."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
@@ -2089,10 +2091,16 @@ class ChatMessageView(viewsets.ModelViewSet):
             logger.error(f"Groq chat error: {str(e)}")
 
             # Return error response to client instead of failing silently
-            raise Response(
+            return Response(
                 {"error": "AI service failed. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    def perform_create(self, serializer):
+        """
+        This method is no longer used since we override create() above
+        """
+        pass
 
 
 @extend_schema(tags=["Employee - Recommendations"])

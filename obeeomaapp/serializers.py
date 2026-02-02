@@ -854,7 +854,7 @@ class ChatMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatMessage
         fields = ["id", "sender", "message", "timestamp"]  
-        read_only_fields = ["id", "timestamp"]           
+        read_only_fields = ["id", "timestamp", "sender"]  # Sender is set automatically in view           
 
 
 

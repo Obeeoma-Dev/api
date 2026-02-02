@@ -34,11 +34,21 @@ def create_system_admin():
             user.role = 'system_admin'
             user.is_staff = True
             user.is_superuser = True
-            user.mfa_enabled = False  # Disable MFA for testing
+            user.onboarding_completed = True  # System admins bypass onboarding
+            user.is_first_time = False
+            user.mfa_enabled = False  # Disable MFA for mobile testing
             user.save()
-            print(f"🔄 Updated user role to system_admin and disabled MFA")
+            print(f"🔄 Updated user role to system_admin, bypassed onboarding, and disabled MFA")
         else:
-            print(f"ℹ️  User is already a system admin")
+            # Ensure existing system admin has correct mobile login settings
+            user.onboarding_completed = True
+            user.is_first_time = False
+            if user.mfa_enabled:
+                user.mfa_enabled = False  # Disable MFA for mobile testing
+                user.save()
+                print(f"ℹ️  User is already a system admin - disabled MFA for mobile testing")
+            else:
+                print(f"ℹ️  User is already a system admin with correct settings")
         
         return user
     
@@ -117,7 +127,9 @@ if __name__ == "__main__":
         print(f"\n✅ Success! You can now login with:")
         print(f"   Email: {admin_user.email}")
         print(f"   Password: NansubugaGideon")
-        print(f"   MFA: Enabled - Check your phone for codes")
+        print(f"   Role: System Admin")
+        print(f"   Mobile App: ✅ Ready (bypasses onboarding)")
+        print(f"   MFA: Disabled for mobile testing")
         
         # List all users
         list_all_users()
