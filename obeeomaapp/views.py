@@ -1200,6 +1200,66 @@ The Obeeoma Team
             status=status.HTTP_201_CREATED,
         )
 
+    # UPDATE INVITATION
+    @extend_schema(
+        request=EmployeeInvitationCreateSerializer,
+        responses={200: EmployeeInvitationResponseSerializer},
+        description="Update an existing invitation (message, phone, department)"
+    )
+    def update(self, request, *args, **kwargs):
+        """Update invitation details"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        
+        # Check if invitation is already accepted
+        if instance.accepted:
+            return Response(
+                {"error": "Cannot update an accepted invitation"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        
+        return Response(
+            EmployeeInvitationResponseSerializer(serializer.instance).data,
+            status=status.HTTP_200_OK
+        )
+
+    # PARTIAL UPDATE
+    @extend_schema(
+        request=EmployeeInvitationCreateSerializer,
+        responses={200: EmployeeInvitationResponseSerializer},
+        description="Partially update an invitation"
+    )
+    def partial_update(self, request, *args, **kwargs):
+        """Partially update invitation"""
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
+    # DELETE INVITATION
+    @extend_schema(
+        responses={204: None, 400: {"error": "string"}},
+        description="Delete/cancel an invitation"
+    )
+    def destroy(self, request, *args, **kwargs):
+        """Delete/cancel an invitation"""
+        instance = self.get_object()
+        
+        # Check if invitation is already accepted
+        if instance.accepted:
+            return Response(
+                {"error": "Cannot delete an accepted invitation"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        self.perform_destroy(instance)
+        return Response(
+            {"message": "Invitation deleted successfully"},
+            status=status.HTTP_200_OK
+        )
+
 
 # ===== ASSESSMENT QUESTIONNAIRE VIEWS =====
 

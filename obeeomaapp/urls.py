@@ -189,7 +189,13 @@ urlpatterns = [
 
     # Organization & Employee Management
     path('auth/organizations/<int:org_id>/details/', OrganizationDetailView.as_view(), name='organization-details'),
-    path('auth/invitations/', InviteView.as_view({'post': 'create', 'get': 'list'}), name='invitation'),
+    path('auth/invitations/', InviteView.as_view({'post': 'create', 'get': 'list'}), name='invitation-list'),
+    path('auth/invitations/<int:pk>/', InviteView.as_view({
+        'get': 'retrieve',
+        'put': 'update',
+        'patch': 'partial_update',
+        'delete': 'destroy'
+    }), name='invitation-detail'),
     path('auth/hotline/active/', ActiveHotlineView.as_view(), name="active-hotline"),
 
 
