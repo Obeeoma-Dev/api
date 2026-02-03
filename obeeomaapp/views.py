@@ -334,6 +334,7 @@ def _build_login_success_payload(user):
 
     user_data = {
         "id": user.id,
+        "username": user.email,  # Use email as username since USERNAME_FIELD = 'email'
         "email": user.email,
         "role": user.role,
         "date_joined": user.date_joined,
@@ -1198,6 +1199,66 @@ The Obeeoma Team
         return Response(
             EmployeeInvitationResponseSerializer(invitation).data,
             status=status.HTTP_201_CREATED,
+        )
+
+    # UPDATE INVITATION
+    @extend_schema(
+        request=EmployeeInvitationCreateSerializer,
+        responses={200: EmployeeInvitationResponseSerializer},
+        description="Update an existing invitation (message, phone, department)"
+    )
+    def update(self, request, *args, **kwargs):
+        """Update invitation details"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        
+        # Check if invitation is already accepted
+        if instance.accepted:
+            return Response(
+                {"error": "Cannot update an accepted invitation"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        
+        return Response(
+            EmployeeInvitationResponseSerializer(serializer.instance).data,
+            status=status.HTTP_200_OK
+        )
+
+    # PARTIAL UPDATE
+    @extend_schema(
+        request=EmployeeInvitationCreateSerializer,
+        responses={200: EmployeeInvitationResponseSerializer},
+        description="Partially update an invitation"
+    )
+    def partial_update(self, request, *args, **kwargs):
+        """Partially update invitation"""
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
+    # DELETE INVITATION
+    @extend_schema(
+        responses={204: None, 400: {"error": "string"}},
+        description="Delete/cancel an invitation"
+    )
+    def destroy(self, request, *args, **kwargs):
+        """Delete/cancel an invitation"""
+        instance = self.get_object()
+        
+        # Check if invitation is already accepted
+        if instance.accepted:
+            return Response(
+                {"error": "Cannot delete an accepted invitation"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        self.perform_destroy(instance)
+        return Response(
+            {"message": "Invitation deleted successfully"},
+            status=status.HTTP_200_OK
         )
 
 
@@ -2552,10 +2613,9 @@ class ChatMessageView(viewsets.ModelViewSet):
             session__employee__user=self.request.user,
         )
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
         """
-        Handles saving a new user message, ensures system prompt exists,
-        builds conversation history, calls Groq AI, and saves the AI reply.
+        Override create to handle the AI chat flow and return AI response
         """
         # Get the chat session for the current user
         session = get_object_or_404(
@@ -2565,6 +2625,8 @@ class ChatMessageView(viewsets.ModelViewSet):
         )
 
         # Save the incoming user message
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         user_message = serializer.save(session=session, sender="user")
         
         # Track sana_ai feature usage
@@ -2611,7 +2673,7 @@ class ChatMessageView(viewsets.ModelViewSet):
         except ValueError as e:
             # Handle missing API key
             logger.error(f"Groq API configuration error: {str(e)}")
-            raise Response(
+            return Response(
                 {"error": "AI service not configured. Please contact support."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
@@ -2620,10 +2682,16 @@ class ChatMessageView(viewsets.ModelViewSet):
             logger.error(f"Groq chat error: {str(e)}")
 
             # Return error response to client instead of failing silently
-            raise Response(
+            return Response(
                 {"error": "AI service failed. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    def perform_create(self, serializer):
+        """
+        This method is no longer used since we override create() above
+        """
+        pass
 
 
 @extend_schema(tags=["Employee - Recommendations"])

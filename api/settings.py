@@ -90,6 +90,22 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+# Custom middleware to log all requests for debugging
+class RequestLoggingMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        print(f"🔥 REQUEST: {request.method} {request.path} from {request.META.get('REMOTE_ADDR', 'unknown')}")
+        print(f"   Headers: {dict(request.headers)}")
+        response = self.get_response(request)
+        print(f"🔥 RESPONSE: {response.status_code}")
+        return response
+
+# Add the logging middleware in development
+if DEBUG:
+    MIDDLEWARE.insert(0, "api.settings.RequestLoggingMiddleware")
+
 # Media files
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
