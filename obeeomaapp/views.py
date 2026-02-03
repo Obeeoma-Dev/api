@@ -98,6 +98,7 @@ import string
 import pyotp, qrcode, io, base64
 from django.utils.crypto import get_random_string
 from django.core.cache import cache
+import calendar
 from .models import Organization, ChatSession, ChatMessage, EmployeeProfile
 from .serializers import (
     PasswordResetOTPVerificationSerializer,
@@ -1869,6 +1870,536 @@ class MoodTrackingView(viewsets.ModelViewSet):
             "mood_distribution": distribution,
             "daily_average": daily_avg
         })
+
+    # ============================
+    # MOOD TRACKING SCREEN
+    # ============================
+    @action(detail=False, methods=['get'], url_path='screen')
+    def screen(self, request):
+        """Get mood tracking screen overview"""
+        employee = get_object_or_404(EmployeeProfile, user=request.user)
+        today = now().date()
+        
+        # Check if user already checked in today
+        today_checkin = MoodTracking.objects.filter(
+            employee=employee,
+            checked_in_at__date=today
+        ).first()
+        
+        # Get recent mood entries (last 7 days)
+        recent_entries = MoodTracking.objects.filter(
+            employee=employee,
+            checked_in_at__date__gte=today - timedelta(days=7)
+        ).order_by('-checked_in_at')
+        
+        # Calculate mood streak
+        streak = self._calculate_mood_streak(employee)
+        
+        return Response({
+            "has_checked_in_today": bool(today_checkin),
+            "today_mood": today_checkin.mood if today_checkin else None,
+            "current_streak": streak,
+            "recent_entries_count": recent_entries.count(),
+            "mood_categories": MoodTracking.MOOD_CATEGORIES
+        })
+
+    # ============================
+    # MOOD ENTRIES
+    # ============================
+    @action(detail=False, methods=['get', 'post'], url_path='entries')
+    def entries(self, request):
+        """Get or create mood entries"""
+        employee = get_object_or_404(EmployeeProfile, user=request.user)
+        
+        if request.method == 'GET':
+            # Get mood entries with optional date filtering
+            start_date = request.query_params.get('start_date')
+            end_date = request.query_params.get('end_date')
+            
+            queryset = MoodTracking.objects.filter(employee=employee)
+            
+            if start_date:
+                queryset = queryset.filter(checked_in_at__date__gte=start_date)
+            if end_date:
+                queryset = queryset.filter(checked_in_at__date__lte=end_date)
+                
+            entries = queryset.order_by('-checked_in_at')
+            serializer = self.get_serializer(entries, many=True)
+            return Response(serializer.data)
+            
+        elif request.method == 'POST':
+            # Create new mood entry
+            mood = request.data.get('mood')
+            note = request.data.get('note', '')
+            
+            if not mood:
+                return Response(
+                    {"error": "Mood is required"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Check if already checked in today
+            today = now().date()
+            existing = MoodTracking.objects.filter(
+                employee=employee,
+                checked_in_at__date=today
+            ).first()
+            
+            if existing:
+                return Response(
+                    {"error": "Already checked in today"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            mood_entry = MoodTracking.objects.create(
+                user=request.user,
+                employee=employee,
+                mood=mood,
+                note=note
+            )
+            
+            serializer = self.get_serializer(mood_entry)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    # ============================
+    # TODAY'S MOOD
+    # ============================
+    @action(detail=False, methods=['get', 'put'], url_path='today')
+    def today(self, request):
+        """Get or update today's mood"""
+        employee = get_object_or_404(EmployeeProfile, user=request.user)
+        today = now().date()
+        
+        mood_entry = MoodTracking.objects.filter(
+            employee=employee,
+            checked_in_at__date=today
+        ).first()
+        
+        if request.method == 'GET':
+            if mood_entry:
+                serializer = self.get_serializer(mood_entry)
+                return Response(serializer.data)
+            else:
+                return Response({"message": "No mood entry for today"})
+        
+        elif request.method == 'PUT':
+            if not mood_entry:
+                return Response(
+                    {"error": "No mood entry found for today"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            mood = request.data.get('mood')
+            note = request.data.get('note', '')
+            
+            if mood:
+                mood_entry.mood = mood
+            if note:
+                mood_entry.note = note
+            
+            mood_entry.save()
+            serializer = self.get_serializer(mood_entry)
+            return Response(serializer.data)
+
+    # ============================
+    # MOOD CHART
+    # ============================
+    @action(detail=False, methods=['get'], url_path='chart')
+    def chart(self, request):
+        """Get mood data for chart visualization"""
+        employee = get_object_or_404(EmployeeProfile, user=request.user)
+        
+        # Get period from query params (default: 30 days)
+        period = int(request.query_params.get('period', 30))
+        start_date = now().date() - timedelta(days=period)
+        
+        entries = MoodTracking.objects.filter(
+            employee=employee,
+            checked_in_at__date__gte=start_date
+        ).order_by('checked_in_at')
+        
+        # Convert mood to numeric values for charting
+        mood_values = {
+            'Ecstatic': 5, 'Happy': 4, 'Excited': 4, 'Content': 3,
+            'Calm': 3, 'Neutral': 2, 'Tired': 2,
+            'Anxious': 1, 'Stressed': 1, 'Sad': 1, 'Frustrated': 1, 'Angry': 0
+        }
+        
+        chart_data = []
+        for entry in entries:
+            chart_data.append({
+                'date': entry.checked_in_at.strftime('%Y-%m-%d'),
+                'mood': entry.mood,
+                'value': mood_values.get(entry.mood, 2),
+                'note': entry.note
+            })
+        
+        return Response({
+            "period": f"last_{period}_days",
+            "data": chart_data,
+            "average_mood": sum(item['value'] for item in chart_data) / len(chart_data) if chart_data else 0
+        })
+
+    # ============================
+    # MOOD ANALYTICS
+    # ============================
+    @action(detail=False, methods=['get'], url_path='analytics')
+    def analytics(self, request):
+        """Get comprehensive mood analytics"""
+        employee = get_object_or_404(EmployeeProfile, user=request.user)
+        
+        # Get period from query params (default: 30 days)
+        period = int(request.query_params.get('period', 30))
+        start_date = now().date() - timedelta(days=period)
+        
+        entries = MoodTracking.objects.filter(
+            employee=employee,
+            checked_in_at__date__gte=start_date
+        )
+        
+        # Mood distribution
+        mood_distribution = (
+            entries.values('mood')
+            .annotate(count=Count('mood'))
+            .order_by('-count')
+        )
+        
+        # Category distribution
+        category_stats = {}
+        for mood, category in MoodTracking.MOOD_CATEGORIES.items():
+            category_stats[category] = entries.filter(mood=mood).count()
+        
+        # Weekly patterns
+        weekly_pattern = {}
+        for i in range(7):
+            day_entries = entries.filter(
+                checked_in_at__week_day=(i + 1) % 7  # Django uses 0-6 for Sunday-Saturday
+            )
+            if day_entries.exists():
+                avg_mood = day_entries.aggregate(avg=Avg('mood'))['avg']
+                weekly_pattern[calendar.day_name[i]] = {
+                    'count': day_entries.count(),
+                    'most_common': day_entries.values('mood').annotate(
+                        count=Count('mood')
+                    ).order_by('-count').first()['mood'] if day_entries.exists() else None
+                }
+        
+        # Streak information
+        current_streak = self._calculate_mood_streak(employee)
+        longest_streak = self._calculate_longest_streak(employee)
+        
+        return Response({
+            "period": f"last_{period}_days",
+            "total_entries": entries.count(),
+            "mood_distribution": list(mood_distribution),
+            "category_distribution": category_stats,
+            "weekly_pattern": weekly_pattern,
+            "current_streak": current_streak,
+            "longest_streak": longest_streak,
+            "check_in_rate": round((entries.count() / period) * 100, 1)
+        })
+
+    # ============================
+    # MOOD HISTORY
+    # ============================
+    @action(detail=False, methods=['get'], url_path='history')
+    def history(self, request):
+        """Get mood history with pagination"""
+        employee = get_object_or_404(EmployeeProfile, user=request.user)
+        
+        # Pagination parameters
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 20))
+        
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        queryset = MoodTracking.objects.filter(employee=employee)
+        
+        if start_date:
+            queryset = queryset.filter(checked_in_at__date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(checked_in_at__date__lte=end_date)
+        
+        # Order by date descending
+        queryset = queryset.order_by('-checked_in_at')
+        
+        # Manual pagination
+        total_count = queryset.count()
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        
+        entries = queryset[start_idx:end_idx]
+        serializer = self.get_serializer(entries, many=True)
+        
+        return Response({
+            "entries": serializer.data,
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total_count": total_count,
+                "total_pages": (total_count + page_size - 1) // page_size
+            }
+        })
+
+    # ============================
+    # MOOD PATTERNS
+    # ============================
+    @action(detail=False, methods=['get'], url_path='patterns')
+    def patterns(self, request):
+        """Analyze mood patterns and trends"""
+        employee = get_object_or_404(EmployeeProfile, user=request.user)
+        
+        # Get period from query params (default: 90 days for pattern analysis)
+        period = int(request.query_params.get('period', 90))
+        start_date = now().date() - timedelta(days=period)
+        
+        entries = MoodTracking.objects.filter(
+            employee=employee,
+            checked_in_at__date__gte=start_date
+        ).order_by('checked_in_at')
+        
+        if entries.count() < 7:
+            return Response({
+                "error": "Insufficient data for pattern analysis. Need at least 7 entries.",
+                "patterns": {}
+            })
+        
+        patterns = {}
+        
+        # Time of day patterns
+        time_patterns = {'morning': [], 'afternoon': [], 'evening': []}
+        for entry in entries:
+            hour = entry.checked_in_at.hour
+            if 6 <= hour < 12:
+                time_patterns['morning'].append(entry.mood)
+            elif 12 <= hour < 18:
+                time_patterns['afternoon'].append(entry.mood)
+            else:
+                time_patterns['evening'].append(entry.mood)
+        
+        for time_period, moods in time_patterns.items():
+            if moods:
+                most_common = max(set(moods), key=moods.count)
+                patterns[f'{time_period}_most_common'] = most_common
+                patterns[f'{time_period}_entry_count'] = len(moods)
+        
+        # Day of week patterns
+        day_patterns = {}
+        for entry in entries:
+            day_name = entry.checked_in_at.strftime('%A')
+            if day_name not in day_patterns:
+                day_patterns[day_name] = []
+            day_patterns[day_name].append(entry.mood)
+        
+        for day, moods in day_patterns.items():
+            if moods:
+                most_common = max(set(moods), key=moods.count)
+                patterns[f'{day.lower()}_most_common'] = most_common
+        
+        # Mood sequences (consecutive days)
+        sequences = self._analyze_mood_sequences(entries)
+        patterns['mood_sequences'] = sequences
+        
+        # Improvement indicators
+        recent_moods = entries.order_by('-checked_in_at')[:14]  # Last 2 weeks
+        older_moods = entries.order_by('-checked_in_at')[14:28]  # Previous 2 weeks
+        
+        if recent_moods.count() >= 7 and older_moods.count() >= 7:
+            recent_positive = sum(1 for m in recent_moods if MoodTracking.MOOD_CATEGORIES.get(m.mood) == 'Positive')
+            older_positive = sum(1 for m in older_moods if MoodTracking.MOOD_CATEGORIES.get(m.mood) == 'Positive')
+            
+            patterns['trend'] = 'improving' if recent_positive > older_positive else 'declining' if recent_positive < older_positive else 'stable'
+        
+        return Response({"patterns": patterns})
+
+    # ============================
+    # MOOD INSIGHTS
+    # ============================
+    @action(detail=False, methods=['get'], url_path='insights')
+    def insights(self, request):
+        """Get personalized mood insights"""
+        employee = get_object_or_404(EmployeeProfile, user=request.user)
+        
+        # Get period from query params (default: 30 days)
+        period = int(request.query_params.get('period', 30))
+        start_date = now().date() - timedelta(days=period)
+        
+        entries = MoodTracking.objects.filter(
+            employee=employee,
+            checked_in_at__date__gte=start_date
+        )
+        
+        insights = []
+        
+        # Generate insights based on data
+        if entries.count() >= 5:
+            # Most common mood
+            most_common = entries.values('mood').annotate(count=Count('mood')).order_by('-count').first()
+            if most_common:
+                insights.append({
+                    "type": "most_common_mood",
+                    "title": f"Your most common mood is {most_common['mood']}",
+                    "description": f"You've logged this mood {most_common['count']} times in the last {period} days.",
+                    "priority": "medium"
+                })
+            
+            # Check-in consistency
+            check_in_rate = (entries.count() / period) * 100
+            if check_in_rate >= 80:
+                insights.append({
+                    "type": "consistency",
+                    "title": "Great consistency!",
+                    "description": f"You've checked in {check_in_rate:.1f}% of days. Keep it up!",
+                    "priority": "positive"
+                })
+            elif check_in_rate < 50:
+                insights.append({
+                    "type": "consistency",
+                    "title": "Try to be more consistent",
+                    "description": f"You've only checked in {check_in_rate:.1f}% of days. Regular check-ins help track your mood better.",
+                    "priority": "high"
+                })
+            
+            # Mood balance
+            positive_count = sum(1 for e in entries if MoodTracking.MOOD_CATEGORIES.get(e.mood) == 'Positive')
+            negative_count = sum(1 for e in entries if MoodTracking.MOOD_CATEGORIES.get(e.mood) == 'Negative')
+            
+            if negative_count > positive_count * 1.5:
+                insights.append({
+                    "type": "mood_balance",
+                    "title": "More negative moods detected",
+                    "description": "You've been logging more negative moods lately. Consider trying stress-reduction techniques.",
+                    "priority": "high"
+                })
+        
+        return Response({
+            "insights": insights,
+            "generated_at": now().isoformat(),
+            "period": f"last_{period}_days"
+        })
+
+    # ============================
+    # UNREAD INSIGHTS
+    # ============================
+    @action(detail=False, methods=['get'], url_path='unread-insights')
+    def unread_insights(self, request):
+        """Get unread mood insights"""
+        # This would typically integrate with a notification/read status system
+        # For now, return recent insights that haven't been "read"
+        employee = get_object_or_404(EmployeeProfile, user=request.user)
+        
+        # Get last time insights were viewed (simplified - using cache)
+        cache_key = f'mood_insights_viewed_{employee.id}'
+        last_viewed = cache.get(cache_key)
+        
+        # Get recent insights
+        insights_response = self.insights(request)
+        insights = insights_response.data.get('insights', [])
+        
+        # Filter for "unread" insights (created after last view)
+        if last_viewed:
+            # In a real implementation, you'd filter by creation timestamp
+            # For now, return all insights as unread
+            pass
+        
+        return Response({
+            "unread_count": len(insights),
+            "insights": insights
+        })
+
+    # ============================
+    # MARK INSIGHTS AS READ
+    # ============================
+    @action(detail=False, methods=['post'], url_path='mark-read')
+    def mark_read(self, request):
+        """Mark insights as read"""
+        employee = get_object_or_404(EmployeeProfile, user=request.user)
+        
+        # Mark current time as last viewed
+        cache_key = f'mood_insights_viewed_{employee.id}'
+        cache.set(cache_key, now().isoformat(), timeout=86400)  # Cache for 24 hours
+        
+        return Response({
+            "message": "Insights marked as read",
+            "timestamp": now().isoformat()
+        })
+
+    # ============================
+    # HELPER METHODS
+    # ============================
+    def _calculate_mood_streak(self, employee):
+        """Calculate current mood check-in streak"""
+        today = now().date()
+        streak = 0
+        
+        for i in range(365):  # Check up to a year
+            check_date = today - timedelta(days=i)
+            has_checkin = MoodTracking.objects.filter(
+                employee=employee,
+                checked_in_at__date=check_date
+            ).exists()
+            
+            if has_checkin:
+                streak += 1
+            else:
+                break
+        
+        return streak
+
+    def _calculate_longest_streak(self, employee):
+        """Calculate longest mood check-in streak"""
+        entries = MoodTracking.objects.filter(
+            employee=employee
+        ).order_by('checked_in_at')
+        
+        if not entries.exists():
+            return 0
+        
+        longest_streak = 0
+        current_streak = 1
+        last_date = entries.first().checked_in_at.date()
+        
+        for entry in entries[1:]:
+            current_date = entry.checked_in_at.date()
+            if (current_date - last_date).days == 1:
+                current_streak += 1
+            else:
+                longest_streak = max(longest_streak, current_streak)
+                current_streak = 1
+            last_date = current_date
+        
+        return max(longest_streak, current_streak)
+
+    def _analyze_mood_sequences(self, entries):
+        """Analyze consecutive mood patterns"""
+        if not entries.exists():
+            return []
+        
+        sequences = []
+        current_sequence = [entries.first().mood]
+        
+        for entry in entries[1:]:
+            if entry.mood == current_sequence[-1]:
+                current_sequence.append(entry.mood)
+            else:
+                if len(current_sequence) >= 3:  # Only consider sequences of 3+ days
+                    sequences.append({
+                        "mood": current_sequence[0],
+                        "length": len(current_sequence),
+                        "start_date": entries[0].checked_in_at.strftime('%Y-%m-%d')
+                    })
+                current_sequence = [entry.mood]
+        
+        # Check the last sequence
+        if len(current_sequence) >= 3:
+            sequences.append({
+                "mood": current_sequence[0],
+                "length": len(current_sequence),
+                "start_date": entries[0].checked_in_at.strftime('%Y-%m-%d')
+            })
+        
+        return sequences
 @extend_schema(tags=['Employee - Assessments'])
 @extend_schema(tags=['Resources'])
 class SelfHelpResourceView(viewsets.ModelViewSet):

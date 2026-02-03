@@ -713,7 +713,7 @@ class SelfAssessmentSerializer(serializers.ModelSerializer):
 class MoodTrackingSerializer(serializers.ModelSerializer):
     class Meta:
         model = MoodTracking
-        fields = ['id', 'mood',  'checked_in_at']
+        fields = ['id', 'mood', 'note', 'checked_in_at']
         read_only_fields = ['id', 'checked_in_at']
 
 class SelfHelpResourceSerializer(serializers.ModelSerializer):
