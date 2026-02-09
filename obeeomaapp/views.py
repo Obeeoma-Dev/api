@@ -2110,9 +2110,12 @@ class ChatMessageView(viewsets.ModelViewSet):
                 message="You are Sana, a helpful and professional AI assistant.",
             )
 
-        # Build conversation history for Groq API
+        # Build conversation history for Groq API (exclude the current user message)
         conversation_history = []
-        for msg in session.messages.all():
+        for msg in session.messages.all().order_by("timestamp"):
+            # Skip the current user message we just saved to avoid duplication
+            if msg.id == user_message.id:
+                continue
             # Use the model's api_role() helper to map DB roles to Groq roles
             role = msg.api_role()
             conversation_history.append({"role": role, "content": msg.message})
@@ -5035,6 +5038,7 @@ class PresignUploadView(views.APIView):
             {
                 "presigned_url": presigned_url,
                 "s3_key": object_key,
+                
                 "media_id": media.id,
             },
             status=status.HTTP_201_CREATED,
