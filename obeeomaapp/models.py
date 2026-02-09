@@ -1990,11 +1990,58 @@ class EngagementLevel(models.Model):
 
 
 class CompanyMood(models.Model):
-    summary_description = models.TextField()
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='company_moods', blank=True, null=True)
+    date = models.DateField(auto_now_add=True, blank=True, null=True)
+    
+    # Aggregated mood data
+    total_entries = models.IntegerField(default=0)
+    average_mood_score = models.FloatField(default=0.0)
+    
+    # Mood counts
+    ecstatic_count = models.IntegerField(default=0)
+    happy_count = models.IntegerField(default=0)
+    excited_count = models.IntegerField(default=0)
+    content_count = models.IntegerField(default=0)
+    calm_count = models.IntegerField(default=0)
+    neutral_count = models.IntegerField(default=0)
+    tired_count = models.IntegerField(default=0)
+    anxious_count = models.IntegerField(default=0)
+    stressed_count = models.IntegerField(default=0)
+    sad_count = models.IntegerField(default=0)
+    frustrated_count = models.IntegerField(default=0)
+    angry_count = models.IntegerField(default=0)
+    
+    # Category totals
+    positive_count = models.IntegerField(default=0)
+    neutral_mood_count = models.IntegerField(default=0)
+    negative_count = models.IntegerField(default=0)
+    
+    # Summary insights
+    summary_description = models.TextField(blank=True)
+    dominant_mood = models.CharField(max_length=50, blank=True)
+    sentiment_trend = models.CharField(max_length=20, default='stable')  # improving, declining, stable
+    
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['organization', 'date']
+        ordering = ['-date']
 
     def __str__(self):
-        return f"Company Mood - {self.created_at.date()}"
+        return f"{self.organization.name} Mood - {self.date}"
+
+    @property
+    def positive_percentage(self):
+        if self.total_entries == 0:
+            return 0
+        return round((self.positive_count / self.total_entries) * 100, 1)
+
+    @property
+    def negative_percentage(self):
+        if self.total_entries == 0:
+            return 0
+        return round((self.negative_count / self.total_entries) * 100, 1)
 
 
 class WellnessGraph(models.Model):

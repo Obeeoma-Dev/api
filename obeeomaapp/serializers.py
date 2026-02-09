@@ -1888,9 +1888,23 @@ class EngagementLevelSerializer(serializers.ModelSerializer):
 
 
 class CompanyMoodSerializer(serializers.ModelSerializer):
+    positive_percentage = serializers.ReadOnlyField()
+    negative_percentage = serializers.ReadOnlyField()
+    organization_name = serializers.CharField(source='organization.name', read_only=True)
+
     class Meta:
         model = CompanyMood
-        fields = ['id', 'summary_description', 'created_at']
+        fields = [
+            'id', 'organization', 'organization_name', 'date',
+            'total_entries', 'average_mood_score',
+            'ecstatic_count', 'happy_count', 'excited_count', 'content_count',
+            'calm_count', 'neutral_count', 'tired_count',
+            'anxious_count', 'stressed_count', 'sad_count', 'frustrated_count', 'angry_count',
+            'positive_count', 'neutral_mood_count', 'negative_count',
+            'positive_percentage', 'negative_percentage',
+            'summary_description', 'dominant_mood', 'sentiment_trend',
+            'created_at', 'updated_at'
+        ]
 
 
 class WellnessGraphSerializer(serializers.ModelSerializer):

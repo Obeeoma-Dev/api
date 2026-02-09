@@ -5687,9 +5687,351 @@ class EngagementLevelViewSet(viewsets.ModelViewSet):
 
 @extend_schema(tags=["Company Mood"])
 class CompanyMoodViewSet(viewsets.ModelViewSet):
-    queryset = CompanyMood.objects.all()
     serializer_class = CompanyMoodSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return CompanyMood.objects.all()
+        
+        # Get organization based on user role
+        if hasattr(user, 'employer'):
+            organization = user.employer.organization
+        elif hasattr(user, 'employee'):
+            organization = user.employee.organization
+        else:
+            return CompanyMood.objects.none()
+            
+        return CompanyMood.objects.filter(organization=organization)
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        
+        # Get organization based on user role
+        if hasattr(user, 'employer'):
+            organization = user.employer.organization
+        elif hasattr(user, 'employee'):
+            organization = user.employee.organization
+        else:
+            raise ValidationError("User must be associated with an organization")
+            
+        serializer.save(organization=organization)
+
+    @action(detail=False, methods=['post'], url_path='aggregate-today')
+    def aggregate_today(self, request):
+        """Aggregate today's mood data for the organization"""
+        user = request.user
+        
+        # Get organization
+        if hasattr(user, 'employer'):
+            organization = user.employer.organization
+        elif hasattr(user, 'employee'):
+            organization = user.employee.organization
+        else:
+            return Response(
+                {"error": "User must be associated with an organization"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        today = now().date()
+        
+        # Get all mood entries for today from employees in this organization
+        today_entries = MoodTracking.objects.filter(
+            employee__organization=organization,
+            checked_in_at__date=today
+        )
+
+        if not today_entries.exists():
+            return Response(
+                {"message": "No mood entries found for today"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Calculate aggregated data
+        company_mood = self._calculate_company_mood(organization, today, today_entries)
+        
+        # Create or update CompanyMood record
+        mood_record, created = CompanyMood.objects.update_or_create(
+            organization=organization,
+            date=today,
+            defaults=company_mood
+        )
+
+        serializer = self.get_serializer(mood_record)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], url_path='aggregate-period')
+    def aggregate_period(self, request):
+        """Aggregate mood data for a specific period"""
+        user = request.user
+        
+        # Get organization
+        if hasattr(user, 'employer'):
+            organization = user.employer.organization
+        elif hasattr(user, 'employee'):
+            organization = user.employee.organization
+        else:
+            return Response(
+                {"error": "User must be associated with an organization"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        start_date = request.data.get('start_date')
+        end_date = request.data.get('end_date')
+
+        if not start_date or not end_date:
+            return Response(
+                {"error": "Both start_date and end_date are required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+        except ValueError:
+            return Response(
+                {"error": "Invalid date format. Use YYYY-MM-DD"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get mood entries for the period
+        period_entries = MoodTracking.objects.filter(
+            employee__organization=organization,
+            checked_in_at__date__range=[start_date, end_date]
+        )
+
+        if not period_entries.exists():
+            return Response(
+                {"message": "No mood entries found for the specified period"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Group entries by date and aggregate
+        results = []
+        current_date = start_date
+        while current_date <= end_date:
+            daily_entries = period_entries.filter(checked_in_at__date=current_date)
+            
+            if daily_entries.exists():
+                company_mood = self._calculate_company_mood(organization, current_date, daily_entries)
+                
+                mood_record, created = CompanyMood.objects.update_or_create(
+                    organization=organization,
+                    date=current_date,
+                    defaults=company_mood
+                )
+                
+                serializer = self.get_serializer(mood_record)
+                results.append(serializer.data)
+            
+            current_date += timedelta(days=1)
+
+        return Response({
+            "message": f"Aggregated mood data for {len(results)} days",
+            "data": results
+        })
+
+    @action(detail=False, methods=['get'], url_path='dashboard-summary')
+    def dashboard_summary(self, request):
+        """Get comprehensive mood summary for dashboard"""
+        user = request.user
+        
+        # Get organization
+        if hasattr(user, 'employer'):
+            organization = user.employer.organization
+        elif hasattr(user, 'employee'):
+            organization = user.employee.organization
+        else:
+            return Response(
+                {"error": "User must be associated with an organization"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get different time periods
+        today = now().date()
+        last_7_days = today - timedelta(days=7)
+        last_30_days = today - timedelta(days=30)
+
+        # Today's data
+        today_mood = CompanyMood.objects.filter(
+            organization=organization,
+            date=today
+        ).first()
+
+        # Last 7 days
+        recent_moods = CompanyMood.objects.filter(
+            organization=organization,
+            date__gte=last_7_days
+        ).order_by('date')
+
+        # Last 30 days
+        monthly_moods = CompanyMood.objects.filter(
+            organization=organization,
+            date__gte=last_30_days
+        ).order_by('date')
+
+        # Calculate trends
+        trend_data = self._calculate_trends(recent_moods)
+
+        # Get employee participation
+        total_employees = Employee.objects.filter(organization=organization).count()
+        today_participants = MoodTracking.objects.filter(
+            employee__organization=organization,
+            checked_in_at__date=today
+        ).values('employee').distinct().count()
+
+        summary = {
+            "today": {
+                "total_entries": today_mood.total_entries if today_mood else 0,
+                "average_mood": today_mood.average_mood_score if today_mood else 0,
+                "positive_percentage": today_mood.positive_percentage if today_mood else 0,
+                "dominant_mood": today_mood.dominant_mood if today_mood else "No data",
+                "participants": today_participants,
+                "participation_rate": round((today_participants / total_employees * 100), 1) if total_employees > 0 else 0
+            },
+            "last_7_days": {
+                "total_entries": sum(mood.total_entries for mood in recent_moods),
+                "average_mood": sum(mood.average_mood_score for mood in recent_moods) / len(recent_moods) if recent_moods.exists() else 0,
+                "positive_percentage": sum(mood.positive_count for mood in recent_moods) / sum(mood.total_entries for mood in recent_moods) * 100 if recent_moods.exists() and sum(mood.total_entries for mood in recent_moods) > 0 else 0,
+                "trend": trend_data['trend'],
+                "days_with_data": recent_moods.count()
+            },
+            "last_30_days": {
+                "total_entries": sum(mood.total_entries for mood in monthly_moods),
+                "average_mood": sum(mood.average_mood_score for mood in monthly_moods) / len(monthly_moods) if monthly_moods.exists() else 0,
+                "days_with_data": monthly_moods.count()
+            },
+            "organization_stats": {
+                "total_employees": total_employees,
+                "active_days": recent_moods.count(),
+                "most_common_mood": self._get_most_common_mood(recent_moods)
+            }
+        }
+
+        return Response(summary)
+
+    def _calculate_company_mood(self, organization, date, entries):
+        """Calculate aggregated mood data for a specific day"""
+        # Initialize mood counts
+        mood_counts = {
+            'Ecstatic': 0, 'Happy': 0, 'Excited': 0, 'Content': 0,
+            'Calm': 0, 'Neutral': 0, 'Tired': 0,
+            'Anxious': 0, 'Stressed': 0, 'Sad': 0, 'Frustrated': 0, 'Angry': 0
+        }
+
+        # Count each mood
+        for entry in entries:
+            mood = entry.mood
+            if mood in mood_counts:
+                mood_counts[mood] += 1
+
+        # Calculate category totals
+        positive_moods = ['Ecstatic', 'Happy', 'Excited', 'Content']
+        neutral_moods = ['Calm', 'Neutral', 'Tired']
+        negative_moods = ['Anxious', 'Stressed', 'Sad', 'Frustrated', 'Angry']
+
+        positive_count = sum(mood_counts[mood] for mood in positive_moods)
+        neutral_count = sum(mood_counts[mood] for mood in neutral_moods)
+        negative_count = sum(mood_counts[mood] for mood in negative_moods)
+
+        total_entries = entries.count()
+
+        # Calculate average mood score (1-5 scale)
+        mood_scores = {
+            'Ecstatic': 5, 'Happy': 4, 'Excited': 4, 'Content': 3,
+            'Calm': 3, 'Neutral': 2, 'Tired': 2,
+            'Anxious': 1, 'Stressed': 1, 'Sad': 1, 'Frustrated': 1, 'Angry': 0
+        }
+
+        total_score = sum(mood_scores.get(entry.mood, 2) for entry in entries)
+        average_score = total_score / total_entries if total_entries > 0 else 0
+
+        # Find dominant mood
+        dominant_mood = max(mood_counts, key=mood_counts.get) if total_entries > 0 else 'None'
+
+        # Generate summary description
+        summary = self._generate_summary(positive_count, neutral_count, negative_count, dominant_mood, total_entries)
+
+        return {
+            'total_entries': total_entries,
+            'average_mood_score': round(average_score, 2),
+            'ecstatic_count': mood_counts['Ecstatic'],
+            'happy_count': mood_counts['Happy'],
+            'excited_count': mood_counts['Excited'],
+            'content_count': mood_counts['Content'],
+            'calm_count': mood_counts['Calm'],
+            'neutral_count': mood_counts['Neutral'],
+            'tired_count': mood_counts['Tired'],
+            'anxious_count': mood_counts['Anxious'],
+            'stressed_count': mood_counts['Stressed'],
+            'sad_count': mood_counts['Sad'],
+            'frustrated_count': mood_counts['Frustrated'],
+            'angry_count': mood_counts['Angry'],
+            'positive_count': positive_count,
+            'neutral_mood_count': neutral_count,
+            'negative_count': negative_count,
+            'summary_description': summary,
+            'dominant_mood': dominant_mood,
+            'sentiment_trend': 'stable'  # Will be calculated separately
+        }
+
+    def _generate_summary(self, positive, neutral, negative, dominant_mood, total):
+        """Generate a human-readable summary of the mood data"""
+        if total == 0:
+            return "No mood data available for this period."
+
+        positive_pct = (positive / total) * 100
+        negative_pct = (negative / total) * 100
+
+        summary_parts = []
+
+        if positive_pct >= 70:
+            summary_parts.append("Overall mood is very positive")
+        elif positive_pct >= 50:
+            summary_parts.append("Overall mood is moderately positive")
+        elif negative_pct >= 50:
+            summary_parts.append("Overall mood shows concerning negative trends")
+        else:
+            summary_parts.append("Overall mood is mixed")
+
+        summary_parts.append(f"with {dominant_mood.lower()} being the most common mood.")
+
+        if negative_pct >= 30:
+            summary_parts.append("Consider implementing wellness initiatives to support employee mental health.")
+
+        return " ".join(summary_parts)
+
+    def _calculate_trends(self, recent_moods):
+        """Calculate mood trends over recent days"""
+        if len(recent_moods) < 2:
+            return {'trend': 'insufficient_data'}
+
+        # Compare first half vs second half
+        mid_point = len(recent_moods) // 2
+        first_half = recent_moods[:mid_point]
+        second_half = recent_moods[mid_point:]
+
+        first_avg = sum(mood.average_mood_score for mood in first_half) / len(first_half) if first_half else 0
+        second_avg = sum(mood.average_mood_score for mood in second_half) / len(second_half) if second_half else 0
+
+        if second_avg > first_avg + 0.3:
+            trend = 'improving'
+        elif second_avg < first_avg - 0.3:
+            trend = 'declining'
+        else:
+            trend = 'stable'
+
+        return {'trend': trend}
+
+    def _get_most_common_mood(self, moods):
+        """Get the most common mood across multiple days"""
+        mood_totals = {}
+        
+        for mood_data in moods:
+            mood_totals[mood_data.dominant_mood] = mood_totals.get(mood_data.dominant_mood, 0) + 1
+
+        return max(mood_totals, key=mood_totals.get) if mood_totals else "No data"
 
 
 @extend_schema(tags=["Wellness Graph"])
