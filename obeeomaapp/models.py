@@ -383,22 +383,11 @@ class MoodTracking(models.Model):
 
     MOOD_CHOICES = [(mood, mood) for mood in MOOD_CATEGORIES.keys()]
 
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mood_checkins"
-    )
-    employee = models.ForeignKey(
-        "EmployeeProfile",
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name="mood_checkins_employee",
-    )
-    mood = models.CharField(
-        max_length=50,
-        choices=MOOD_CHOICES,
-        default="Neutral",
-    )
-
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mood_checkins")
+    employee = models.ForeignKey('EmployeeProfile', on_delete=models.CASCADE, null=True, blank=True, related_name="mood_checkins_employee")
+    mood = models.CharField(max_length=50, choices=MOOD_CHOICES, default='Neutral', )  
+    note = models.TextField(blank=True, null=True, help_text="Optional note about the mood entry")
+        
     # mood = models.CharField(max_length=50, choices=MOOD_CHOICES)  # this line  validates the mood input
     timestamp = models.DateTimeField(auto_now_add=True)
     checked_in_at = models.DateTimeField(auto_now_add=True)
@@ -2345,11 +2334,58 @@ class EngagementLevel(models.Model):
 
 
 class CompanyMood(models.Model):
-    summary_description = models.TextField()
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='company_moods', blank=True, null=True)
+    date = models.DateField(auto_now_add=True, blank=True, null=True)
+    
+    # Aggregated mood data
+    total_entries = models.IntegerField(default=0)
+    average_mood_score = models.FloatField(default=0.0)
+    
+    # Mood counts
+    ecstatic_count = models.IntegerField(default=0)
+    happy_count = models.IntegerField(default=0)
+    excited_count = models.IntegerField(default=0)
+    content_count = models.IntegerField(default=0)
+    calm_count = models.IntegerField(default=0)
+    neutral_count = models.IntegerField(default=0)
+    tired_count = models.IntegerField(default=0)
+    anxious_count = models.IntegerField(default=0)
+    stressed_count = models.IntegerField(default=0)
+    sad_count = models.IntegerField(default=0)
+    frustrated_count = models.IntegerField(default=0)
+    angry_count = models.IntegerField(default=0)
+    
+    # Category totals
+    positive_count = models.IntegerField(default=0)
+    neutral_mood_count = models.IntegerField(default=0)
+    negative_count = models.IntegerField(default=0)
+    
+    # Summary insights
+    summary_description = models.TextField(blank=True)
+    dominant_mood = models.CharField(max_length=50, blank=True)
+    sentiment_trend = models.CharField(max_length=20, default='stable')  # improving, declining, stable
+    
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['organization', 'date']
+        ordering = ['-date']
 
     def __str__(self):
-        return f"Company Mood - {self.created_at.date()}"
+        return f"{self.organization.name} Mood - {self.date}"
+
+    @property
+    def positive_percentage(self):
+        if self.total_entries == 0:
+            return 0
+        return round((self.positive_count / self.total_entries) * 100, 1)
+
+    @property
+    def negative_percentage(self):
+        if self.total_entries == 0:
+            return 0
+        return round((self.negative_count / self.total_entries) * 100, 1)
 
 
 class WellnessGraph(models.Model):
