@@ -5640,6 +5640,40 @@ class ContentMediaViewSet(viewsets.ModelViewSet):
     serializer_class = ContentMediaSerializer
     permission_classes = [IsSystemAdminOrReadOnly]
 
+    def create(self, request, *args, **kwargs):
+        """Handle FormData uploads with new fields"""
+        # Extract data from FormData
+        title = request.data.get('title', '')
+        description = request.data.get('description', '')
+        category = request.data.get('category', '')
+        status = request.data.get('status', 'draft')
+        duration = request.data.get('duration', '')
+        file_size = request.data.get('file_size', '')
+        media_type = request.data.get('media_type', 'other')
+        
+        # Create ContentMedia object with all fields
+        content_media = ContentMedia.objects.create(
+            owner=request.user,
+            title=title,
+            description=description,
+            category=category if category else None,
+            status=status,
+            duration=duration,
+            file_size=file_size,
+            media_type=media_type,
+            uploaded=True if request.FILES.get('file') else False,
+        )
+        
+        # Handle file upload if present
+        if 'file' in request.FILES:
+            file = request.FILES['file']
+            content_media.s3_key = f"uploads/{file.name}"
+            content_media.uploaded = True
+            content_media.save()
+        
+        serializer = self.get_serializer(content_media)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
     def get_queryset(self):
         # Allow all access for superuser gideonmuteso@gmail.com
         if (
