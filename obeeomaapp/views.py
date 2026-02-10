@@ -5646,7 +5646,7 @@ class ContentMediaViewSet(viewsets.ModelViewSet):
         title = request.data.get('title', '')
         description = request.data.get('description', '')
         category = request.data.get('category', '')
-        status = request.data.get('status', 'draft')
+        content_status = request.data.get('status', 'draft')
         duration = request.data.get('duration', '')
         file_size = request.data.get('file_size', '')
         media_type = request.data.get('media_type', 'other')
@@ -5657,7 +5657,7 @@ class ContentMediaViewSet(viewsets.ModelViewSet):
             title=title,
             description=description,
             category=category if category else None,
-            status=status,
+            status=content_status,
             duration=duration,
             file_size=file_size,
             media_type=media_type,

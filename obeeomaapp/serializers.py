@@ -1957,6 +1957,11 @@ class ContentMediaSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "media_type",
+            "category",
+            "status",
+            "duration",
+            "file_size",
+            "views",
             "s3_key",
             "public_url",
             "duration_seconds",
@@ -1964,5 +1969,6 @@ class ContentMediaSerializer(serializers.ModelSerializer):
             "processed",
             "owner",
             "created_at",
+            "updated_at",
         ]
         read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at"]
