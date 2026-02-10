@@ -1847,6 +1847,7 @@ class ContentArticleSerializer(serializers.ModelSerializer):
 
 class ContentMediaSerializer(serializers.ModelSerializer):
     owner = serializers.StringRelatedField(read_only=True)
+    file_size_display = serializers.SerializerMethodField()
 
     class Meta:
         model = ContentMedia
@@ -1855,6 +1856,11 @@ class ContentMediaSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "media_type",
+            "category",
+            "status",
+            "duration",
+            "file_size",
+            "views",
             "s3_key",
             "public_url",
             "duration_seconds",
@@ -1862,8 +1868,12 @@ class ContentMediaSerializer(serializers.ModelSerializer):
             "processed",
             "owner",
             "created_at",
+            "updated_at",
         ]
-        read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at"]
+        read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at", "updated_at", "views"]
+
+    def get_file_size_display(self, obj) -> str:
+        return obj.file_size or "0 MB"
 
 
 # New serializers for the requested endpoints

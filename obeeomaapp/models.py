@@ -2282,6 +2282,21 @@ class ContentMedia(models.Model):
         (MEDIA_OTHER, "Other"),
     ]
 
+    STATUS_CHOICES = [
+        ("published", "Published"),
+        ("draft", "Draft"),
+        ("processing", "Processing"),
+    ]
+
+    CATEGORY_CHOICES = [
+        ("meditation", "Meditation"),
+        ("sleep", "Sleep"),
+        ("anxiety", "Anxiety Relief"),
+        ("stress", "Stress Management"),
+        ("mindfulness", "Mindfulness"),
+        ("general", "General Wellness"),
+    ]
+
     owner = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="content_media"
     )
@@ -2290,6 +2305,15 @@ class ContentMedia(models.Model):
     media_type = models.CharField(
         max_length=20, choices=MEDIA_TYPE_CHOICES, default=MEDIA_OTHER
     )
+    category = models.CharField(
+        max_length=50, choices=CATEGORY_CHOICES, blank=True, null=True
+    )
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default="draft"
+    )
+    duration = models.CharField(max_length=20, blank=True, help_text="e.g., 3:00")
+    file_size = models.CharField(max_length=50, blank=True, help_text="e.g., 15.2 MB")
+    views = models.IntegerField(default=0)
     # s3_key stores the object key/path inside the Space (e.g. uploads/uuid_filename.mp4)
     s3_key = models.CharField(max_length=1024, blank=True, null=True)
     # optional "public_url" or created FileField - optional; useful once processed
@@ -2302,6 +2326,7 @@ class ContentMedia(models.Model):
         default=False
     )  # True after worker processing (thumbnails, transcode)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.title or self.s3_key or 'media'} ({self.media_type})"
