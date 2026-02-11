@@ -5667,6 +5667,19 @@ class ContentMediaViewSet(viewsets.ModelViewSet):
         # Handle file upload if present
         if 'file' in request.FILES:
             file = request.FILES['file']
+            
+            # Create the uploads directory if it doesn't exist
+            import os
+            uploads_dir = os.path.join(settings.MEDIA_ROOT, 'uploads')
+            os.makedirs(uploads_dir, exist_ok=True)
+            
+            # Save the file to disk
+            file_path = os.path.join(uploads_dir, file.name)
+            with open(file_path, 'wb+') as destination:
+                for chunk in file.chunks():
+                    destination.write(chunk)
+            
+            # Update the database record
             content_media.s3_key = f"uploads/{file.name}"
             content_media.uploaded = True
             content_media.save()
