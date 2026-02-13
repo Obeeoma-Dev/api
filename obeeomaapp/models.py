@@ -1998,7 +1998,7 @@ class CompanyMood(models.Model):
     average_mood_score = models.FloatField(default=0.0)
     
     # Mood counts
-    ecstatic_count = models.IntegerField(default=0)
+    ecstatic_count = models.IntegerField(default=0, blank=True, null=True)
     happy_count = models.IntegerField(default=0)
     excited_count = models.IntegerField(default=0)
     content_count = models.IntegerField(default=0)

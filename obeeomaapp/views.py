@@ -1864,7 +1864,12 @@ class MoodTrackingView(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
-        serializer.save(user=self.request.user, employee=employee)
+        mood_entry = serializer.save(user=self.request.user, employee=employee)
+        
+        # Auto-sync to wellness graph
+        self._sync_to_wellness_graph(self.request.user, mood_entry)
+        
+        return mood_entry
 
    
     # EMPLOYEE: Weekly Mood Summary
@@ -2389,6 +2394,24 @@ class MoodTrackingView(viewsets.ModelViewSet):
     # ============================
     # HELPER METHODS
     # ============================
+    def _sync_to_wellness_graph(self, user, mood_entry):
+        """Automatically sync mood entry to wellness graph"""
+        mood_scores = {
+            'Ecstatic': 5, 'Happy': 4, 'Excited': 4, 'Content': 3,
+            'Calm': 3, 'Neutral': 2, 'Tired': 2,
+            'Anxious': 1, 'Stressed': 1, 'Sad': 1, 'Frustrated': 1, 'Angry': 0
+        }
+        
+        mood_date = mood_entry.checked_in_at.date()
+        mood_score = mood_scores.get(mood_entry.mood, 2)
+        
+        # Create or update wellness graph entry
+        WellnessGraph.objects.update_or_create(
+            user=user,
+            mood_date=mood_date,
+            defaults={'mood_score': mood_score}
+        )
+
     def _calculate_mood_streak(self, employee):
         """Calculate current mood check-in streak"""
         today = now().date()
@@ -6036,7 +6059,6 @@ class CompanyMoodViewSet(viewsets.ModelViewSet):
 
 @extend_schema(tags=["Wellness Graph"])
 class WellnessGraphViewSet(viewsets.ModelViewSet):
-    queryset = WellnessGraph.objects.all()
     serializer_class = WellnessGraphSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -6045,6 +6067,172 @@ class WellnessGraphViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    @action(detail=False, methods=['get'], url_path='sync-from-mood-tracking')
+    def sync_from_mood_tracking(self, request):
+        """Sync wellness graph data from mood tracking entries"""
+        user = request.user
+        
+        # Get all mood tracking entries for this user
+        mood_entries = MoodTracking.objects.filter(user=user).order_by('checked_in_at')
+        
+        if not mood_entries.exists():
+            return Response(
+                {"message": "No mood tracking entries found to sync"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Convert mood names to numeric scores
+        mood_scores = {
+            'Ecstatic': 5, 'Happy': 4, 'Excited': 4, 'Content': 3,
+            'Calm': 3, 'Neutral': 2, 'Tired': 2,
+            'Anxious': 1, 'Stressed': 1, 'Sad': 1, 'Frustrated': 1, 'Angry': 0
+        }
+        
+        synced_count = 0
+        updated_count = 0
+        
+        for entry in mood_entries:
+            mood_date = entry.checked_in_at.date()
+            mood_score = mood_scores.get(entry.mood, 2)  # Default to neutral (2)
+            
+            # Create or update wellness graph entry
+            wellness_entry, created = WellnessGraph.objects.update_or_create(
+                user=user,
+                mood_date=mood_date,
+                defaults={'mood_score': mood_score}
+            )
+            
+            if created:
+                synced_count += 1
+            else:
+                # Update if score is different
+                if wellness_entry.mood_score != mood_score:
+                    wellness_entry.mood_score = mood_score
+                    wellness_entry.save()
+                    updated_count += 1
+        
+        return Response({
+            "message": "Successfully synced mood tracking data to wellness graph",
+            "synced_entries": synced_count,
+            "updated_entries": updated_count,
+            "total_processed": synced_count + updated_count
+        })
+
+    @action(detail=False, methods=['get'], url_path='chart-data')
+    def chart_data(self, request):
+        """Get wellness graph data optimized for frontend charts"""
+        user = request.user
+        
+        # Get date range from query params
+        days = int(request.query_params.get('days', 30))
+        start_date = now().date() - timedelta(days=days)
+        
+        # Get wellness graph data
+        wellness_data = WellnessGraph.objects.filter(
+            user=user,
+            mood_date__gte=start_date
+        ).order_by('mood_date')
+        
+        # If no wellness graph data, try to sync from mood tracking
+        if not wellness_data.exists():
+            sync_response = self.sync_from_mood_tracking(request)
+            if sync_response.status_code == 200:
+                # Retry getting data after sync
+                wellness_data = WellnessGraph.objects.filter(
+                    user=user,
+                    mood_date__gte=start_date
+                ).order_by('mood_date')
+        
+        # Format data for frontend
+        chart_data = []
+        for entry in wellness_data:
+            chart_data.append({
+                'date': entry.mood_date.strftime('%Y-%m-%d'),
+                'score': entry.mood_score,
+                'mood_label': self._get_mood_label(entry.mood_score)
+            })
+        
+        # Calculate statistics
+        if chart_data:
+            scores = [item['score'] for item in chart_data]
+            avg_score = sum(scores) / len(scores)
+            max_score = max(scores)
+            min_score = min(scores)
+            
+            # Determine trend (last 7 days vs previous 7 days)
+            if len(chart_data) >= 14:
+                recent_avg = sum(scores[-7:]) / 7
+                previous_avg = sum(scores[-14:-7]) / 7
+                trend = 'improving' if recent_avg > previous_avg else 'declining' if recent_avg < previous_avg else 'stable'
+            else:
+                trend = 'insufficient_data'
+        else:
+            avg_score = max_score = min_score = 0
+            trend = 'no_data'
+        
+        return Response({
+            "data": chart_data,
+            "statistics": {
+                "average_score": round(avg_score, 2),
+                "max_score": max_score,
+                "min_score": min_score,
+                "total_days": len(chart_data),
+                "trend": trend
+            },
+            "period": f"last_{days}_days"
+        })
+
+    @action(detail=False, methods=['post'], url_path='auto-sync')
+    def auto_sync(self, request):
+        """Automatically sync latest mood tracking entries"""
+        user = request.user
+        
+        # Get the latest mood tracking entry
+        latest_mood = MoodTracking.objects.filter(user=user).order_by('-checked_in_at').first()
+        
+        if not latest_mood:
+            return Response(
+                {"message": "No mood tracking entries found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Convert to wellness graph entry
+        mood_scores = {
+            'Ecstatic': 5, 'Happy': 4, 'Excited': 4, 'Content': 3,
+            'Calm': 3, 'Neutral': 2, 'Tired': 2,
+            'Anxious': 1, 'Stressed': 1, 'Sad': 1, 'Frustrated': 1, 'Angry': 0
+        }
+        
+        mood_date = latest_mood.checked_in_at.date()
+        mood_score = mood_scores.get(latest_mood.mood, 2)
+        
+        # Create or update wellness graph entry
+        wellness_entry, created = WellnessGraph.objects.update_or_create(
+            user=user,
+            mood_date=mood_date,
+            defaults={'mood_score': mood_score}
+        )
+        
+        return Response({
+            "message": "Auto-sync completed",
+            "mood_date": mood_date.strftime('%Y-%m-%d'),
+            "mood_score": mood_score,
+            "original_mood": latest_mood.mood,
+            "was_created": created
+        })
+
+    def _get_mood_label(self, score):
+        """Convert numeric score back to mood label"""
+        mood_labels = {
+            5: 'Ecstatic',
+            4: 'Happy/Excited',
+            3: 'Content/Calm',
+            2: 'Neutral/Tired',
+            1: 'Anxious/Stressed/Sad',
+            0: 'Angry/Frustrated'
+        }
+        return mood_labels.get(score, 'Unknown')
 
 
 @extend_schema(tags=["Employee Management"])
