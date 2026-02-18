@@ -5709,8 +5709,8 @@ class ContentMediaViewSet(viewsets.ModelViewSet):
             # System admin sees all media
             return ContentMedia.objects.all().order_by("-created_at")
         else:
-            # Employees see only uploaded and processed media
-            return ContentMedia.objects.filter(uploaded=True, processed=True).order_by(
+            # Employees see only uploaded media (removed processed filter)
+            return ContentMedia.objects.filter(uploaded=True).order_by(
                 "-created_at"
             )
 
