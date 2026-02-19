@@ -6179,12 +6179,14 @@ class AdminChatView(viewsets.ViewSet):
 
     def get_queryset(self):
         """Only system admins can access their own chat messages"""
+        # Check if user is system admin using User model role field
         if self.request.user.role != "system_admin":
             return AdminChatMessage.objects.none()
         return AdminChatMessage.objects.filter(admin=self.request.user)
 
     def list(self, request):
         """Get last 10 messages for context"""
+        # Check if user is system admin using User model role field
         if request.user.role != "system_admin":
             return Response(
                 {"error": "Access denied. System admins only."},
@@ -6197,6 +6199,7 @@ class AdminChatView(viewsets.ViewSet):
 
     def create(self, request):
         """Send a message and get AI response"""
+        # Check if user is system admin using User model role field
         if request.user.role != "system_admin":
             return Response(
                 {"error": "Access denied. System admins only."},
