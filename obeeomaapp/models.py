@@ -988,6 +988,43 @@ class OrganizationSettings(models.Model):
         return f"Settings for {self.employer.name}"
 
 
+# Admin AI Chat Models
+class AdminChatMessage(models.Model):
+    """Admin-specific AI chat messages - no sessions, just message history"""
+    
+    ROLE_CHOICES = [
+        ("admin", "Admin"),
+        ("ai", "AI Assistant"),
+    ]
+    
+    admin = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE, 
+        related_name="admin_chat_messages",
+        limit_choices_to={"role": "system_admin"}
+    )
+    sender = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    message = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["admin", "timestamp"]),
+            models.Index(fields=["timestamp"]),
+        ]
+    
+    def __str__(self):
+        return f"Admin Chat Message - {self.admin.email}"
+    
+    @property
+    def api_role(self):
+        """Maps DB role to Groq role"""
+        if self.sender == "ai":
+            return "assistant"
+        return "user"
+
+
 # -- Subscription Plans Model. --
 class SubscriptionPlan(models.Model):
     """Available subscription plans"""

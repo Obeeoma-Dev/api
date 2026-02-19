@@ -6165,3 +6165,131 @@ def auth_check(request):
             'role': request.user.role
         }
     })
+
+
+# Admin AI Chat View
+@extend_schema(tags=["Admin - AI Chat"])
+class AdminChatView(viewsets.ViewSet):
+    """
+    Admin-specific AI chat functionality
+    No sessions - just message history with last 10 messages for context
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = AdminChatMessageSerializer
+
+    def get_queryset(self):
+        """Only system admins can access their own chat messages"""
+        if self.request.user.role != "system_admin":
+            return AdminChatMessage.objects.none()
+        return AdminChatMessage.objects.filter(admin=self.request.user)
+
+    def list(self, request):
+        """Get last 10 messages for context"""
+        if request.user.role != "system_admin":
+            return Response(
+                {"error": "Access denied. System admins only."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        messages = self.get_queryset()[:10]  # Get last 10 messages
+        serializer = self.get_serializer(messages, many=True)
+        return Response(serializer.data)
+
+    def create(self, request):
+        """Send a message and get AI response"""
+        if request.user.role != "system_admin":
+            return Response(
+                {"error": "Access denied. System admins only."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        user_message = request.data.get("message", "").strip()
+        if not user_message:
+            return Response(
+                {"error": "Message cannot be empty"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Save user message
+            admin_message = AdminChatMessage.objects.create(
+                admin=request.user,
+                sender="admin",
+                message=user_message
+            )
+
+            # Get last 10 messages for context (excluding the one we just saved)
+            conversation_history = []
+            recent_messages = self.get_queryset()[:10]
+            
+            for msg in recent_messages:
+                if msg.id != admin_message.id:  # Skip the message we just saved
+                    conversation_history.append({
+                        "role": msg.api_role(),
+                        "content": msg.message
+                    })
+
+            # Get AI response using existing GroqService
+            groq_service = GroqService()
+            
+            # Enhanced system prompt for admin-specific insights
+            system_prompt = """You are an AI assistant for the Obeeoma mental health platform administrator. 
+            You provide insights on:
+            1. Resource consumption patterns and trends
+            2. Platform growth strategies and recommendations
+            3. System optimization suggestions
+            4. User engagement analytics
+            5. Mental health platform best practices
+            
+            Be concise, data-driven, and actionable in your responses."""
+            
+            # Add system prompt to conversation history
+            full_conversation = [{"role": "system", "content": system_prompt}] + conversation_history
+            
+            ai_reply = groq_service.get_response(
+                user_message=user_message,
+                conversation_history=full_conversation,
+            )
+
+            # Save AI response
+            ai_message = AdminChatMessage.objects.create(
+                admin=request.user,
+                sender="ai",
+                message=ai_reply
+            )
+
+            # Return both messages
+            response_data = {
+                "user_message": AdminChatMessageSerializer(admin_message).data,
+                "ai_response": AdminChatMessageSerializer(ai_message).data,
+            }
+
+            return Response(response_data, status=status.HTTP_201_CREATED)
+
+        except ValueError as e:
+            logger.error(f"Groq API configuration error: {str(e)}")
+            return Response(
+                {"error": "AI service not configured. Please contact support."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.error(f"Admin AI chat error: {str(e)}")
+            return Response(
+                {"error": "Failed to process message. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=False, methods=['delete'])
+    def clear_history(self, request):
+        """Clear all chat history for this admin"""
+        if request.user.role != "system_admin":
+            return Response(
+                {"error": "Access denied. System admins only."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        AdminChatMessage.objects.filter(admin=request.user).delete()
+        return Response(
+            {"message": "Chat history cleared successfully"},
+            status=status.HTTP_200_OK
+        )

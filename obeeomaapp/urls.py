@@ -55,6 +55,7 @@ from obeeomaapp.views import (
     ChatSessionView,
     ChatMessageView,
     RecommendationLogView,
+    AdminChatView,
     home,
     OrganizationSignupView,
     VideoViewSet,
@@ -157,6 +158,9 @@ router.register(
 
 # AI Chat endpoints (Groq-powered)
 router.register(r"sana/sessions", ChatSessionView, basename="chat-session")
+
+# Admin AI Chat endpoints
+router.register(r"admin/ai-chat", AdminChatView, basename="admin-ai-chat")
 
 router.register(
     r"dashboard/organization-overview",
@@ -524,6 +528,12 @@ urlpatterns = [
             }
         ),
         name="chat-message-detail",
+    ),
+    # Admin AI Chat endpoints
+    path(
+        "admin/ai-chat/clear-history/",
+        AdminChatView.as_view({'delete': 'clear_history'}),
+        name="admin-ai-chat-clear-history",
     ),
     # Include router URLs
     path("", include(router.urls)),

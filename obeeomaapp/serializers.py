@@ -856,6 +856,13 @@ class ChatMessageSerializer(serializers.ModelSerializer):
         fields = ["id", "sender", "message", "timestamp"]  
         read_only_fields = ["id", "timestamp", "sender"]  # Sender is set automatically in view           
 
+class AdminChatMessageSerializer(serializers.ModelSerializer):
+    """Serializer for admin AI chat messages"""
+    class Meta:
+        model = AdminChatMessage
+        fields = ["id", "sender", "message", "timestamp"]
+        read_only_fields = ["id", "timestamp", "sender"]  # Sender is set automatically in view           
+
 
 
 class RecommendationLogSerializer(serializers.ModelSerializer):
