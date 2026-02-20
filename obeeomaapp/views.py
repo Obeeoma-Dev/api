@@ -50,6 +50,7 @@ from .models import Feedback
 from .serializers import FeedbackSerializer
 import logging
 import csv
+import os
 
 logger = logging.getLogger(__name__)
 from django.db.models import Avg
@@ -5492,8 +5493,8 @@ from django.conf import settings
 from rest_framework import viewsets, status, permissions, views
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import ContentArticle, ContentMedia
-from .serializers import ContentArticleSerializer, ContentMediaSerializer
+from .models import ContentArticle, ContentMedia, Article
+from .serializers import ContentArticleSerializer, ContentMediaSerializer, ArticleSerializer
 
 
 # --- Helper to create a presigned PUT URL for DO Spaces ---
@@ -6194,11 +6195,14 @@ class AdminChatView(viewsets.ViewSet):
             )
         
         messages = self.get_queryset()[:10]  # Get last 10 messages
-        serializer = self.get_serializer(messages, many=True)
+        serializer = self.serializer_class(messages, many=True)
         return Response(serializer.data)
 
     def create(self, request):
         """Send a message and get AI response"""
+        # Debug: Check if environment variable is loaded
+        logger.info(f"DEBUG: GROQ_API_KEY loaded: {'YES' if os.environ.get('GROQ_API_KEY') else 'MISSING'}")
+        
         # Check if user is system admin using User model role field
         if request.user.role != "system_admin":
             return Response(
@@ -6228,12 +6232,14 @@ class AdminChatView(viewsets.ViewSet):
             for msg in recent_messages:
                 if msg.id != admin_message.id:  # Skip the message we just saved
                     conversation_history.append({
-                        "role": msg.api_role(),
+                        "role": msg.api_role,  # Property, not method - no parentheses
                         "content": msg.message
                     })
 
             # Get AI response using existing GroqService
+            logger.info("DEBUG: About to initialize GroqService")
             groq_service = GroqService()
+            logger.info("DEBUG: GroqService initialized successfully")
             
             # Enhanced system prompt for admin-specific insights
             system_prompt = """You are an AI assistant for the Obeeoma mental health platform administrator. 
@@ -6248,11 +6254,13 @@ class AdminChatView(viewsets.ViewSet):
             
             # Add system prompt to conversation history
             full_conversation = [{"role": "system", "content": system_prompt}] + conversation_history
+            logger.info(f"DEBUG: About to call Groq API with {len(full_conversation)} messages")
             
             ai_reply = groq_service.get_response(
                 user_message=user_message,
                 conversation_history=full_conversation,
             )
+            logger.info("DEBUG: Groq API call successful")
 
             # Save AI response
             ai_message = AdminChatMessage.objects.create(
