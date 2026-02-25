@@ -1693,6 +1693,7 @@ class AdminSubscriptionSerializer(serializers.ModelSerializer):
     to view and manage ALL subscriptions
     across ALL organizations.
     """
+    employer = serializers.StringRelatedField(read_only=True)
 
     class Meta:
         model = Subscription
