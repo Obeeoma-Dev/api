@@ -13,7 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security
 SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret-key")
-DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
+DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "t")
 PORT = os.getenv("PORT", "8000")
 
 # Groq AI Configuration
