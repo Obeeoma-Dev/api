@@ -56,6 +56,7 @@ from obeeomaapp.views import (
     ChatMessageView,
     RecommendationLogView,
     AdminChatView,
+    ReceptionistChatView,
     home,
     OrganizationSignupView,
     VideoViewSet,
@@ -534,6 +535,12 @@ urlpatterns = [
         "admin/ai-chat/clear-history/",
         AdminChatView.as_view({'delete': 'clear_history'}),
         name="admin-ai-chat-clear-history",
+    ),
+    # Receptionist AI Chat endpoints (public - no auth required)
+    path(
+        "receptionist/ai-chat/",
+        ReceptionistChatView.as_view({'post': 'create'}),
+        name="receptionist-ai-chat",
     ),
     # Include router URLs
     path("", include(router.urls)),

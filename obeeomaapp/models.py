@@ -1025,6 +1025,38 @@ class AdminChatMessage(models.Model):
         return "user"
 
 
+# Receptionist AI Chat Model
+class ReceptionistChatMessage(models.Model):
+    """Public receptionist AI chat messages - no authentication required"""
+    
+    ROLE_CHOICES = [
+        ("user", "User"),
+        ("ai", "AI Receptionist"),
+    ]
+    
+    session_id = models.CharField(max_length=255, default="default")  # Simple session tracking
+    sender = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    message = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["session_id", "timestamp"]),
+            models.Index(fields=["timestamp"]),
+        ]
+    
+    def __str__(self):
+        return f"Receptionist Chat Message - Session {self.session_id}"
+    
+    @property
+    def api_role(self):
+        """Maps DB role to Groq role"""
+        if self.sender == "ai":
+            return "assistant"
+        return "user"
+
+
 # -- Subscription Plans Model. --
 class SubscriptionPlan(models.Model):
     """Available subscription plans"""

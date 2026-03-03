@@ -6492,3 +6492,108 @@ class AdminChatView(viewsets.ViewSet):
             {"message": "Chat history cleared successfully"},
             status=status.HTTP_200_OK
         )
+
+
+# Receptionist AI Chat View
+@extend_schema(tags=["Public - Receptionist Chat"])
+class ReceptionistChatView(viewsets.ViewSet):
+    """
+    Public receptionist AI chat functionality
+    No authentication required - focused on platform information and guidance
+    """
+    permission_classes = []  # No authentication required
+    serializer_class = ReceptionistChatMessageSerializer
+
+    def get_queryset(self):
+        """Get messages for a session (default session for simplicity)"""
+        session_id = self.request.data.get('session_id', 'default')
+        return ReceptionistChatMessage.objects.filter(session_id=session_id)
+
+    def create(self, request):
+        """Send a message and get AI response"""
+        user_message = request.data.get("message", "").strip()
+        session_id = request.data.get("session_id", "default")
+        
+        if not user_message:
+            return Response(
+                {"error": "Message cannot be empty"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Save user message
+            user_chat_message = ReceptionistChatMessage.objects.create(
+                session_id=session_id,
+                sender="user",
+                message=user_message
+            )
+
+            # Get last 5 messages for context (excluding the one we just saved)
+            conversation_history = []
+            recent_messages = self.get_queryset()[:5]
+            
+            for msg in recent_messages:
+                if msg.id != user_chat_message.id:  # Skip the message we just saved
+                    conversation_history.append({
+                        "role": msg.api_role,
+                        "content": msg.message
+                    })
+
+            # Get AI response using existing GroqService
+            groq_service = GroqService()
+            
+            # Enhanced system prompt for receptionist-specific responses
+            system_prompt = """You are Sana, the AI receptionist for Obeeoma, an AI-powered mental health platform tailored for Africa's workforce.
+
+Your role is to:
+1. Welcome visitors and explain what Obeeoma offers
+2. Guide users about our mental health services and features
+3. Explain how the platform connects to our mobile app
+4. Direct users to create accounts for full access
+5. Answer questions about mental health workplace wellness in Africa
+6. Politely redirect conversations back to Obeeoma's services when asked off-topic
+
+Key information about Obeeoma:
+- AI-powered mental health platform for African workplaces
+- Offers assessments, resources, and AI-guided support
+- Connected to a mobile app for on-the-go access
+- Focuses on empowering Africa's workforce mental wellness
+- Provides confidential, accessible mental health support
+
+Be warm, professional, and helpful. Always guide conversations toward how Obeeoma can help with mental health in the workplace. If asked questions outside our scope, politely relate it back to our mission or suggest creating an account to explore our full range of services."""
+            
+            # Add system prompt to conversation history
+            full_conversation = [{"role": "system", "content": system_prompt}] + conversation_history
+            
+            ai_reply = groq_service.get_response(
+                user_message=user_message,
+                conversation_history=full_conversation,
+            )
+
+            # Save AI response
+            ai_message = ReceptionistChatMessage.objects.create(
+                session_id=session_id,
+                sender="ai",
+                message=ai_reply
+            )
+
+            # Return both messages
+            response_data = {
+                "user_message": ReceptionistChatMessageSerializer(user_chat_message).data,
+                "ai_response": ReceptionistChatMessageSerializer(ai_message).data,
+            }
+
+            return Response(response_data, status=status.HTTP_201_CREATED)
+
+        except ValueError as e:
+            logger.error(f"Groq API configuration error: {str(e)}")
+            return Response(
+                {"error": "AI service not configured. Please contact support."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.error(f"Receptionist AI chat error: {str(e)}")
+            return Response(
+                {"error": "Failed to process message. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
