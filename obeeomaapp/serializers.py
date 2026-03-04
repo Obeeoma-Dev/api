@@ -873,6 +873,16 @@ class ReceptionistChatMessageSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "timestamp", "sender"]  # Sender is set automatically in view           
 
 
+class AIStatusSerializer(serializers.ModelSerializer):
+    """Serializer for AI status management"""
+    feature_display = serializers.CharField(source='get_feature_name_display', read_only=True)
+    
+    class Meta:
+        model = AIStatus
+        fields = ["id", "feature_name", "feature_display", "is_enabled", "last_active", "updated_at"]
+        read_only_fields = ["id", "updated_at"]
+
+
 class RecommendationLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = RecommendationLog

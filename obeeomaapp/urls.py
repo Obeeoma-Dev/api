@@ -57,6 +57,7 @@ from obeeomaapp.views import (
     RecommendationLogView,
     AdminChatView,
     ReceptionistChatView,
+    AdminAIStatusView,
     home,
     OrganizationSignupView,
     VideoViewSet,
@@ -541,6 +542,17 @@ urlpatterns = [
         "receptionist/ai-chat/",
         ReceptionistChatView.as_view({'post': 'create'}),
         name="receptionist-ai-chat",
+    ),
+    # Admin AI Status Management endpoints
+    path(
+        "admin/ai-status/",
+        AdminAIStatusView.as_view({'get': 'list'}),
+        name="admin-ai-status",
+    ),
+    path(
+        "admin/ai-status/toggle/",
+        AdminAIStatusView.as_view({'post': 'create'}),
+        name="admin-ai-status-toggle",
     ),
     # Include router URLs
     path("", include(router.urls)),

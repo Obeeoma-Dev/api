@@ -134,6 +134,10 @@ from .serializers import EmployeeProfileSerializer
 # from sana_ai.services.mental_health_ai import get_ai_service  # TODO: Add sana_ai app
 from .Services.groq_service import GroqService
 
+# AI Status Management imports
+from .models import AIStatus
+from .serializers import AIStatusSerializer
+
 
 # Mood score mapping for trends (used to provide numeric scores to frontend)
 MOOD_SCORES = {
@@ -6492,6 +6496,81 @@ class AdminChatView(viewsets.ViewSet):
             {"message": "Chat history cleared successfully"},
             status=status.HTTP_200_OK
         )
+
+
+# Admin AI Status Management View
+@extend_schema(tags=["Admin - AI Status"])
+class AdminAIStatusView(viewsets.ViewSet):
+    """
+    Admin AI status management functionality
+    Handle toggling AI features and retrieving status
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = AIStatusSerializer
+
+    def list(self, request):
+        """Get all AI feature statuses"""
+        # Check if user is system admin
+        if request.user.role != "system_admin":
+            return Response(
+                {"error": "Access denied. System admins only."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get all AI statuses
+        ai_statuses = AIStatus.objects.all()
+        serializer = self.serializer_class(ai_statuses, many=True)
+        
+        # Return as a dict for easier frontend consumption
+        status_dict = {}
+        for status in serializer.data:
+            feature_key = status['feature_name']
+            status_dict[feature_key] = {
+                'is_enabled': status['is_enabled'],
+                'last_active': status['last_active']
+            }
+        
+        return Response(status_dict)
+
+    def create(self, request):
+        """Toggle AI feature status"""
+        # Check if user is system admin
+        if request.user.role != "system_admin":
+            return Response(
+                {"error": "Access denied. System admins only."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        enabled = request.data.get("enabled")
+        if enabled is None:
+            return Response(
+                {"error": "enabled field is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Toggle admin AI specifically
+            ai_status = AIStatus.toggle_feature(
+                feature_name="admin_ai",
+                enabled=enabled,
+                user=request.user
+            )
+            
+            serializer = self.serializer_class(ai_status)
+            return Response({
+                "message": f"Admin AI {'enabled' if enabled else 'disabled'} successfully",
+                "status": serializer.data
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Failed to toggle Admin AI: {str(e)}")
+            return Response(
+                {"error": "Failed to toggle AI status. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+
 
 
 # Receptionist AI Chat View
