@@ -1094,7 +1094,7 @@ class AIStatus(models.Model):
         """Get status for a specific AI feature"""
         obj, created = cls.objects.get_or_create(
             feature_name=feature_name,
-            defaults={'is_enabled': True}
+            defaults={'is_enabled': True}  # Only set default when creating new record
         )
         return obj
     
