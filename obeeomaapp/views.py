@@ -6542,23 +6542,35 @@ class AdminAIStatusView(viewsets.ViewSet):
             )
         
         enabled = request.data.get("enabled")
+        feature_name = request.data.get("feature_name", "admin_ai")  # Default to admin_ai for backward compatibility
+        
         if enabled is None:
             return Response(
                 {"error": "enabled field is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Validate feature_name
+        valid_features = [choice[0] for choice in AIStatus.AI_FEATURE_CHOICES]
+        if feature_name not in valid_features:
+            return Response(
+                {"error": f"Invalid feature_name. Must be one of: {valid_features}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         try:
-            # Toggle admin AI specifically
+            # Toggle the specified AI feature
             ai_status = AIStatus.toggle_feature(
-                feature_name="admin_ai",
+                feature_name=feature_name,
                 enabled=enabled,
                 user=request.user
             )
             
             serializer = self.serializer_class(ai_status)
+            feature_display = ai_status.get_feature_name_display()
+            
             return Response({
-                "message": f"Admin AI {'enabled' if enabled else 'disabled'} successfully",
+                "message": f"{feature_display} {'enabled' if enabled else 'disabled'} successfully",
                 "status": serializer.data
             }, status=status.HTTP_200_OK)
             
