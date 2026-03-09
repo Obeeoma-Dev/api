@@ -3701,11 +3701,12 @@ from django.http import HttpResponse
 import io, csv
 
 # Import your models and serializers
-from .models import CommonIssue, ResourceEngagement, MoodTracking, Department
+from .models import CommonIssue, ResourceEngagement, MoodTracking, Department, WellnessGraph
 from .serializers import (
     ChatEngagementSerializer,
     DepartmentContributionSerializer,
     OrganizationActivitySerializer,
+    WellnessGraphSerializer,
 )
 
 
