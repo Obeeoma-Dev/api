@@ -865,6 +865,24 @@ class AdminChatMessageSerializer(serializers.ModelSerializer):
 
 
 
+class ReceptionistChatMessageSerializer(serializers.ModelSerializer):
+    """Serializer for receptionist AI chat messages"""
+    class Meta:
+        model = ReceptionistChatMessage
+        fields = ["id", "sender", "message", "timestamp"]
+        read_only_fields = ["id", "timestamp", "sender"]  # Sender is set automatically in view           
+
+
+class AIStatusSerializer(serializers.ModelSerializer):
+    """Serializer for AI status management"""
+    feature_display = serializers.CharField(source='get_feature_name_display', read_only=True)
+    
+    class Meta:
+        model = AIStatus
+        fields = ["id", "feature_name", "feature_display", "is_enabled", "last_active", "updated_at"]
+        read_only_fields = ["id", "updated_at"]
+
+
 class RecommendationLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = RecommendationLog

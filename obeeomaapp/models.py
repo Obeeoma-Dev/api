@@ -1025,6 +1025,97 @@ class AdminChatMessage(models.Model):
         return "user"
 
 
+# Receptionist AI Chat Model
+class ReceptionistChatMessage(models.Model):
+    """Public receptionist AI chat messages - no authentication required"""
+    
+    ROLE_CHOICES = [
+        ("user", "User"),
+        ("ai", "AI Receptionist"),
+    ]
+    
+    session_id = models.CharField(max_length=255, default="default")  # Simple session tracking
+    sender = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    message = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["session_id", "timestamp"]),
+            models.Index(fields=["timestamp"]),
+        ]
+    
+    def __str__(self):
+        return f"Receptionist Chat Message - Session {self.session_id}"
+    
+    @property
+    def api_role(self):
+        """Maps DB role to Groq role"""
+        if self.sender == "ai":
+            return "assistant"
+        return "user"
+
+
+# AI Status Management Model
+class AIStatus(models.Model):
+    """Store AI feature status and last active timestamps"""
+    
+    AI_FEATURE_CHOICES = [
+        ("landing_ai", "Landing Page AI"),
+        ("admin_ai", "Admin Dashboard AI"),
+        ("mobile_ai", "Mobile App AI"),
+    ]
+    
+    feature_name = models.CharField(max_length=20, choices=AI_FEATURE_CHOICES, unique=True)
+    is_enabled = models.BooleanField(default=True)
+    last_active = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ai_status_updates"
+    )
+    
+    class Meta:
+        ordering = ["feature_name"]
+        indexes = [
+            models.Index(fields=["feature_name"]),
+            models.Index(fields=["is_enabled"]),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_feature_name_display()} - {'Enabled' if self.is_enabled else 'Disabled'}"
+    
+    @classmethod
+    def get_status(cls, feature_name):
+        """Get status for a specific AI feature"""
+        obj, created = cls.objects.get_or_create(
+            feature_name=feature_name,
+            defaults={'is_enabled': True}  # Only set default when creating new record
+        )
+        return obj
+    
+    @classmethod
+    def toggle_feature(cls, feature_name, enabled, user=None):
+        """Toggle a specific AI feature"""
+        obj, created = cls.objects.get_or_create(
+            feature_name=feature_name,
+            defaults={'is_enabled': enabled, 'updated_by': user}
+        )
+        
+        if not created:
+            obj.is_enabled = enabled
+            obj.updated_by = user
+            if enabled:
+                obj.last_active = timezone.now()
+            obj.save()
+        
+        return obj
+
+
 # -- Subscription Plans Model. --
 class SubscriptionPlan(models.Model):
     """Available subscription plans"""
