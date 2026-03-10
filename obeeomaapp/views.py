@@ -4945,32 +4945,6 @@ class BlogViewSet(viewsets.ModelViewSet):
         return Response({"message": "Read confirmed", "confirmed_reads": blog.confirmed_reads})
 
 
-    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
-    def save(self, request, slug=None):
-        """Save article to user's library"""
-        try:
-            article = self.get_object()
-        except Exception:
-            raise NotFound("No article matches the given query.")
-
-        saved, created = SavedResource.objects.get_or_create(
-            user=request.user, article=article
-        )
-
-        if created:
-            return Response({"message": "Article saved to your library"})
-        else:
-            saved.delete()
-            return Response({"message": "Article removed from library"})
-
-    @action(detail=False, methods=["get"])
-    def trending(self, request):
-        """Return top 10 most viewed articles"""
-        trending = self.queryset.order_by("-views")[:10]
-        serializer = self.get_serializer(trending, many=True)
-        return Response(serializer.data)
-
-
 from rest_framework.permissions import (
     IsAdminUser,
     IsAuthenticated,
