@@ -1761,6 +1761,51 @@ class Article(models.Model):
         return self.title
 
 
+# -- Blog Model. --
+class Blog(models.Model):
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    excerpt = models.TextField(blank=True, null=True)
+    category = models.CharField(max_length=100, null=True)
+    
+    featured_image = models.ImageField(blank=True, null=True)
+    reading_time = models.IntegerField(default=5, help_text="Minutes to read")
+    views = models.IntegerField(default=0)
+    confirmed_reads = models.IntegerField(default=0)
+    status = models.CharField(
+        max_length=10,
+        choices=[("draft", "Draft"), ("published", "Published")],
+        default="draft",
+    )
+    featured = models.BooleanField(default=False)
+    author = models.CharField(max_length=100, null=True)
+    
+    is_public = models.BooleanField(default=True)
+    published_date = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-published_date"]
+
+    def __str__(self):
+        return self.title
+
+
+# -- Blog View Model for Tracking --
+class BlogView(models.Model):
+    blog = models.ForeignKey(Blog, on_delete=models.CASCADE, related_name="blog_views")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    viewed_at = models.DateTimeField(auto_now_add=True)
+    is_confirmed_read = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ["-viewed_at"]
+
+    def __str__(self):
+        return f"{self.blog.title} - {self.user.email if self.user else 'Anonymous'}"
+
+
 # -- Meditation Technique Model. --
 
 

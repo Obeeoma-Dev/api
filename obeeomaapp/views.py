@@ -4880,6 +4880,71 @@ class ArticleViewSet(viewsets.ModelViewSet):  # Full CRUD support
 
         return Response({"message": "Read recorded", "total_views": article.views})
 
+
+class BlogViewSet(viewsets.ModelViewSet):
+    queryset = Blog.objects.all()
+    serializer_class = BlogSerializer
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    parser_classes = [MultiPartParser, FormParser]
+
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
+    filterset_fields = ["category", "status"]
+    search_fields = ["title", "content", "excerpt"]
+    ordering_fields = ["published_date", "views", "confirmed_reads"]
+
+    @action(detail=True, methods=["post"])
+    def view(self, request, pk=None):
+        """Record that user viewed this blog"""
+        try:
+            blog = self.get_object()
+        except Exception:
+            raise NotFound("No blog matches the given query.")
+
+        # Increment view count
+        blog.views += 1
+        blog.save()
+
+        # Create or update BlogView record
+        if request.user.is_authenticated:
+            BlogView.objects.get_or_create(
+                blog=blog,
+                user=request.user,
+                defaults={'viewed_at': timezone.now()}
+            )
+
+        return Response({"message": "View recorded", "total_views": blog.views})
+
+    @action(detail=True, methods=["post"])
+    def read(self, request, pk=None):
+        """Record that user confirmed reading this blog"""
+        try:
+            blog = self.get_object()
+        except Exception:
+            raise NotFound("No blog matches the given query.")
+
+        # Increment confirmed reads count
+        blog.confirmed_reads += 1
+        blog.save()
+
+        # Update BlogView record if user is authenticated
+        if request.user.is_authenticated:
+            blog_view, created = BlogView.objects.get_or_create(
+                blog=blog,
+                user=request.user,
+                defaults={'viewed_at': timezone.now(), 'is_confirmed_read': True}
+            )
+            if not created:
+                blog_view.is_confirmed_read = True
+                blog_view.save()
+
+        return Response({"message": "Read confirmed", "confirmed_reads": blog.confirmed_reads})
+
+
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
     def save(self, request, slug=None):
         """Save article to user's library"""
@@ -5521,8 +5586,8 @@ from django.conf import settings
 from rest_framework import viewsets, status, permissions, views
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import ContentArticle, ContentMedia, Article
-from .serializers import ContentArticleSerializer, ContentMediaSerializer, ArticleSerializer
+from .models import ContentArticle, ContentMedia, Article, Blog, BlogView
+from .serializers import ContentArticleSerializer, ContentMediaSerializer, ArticleSerializer, BlogSerializer, BlogViewSerializer
 
 
 # --- Helper to create a presigned PUT URL for DO Spaces ---

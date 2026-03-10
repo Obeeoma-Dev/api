@@ -63,6 +63,7 @@ from obeeomaapp.views import (
     VideoViewSet,
     AudioViewSet,
     ArticleViewSet,
+    BlogViewSet,
     MeditationTechniqueViewSet,
     SavedResourceViewSet,
     EducationalResourceViewSet,
@@ -196,6 +197,7 @@ router.register(
 router.register(r"videos", VideoViewSet, basename="educational-video")
 router.register(r"audios", AudioViewSet, basename="calming-audio")
 router.register(r"articles", ArticleViewSet, basename="mental-health-article")
+router.register(r"blogs", BlogViewSet, basename="blog")
 router.register(
     r"meditations", MeditationTechniqueViewSet, basename="meditation-technique"
 )

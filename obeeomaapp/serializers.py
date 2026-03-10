@@ -1467,6 +1467,38 @@ class ArticleSerializer(serializers.ModelSerializer):
             "content",
             "featured",
         ]
+
+# Blog Serializer
+class BlogSerializer(serializers.ModelSerializer):
+    category = serializers.CharField()
+    author = serializers.CharField()
+    published_date = serializers.DateTimeField(required=False)
+    featured_image = serializers.ImageField(required=False, allow_null=True)
+
+    class Meta:
+        model = Blog
+        fields = [
+            "id",
+            "title",
+            "category",
+            "published_date",
+            "status",
+            "excerpt",
+            "featured_image",
+            "author",
+            "content",
+            "featured",
+            "views",
+            "confirmed_reads",
+            "reading_time",
+        ]
+
+# Blog View Serializer
+class BlogViewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BlogView
+        fields = '__all__'
+
 # Meditation Technique Serializer
 
 class MeditationTechniqueSerializer(serializers.ModelSerializer):
