@@ -301,6 +301,3 @@ AWS_S3_SIGNATURE_VERSION = "s3v4"
 # Defining them here makes it explicit and avoids "undefined" attribute errors.
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
-
-
-
