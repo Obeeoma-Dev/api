@@ -2215,9 +2215,9 @@ class UserAchievement(models.Model):
             self.achieved_date = timezone.now().date()
 
             # Send notification
-            if hasattr(self.user, "employee"):
+            if hasattr(self.user, "employee_record") and self.user.employee_record:
                 Notification.objects.create(
-                    employee=self.user.employee,
+                    employee=self.user.employee_record,
                     title="Achievement Unlocked ",
                     message=f"You unlocked: {self.achievement.title}",
                     action_url="/achievements/",

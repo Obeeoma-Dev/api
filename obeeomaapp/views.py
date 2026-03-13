@@ -4610,7 +4610,19 @@ class EmployeeEngagementSummaryView(APIView):
     permission_classes = [IsCompanyAdmin]
 
     def get(self, request):
-        employees = Employee.objects.filter(employer=request.user.employer)
+        # Get organization from user
+        user = request.user
+        if hasattr(user, 'employee_record') and user.employee_record:
+            organization = user.employee_record.organization
+        elif hasattr(user, 'organization') and user.organization:
+            organization = user.organization
+        else:
+            return Response(
+                {"error": "User must be associated with an organization"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        employees = Employee.objects.filter(organization=organization)
 
         total = employees.count()
         active = employees.filter(is_active=True).count()
@@ -5815,10 +5827,10 @@ class CompanyMoodViewSet(viewsets.ModelViewSet):
             return CompanyMood.objects.all()
         
         # Get organization based on user role
-        if hasattr(user, 'employer'):
-            organization = user.employer.organization
-        elif hasattr(user, 'employee'):
-            organization = user.employee.organization
+        if hasattr(user, 'employee_record') and user.employee_record:
+            organization = user.employee_record.organization
+        elif hasattr(user, 'organization') and user.organization:
+            organization = user.organization
         else:
             return CompanyMood.objects.none()
             
@@ -5828,10 +5840,10 @@ class CompanyMoodViewSet(viewsets.ModelViewSet):
         user = self.request.user
         
         # Get organization based on user role
-        if hasattr(user, 'employer'):
-            organization = user.employer.organization
-        elif hasattr(user, 'employee'):
-            organization = user.employee.organization
+        if hasattr(user, 'employee_record') and user.employee_record:
+            organization = user.employee_record.organization
+        elif hasattr(user, 'organization') and user.organization:
+            organization = user.organization
         else:
             raise ValidationError("User must be associated with an organization")
             
@@ -5843,10 +5855,10 @@ class CompanyMoodViewSet(viewsets.ModelViewSet):
         user = request.user
         
         # Get organization
-        if hasattr(user, 'employer'):
-            organization = user.employer.organization
-        elif hasattr(user, 'employee'):
-            organization = user.employee.organization
+        if hasattr(user, 'employee_record') and user.employee_record:
+            organization = user.employee_record.organization
+        elif hasattr(user, 'organization') and user.organization:
+            organization = user.organization
         else:
             return Response(
                 {"error": "User must be associated with an organization"}, 
@@ -5886,10 +5898,10 @@ class CompanyMoodViewSet(viewsets.ModelViewSet):
         user = request.user
         
         # Get organization
-        if hasattr(user, 'employer'):
-            organization = user.employer.organization
-        elif hasattr(user, 'employee'):
-            organization = user.employee.organization
+        if hasattr(user, 'employee_record') and user.employee_record:
+            organization = user.employee_record.organization
+        elif hasattr(user, 'organization') and user.organization:
+            organization = user.organization
         else:
             return Response(
                 {"error": "User must be associated with an organization"}, 
@@ -5957,10 +5969,10 @@ class CompanyMoodViewSet(viewsets.ModelViewSet):
         user = request.user
         
         # Get organization
-        if hasattr(user, 'employer'):
-            organization = user.employer.organization
-        elif hasattr(user, 'employee'):
-            organization = user.employee.organization
+        if hasattr(user, 'employee_record') and user.employee_record:
+            organization = user.employee_record.organization
+        elif hasattr(user, 'organization') and user.organization:
+            organization = user.organization
         else:
             return Response(
                 {"error": "User must be associated with an organization"}, 
