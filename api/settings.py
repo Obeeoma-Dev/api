@@ -80,7 +80,6 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     # custom middleware to prevent caching
     "obeeomaapp.Middleware.security_middleware.NoCacheMiddleware",
-    # frontend authentication middleware
     "obeeomaapp.Middleware.frontend_auth_middleware.FrontendAuthMiddleware",
     
     "django.middleware.common.CommonMiddleware",
