@@ -5581,7 +5581,7 @@ from django.conf import settings
 from rest_framework import viewsets, status, permissions, views
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import ContentArticle, ContentMedia, Article, Blog, BlogView
+from .models import ContentArticle, ContentMedia, Article, Blog, ArticleView
 from .serializers import ContentArticleSerializer, ContentMediaSerializer, ArticleSerializer, BlogSerializer, BlogViewSerializer
 
 
