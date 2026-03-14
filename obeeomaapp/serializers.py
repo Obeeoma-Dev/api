@@ -1466,6 +1466,9 @@ class ArticleSerializer(serializers.ModelSerializer):
             "author",
             "content",
             "featured",
+            "views",
+            "confirmed_reads",
+            "reading_time",
         ]
 
 # Blog Serializer
@@ -1493,10 +1496,10 @@ class BlogSerializer(serializers.ModelSerializer):
             "reading_time",
         ]
 
-# Blog View Serializer
-class BlogViewSerializer(serializers.ModelSerializer):
+# Article View Serializer
+class ArticleViewSerializer(serializers.ModelSerializer):
     class Meta:
-        model = BlogView
+        model = ArticleView
         fields = '__all__'
 
 # Meditation Technique Serializer

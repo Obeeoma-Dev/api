@@ -1741,6 +1741,7 @@ class Article(models.Model):
     featured_image = models.ImageField(blank=True, null=True)
     reading_time = models.IntegerField(default=5, help_text="Minutes to read")
     views = models.IntegerField(default=0)
+    confirmed_reads = models.IntegerField(default=0)
     status = models.CharField(
         max_length=10,
         choices=[("draft", "Draft"), ("published", "Published")],
@@ -1792,9 +1793,9 @@ class Blog(models.Model):
         return self.title
 
 
-# -- Blog View Model for Tracking --
-class BlogView(models.Model):
-    blog = models.ForeignKey(Blog, on_delete=models.CASCADE, related_name="blog_views")
+# -- Article View Model for Tracking --
+class ArticleView(models.Model):
+    article = models.ForeignKey(Article, on_delete=models.CASCADE, related_name="article_views")
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     viewed_at = models.DateTimeField(auto_now_add=True)
     is_confirmed_read = models.BooleanField(default=False)
@@ -1803,7 +1804,7 @@ class BlogView(models.Model):
         ordering = ["-viewed_at"]
 
     def __str__(self):
-        return f"{self.blog.title} - {self.user.email if self.user else 'Anonymous'}"
+        return f"{self.article.title} - {self.user.email if self.user else 'Anonymous'}"
 
 
 # -- Meditation Technique Model. --
