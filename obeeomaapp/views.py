@@ -4610,7 +4610,19 @@ class EmployeeEngagementSummaryView(APIView):
     permission_classes = [IsCompanyAdmin]
 
     def get(self, request):
-        employees = Employee.objects.filter(employer=request.user.employer)
+        # Get organization from user
+        user = request.user
+        if hasattr(user, 'employee_record') and user.employee_record:
+            organization = user.employee_record.organization
+        elif hasattr(user, 'organization') and user.organization:
+            organization = user.organization
+        else:
+            return Response(
+                {"error": "User must be associated with an organization"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        employees = Employee.objects.filter(organization=organization)
 
         total = employees.count()
         active = employees.filter(is_active=True).count()
@@ -4855,30 +4867,51 @@ class ArticleViewSet(viewsets.ModelViewSet):  # Full CRUD support
     ordering_fields = ["published_date", "views", "reading_time"]
 
     @action(detail=True, methods=["post"])
-    def read(self, request, slug=None):
-        """Record that user read this article"""
+    def view(self, request, pk=None):
+        """Record that user viewed this article"""
         try:
             article = self.get_object()
         except Exception:
             raise NotFound("No article matches the given query.")
 
+        # Increment view count
         article.views += 1
         article.save()
 
-        # Track user activity if authenticated
+        # Create or update ArticleView record
         if request.user.is_authenticated:
-            UserActivity.objects.create(user=request.user, article=article)
-
-        # Notify employees (should be outside Response)
-        for employee in Employee.objects.all():
-            Notification.objects.create(
-                employee=employee,
-                message=f"New article published: {article.title}",
-                content_type="article",
-                object_id=article.id,
+            ArticleView.objects.get_or_create(
+                article=article,
+                user=request.user,
+                defaults={'viewed_at': timezone.now()}
             )
 
-        return Response({"message": "Read recorded", "total_views": article.views})
+        return Response({"message": "View recorded", "total_views": article.views})
+
+    @action(detail=True, methods=["post"])
+    def read(self, request, pk=None):
+        """Record that user confirmed reading this article"""
+        try:
+            article = self.get_object()
+        except Exception:
+            raise NotFound("No article matches the given query.")
+
+        # Increment confirmed reads count
+        article.confirmed_reads += 1
+        article.save()
+
+        # Update ArticleView record if user is authenticated
+        if request.user.is_authenticated:
+            article_view, created = ArticleView.objects.get_or_create(
+                article=article,
+                user=request.user,
+                defaults={'viewed_at': timezone.now(), 'is_confirmed_read': True}
+            )
+            if not created:
+                article_view.is_confirmed_read = True
+                article_view.save()
+
+        return Response({"message": "Read confirmed", "confirmed_reads": article.confirmed_reads})
 
 
 class BlogViewSet(viewsets.ModelViewSet):
@@ -5560,8 +5593,8 @@ from django.conf import settings
 from rest_framework import viewsets, status, permissions, views
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import ContentArticle, ContentMedia, Article, Blog, BlogView
-from .serializers import ContentArticleSerializer, ContentMediaSerializer, ArticleSerializer, BlogSerializer, BlogViewSerializer
+from .models import ContentArticle, ContentMedia, Article, Blog, ArticleView
+from .serializers import ContentArticleSerializer, ContentMediaSerializer, ArticleSerializer, BlogSerializer
 
 
 # --- Helper to create a presigned PUT URL for DO Spaces ---
@@ -5814,10 +5847,10 @@ class CompanyMoodViewSet(viewsets.ModelViewSet):
             return CompanyMood.objects.all()
         
         # Get organization based on user role
-        if hasattr(user, 'employer'):
-            organization = user.employer.organization
-        elif hasattr(user, 'employee'):
-            organization = user.employee.organization
+        if hasattr(user, 'employee_record') and user.employee_record:
+            organization = user.employee_record.organization
+        elif hasattr(user, 'organization') and user.organization:
+            organization = user.organization
         else:
             return CompanyMood.objects.none()
             
@@ -5827,10 +5860,10 @@ class CompanyMoodViewSet(viewsets.ModelViewSet):
         user = self.request.user
         
         # Get organization based on user role
-        if hasattr(user, 'employer'):
-            organization = user.employer.organization
-        elif hasattr(user, 'employee'):
-            organization = user.employee.organization
+        if hasattr(user, 'employee_record') and user.employee_record:
+            organization = user.employee_record.organization
+        elif hasattr(user, 'organization') and user.organization:
+            organization = user.organization
         else:
             raise ValidationError("User must be associated with an organization")
             
@@ -5842,10 +5875,10 @@ class CompanyMoodViewSet(viewsets.ModelViewSet):
         user = request.user
         
         # Get organization
-        if hasattr(user, 'employer'):
-            organization = user.employer.organization
-        elif hasattr(user, 'employee'):
-            organization = user.employee.organization
+        if hasattr(user, 'employee_record') and user.employee_record:
+            organization = user.employee_record.organization
+        elif hasattr(user, 'organization') and user.organization:
+            organization = user.organization
         else:
             return Response(
                 {"error": "User must be associated with an organization"}, 
@@ -5885,10 +5918,10 @@ class CompanyMoodViewSet(viewsets.ModelViewSet):
         user = request.user
         
         # Get organization
-        if hasattr(user, 'employer'):
-            organization = user.employer.organization
-        elif hasattr(user, 'employee'):
-            organization = user.employee.organization
+        if hasattr(user, 'employee_record') and user.employee_record:
+            organization = user.employee_record.organization
+        elif hasattr(user, 'organization') and user.organization:
+            organization = user.organization
         else:
             return Response(
                 {"error": "User must be associated with an organization"}, 
@@ -5956,10 +5989,10 @@ class CompanyMoodViewSet(viewsets.ModelViewSet):
         user = request.user
         
         # Get organization
-        if hasattr(user, 'employer'):
-            organization = user.employer.organization
-        elif hasattr(user, 'employee'):
-            organization = user.employee.organization
+        if hasattr(user, 'employee_record') and user.employee_record:
+            organization = user.employee_record.organization
+        elif hasattr(user, 'organization') and user.organization:
+            organization = user.organization
         else:
             return Response(
                 {"error": "User must be associated with an organization"}, 

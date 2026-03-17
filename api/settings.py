@@ -80,7 +80,6 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     # custom middleware to prevent caching
     "obeeomaapp.Middleware.security_middleware.NoCacheMiddleware",
-    # frontend authentication middleware
     "obeeomaapp.Middleware.frontend_auth_middleware.FrontendAuthMiddleware",
     
     "django.middleware.common.CommonMiddleware",
@@ -301,6 +300,3 @@ AWS_S3_SIGNATURE_VERSION = "s3v4"
 # Defining them here makes it explicit and avoids "undefined" attribute errors.
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
-
-
-
