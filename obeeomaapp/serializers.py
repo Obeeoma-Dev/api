@@ -1,7 +1,6 @@
 # serializers.py
 from datetime import timedelta
 from secrets import token_urlsafe
-from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from drf_spectacular.utils import extend_schema_field
 from django.utils import timezone
@@ -198,6 +197,18 @@ class SignupSerializer(serializers.ModelSerializer):
 
         return user
     
+
+class MoodGaugeChartSerializer(serializers.Serializer):
+    """Serializer for Mood Gauge Chart data"""
+    mood_label = serializers.CharField()
+    score = serializers.IntegerField()
+    clamped_score = serializers.IntegerField()
+    needle_angle = serializers.FloatField()
+    dominant_mood = serializers.CharField()
+    total_entries = serializers.IntegerField()
+    organization_name = serializers.CharField(allow_null=True)
+    date = serializers.DateField(allow_null=True)
+
 
 
 # Input serializer for contact person (employer)

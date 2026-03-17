@@ -1,7 +1,7 @@
 {
     "kiroAgent.configureMCP": "Disabled",
-    // Python interpreter - use the virtual environment
-    "python.defaultInterpreterPath": "${workspaceFolder}/venv/Scripts/python.exe",
+    // Python interpreter - use the virtual environment in api folder
+    "python.defaultInterpreterPath": "${workspaceFolder}/api/env/Scripts/python.exe",
     "python.terminal.activateEnvironment": true,
     
     // Environment variables - load from .env file
@@ -21,5 +21,10 @@
     },
     
     // For all terminals - ensure we override
-    "terminal.integrated.inheritEnv": false
+    "terminal.integrated.inheritEnv": false,
+    
+    // Pylance/Pyright configuration - add virtual environment site-packages to extra paths
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/api/env/Lib/site-packages"
+    ]
 }

@@ -5803,7 +5803,6 @@ class EngagementLevelViewSet(viewsets.ModelViewSet):
     serializer_class = EngagementLevelSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-
 @extend_schema(tags=["Company Mood"])
 class CompanyMoodViewSet(viewsets.ModelViewSet):
     serializer_class = CompanyMoodSerializer
@@ -6152,6 +6151,146 @@ class CompanyMoodViewSet(viewsets.ModelViewSet):
 
         return max(mood_totals, key=mood_totals.get) if mood_totals else "No data"
 
+    @action(detail=False, methods=['get', 'post'], url_path='gauge-chart')
+    def get_gauge_chart(self, request):
+        """
+        Get mood gauge chart data for the organization.
+        Returns the current mood status as a gauge chart data.
+        
+        GET /api/company-mood/gauge-chart/
+        POST /api/company-mood/gauge-chart/
+        """
+        user = request.user
+        
+        # Check if user is authenticated
+        if not user.is_authenticated:
+            return Response(
+                {"error": "Authentication required", "detail": "Please login to access this endpoint"}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Get organization - using Employee model approach (same as MoodTrackingView)
+        organization = None
+        
+        # Approach 1: Try to get from Employee model via filter (like MoodTrackingView)
+        try:
+            from obeeomaapp.models import Employee
+            emp = Employee.objects.filter(user=user).first()
+            if organization is None and emp:
+                # Employee has employer, but we need Organization for CompanyMood
+                # Try to get Organization from employer's contact_person or other relation
+                if hasattr(emp.employer, 'managed_organizations'):
+                    org = emp.employer.managed_organizations.first()
+                    if org:
+                        organization = org
+        except Exception:
+            pass
+        
+        # Approach 2: Try user.employee (EmployeeProfile) - has organization field
+        if not organization:
+            if hasattr(user, 'employee') and user.employee:
+                organization = user.employee.organization
+        
+        # Approach 3: Try to get Organization directly from user (if user is contact_person)
+        if not organization:
+            try:
+                from obeeomaapp.models import Organization
+                org = Organization.objects.filter(contact_person=user).first()
+                if org:
+                    organization = org
+            except Exception:
+                pass
+        
+        # Approach 4: If no organization found, get default from Organization
+        if not organization:
+            try:
+                from obeeomaapp.models import Organization
+                # Get the first organization as fallback
+                organization = Organization.objects.first()
+            except Exception:
+                pass
+        
+        if not organization:
+            return Response(
+                {"error": "No organization found", "debug": f"User: {user.username}, email: {user.email}"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get the most recent CompanyMood entry for the organization (no time filter)
+        company_mood = CompanyMood.objects.filter(
+            organization=organization
+        ).order_by('-date').first()
+
+        # If no CompanyMood exists, try to get from MoodTracking
+        if not company_mood:
+            # Get all mood entries to calculate current mood (no time limit)
+            recent_entries = MoodTracking.objects.filter(
+                employee__organization=organization
+            ).order_by('-checked_in_at')
+            
+            if not recent_entries.exists():
+                # Return empty state if no data - to match CompanyMoodViewSet
+                return Response({
+                    "mood_label": "",
+                    "score": 0,
+                    "clamped_score": 0,
+                    "needle_angle": 0,
+                    "dominant_mood": "",
+                    "total_entries": 0,
+                    "organization_name": organization.organizationName if organization else None,
+                    "date": None
+                })
+            
+            # Calculate dominant mood from all entries
+            mood_counts = {}
+            for entry in recent_entries:
+                mood = entry.mood
+                mood_counts[mood] = mood_counts.get(mood, 0) + 1
+            
+            dominant_mood = max(mood_counts, key=mood_counts.get) if mood_counts else "Neutral"
+            total_entries = recent_entries.count()
+            date = None
+        else:
+            dominant_mood = company_mood.dominant_mood
+            total_entries = company_mood.total_entries
+            date = None
+
+        # Map mood to gauge score (0-1000 scale)
+        # This matches the TypeScript logic:
+        # Angry: 100, Frustrated: 200, Neutral: 500, Happy: 700, Ecstatic: 900
+        GAUGE_SCORES = {
+            'Angry': 100,
+            'Frustrated': 200,
+            'Neutral': 500,
+            'Happy': 700,
+            'Ecstatic': 900,
+            # Map other moods to nearest category
+            'Excited': 900,
+            'Content': 700,
+            'Calm': 500,
+            'Tired': 500,
+            'Anxious': 200,
+            'Stressed': 200,
+            'Sad': 200,
+        }
+        
+        score = GAUGE_SCORES.get(dominant_mood, 500)
+        clamped_score = min(max(score, 0), 1000)
+        needle_angle = 180 - (clamped_score / 1000) * 180
+        
+        # Handle "Needs Attention" suffix from TypeScript
+        mood_label = dominant_mood.replace("Needs Attention", "").strip() or "Ecstatic"
+        
+        return Response({
+            "mood_label": mood_label,
+            "score": score,
+            "clamped_score": clamped_score,
+            "needle_angle": round(needle_angle, 2),
+            "dominant_mood": dominant_mood,
+            "total_entries": total_entries,
+            "organization_name": organization.organizationName if organization else None,
+            "date": None
+        })
 
 @extend_schema(tags=["Wellness Graph"])
 class WellnessGraphViewSet(viewsets.ModelViewSet):
@@ -6728,3 +6867,89 @@ Be warm, professional, and helpful. Always guide conversations toward how Obeeom
                 {"error": "Failed to process message. Please try again."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+# Mood Bar Graph View for Employer Dashboard
+@extend_schema(tags=["Employer Dashboard"])
+class MoodBarGraphViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+    
+    def list(self, request):
+        """
+        GET /mood-bar-graph/
+        Returns specific mood distribution for the employer's organization
+        """
+        # --- 1. GET EMPLOYER LOGIC (Kept from your original) ---
+        employer = None
+        user = request.user
+        
+        if hasattr(user, 'organization') and user.organization:
+            try:
+                employer, _ = Employer.objects.get_or_create(
+                    name=user.organization.organizationName,
+                    defaults={'is_active': True}
+                )
+            except: pass
+        
+        if not employer:
+            try:
+                employee_profile = Employee.objects.filter(user=user).first()
+                if employee_profile:
+                    employer = employee_profile.employer
+            except: pass
+        
+        if not employer:
+            return Response({
+                "specific_moods": [],
+                "total_employees": 0,
+                "message": "No organization found for this user"
+            })
+        
+        # --- 2. DATA AGGREGATION ---
+        employees = Employee.objects.filter(employer=employer)
+        employee_users = employees.values_list('user', flat=True)
+        
+        # Fetch specific moods (Angry, Sad, Ecstatic, etc.)
+        mood_counts = (
+            MoodTracking.objects
+            .filter(user__in=employee_users)
+            .values('mood')
+            .annotate(count=Count('id'))
+            .order_by('-count')
+        )
+        
+        total_entries = sum(item['count'] for item in mood_counts)
+
+        # --- 3. FORMATTING FOR FRONTEND ---
+        # This is exactly what your BarGraph.tsx and Redux Slice expect
+        specific_moods = []
+        for item in mood_counts:
+            percentage = (item['count'] / total_entries * 100) if total_entries > 0 else 0
+            specific_moods.append({
+                'mood': item['mood'], # e.g., "Angry"
+                'count': item['count'],
+                'percentage': round(percentage, 2)
+            })
+
+        # Keep Category distribution for your summary cards/logic
+        mood_categories = {
+            'Positive': ['Ecstatic', 'Happy', 'Excited', 'Content'],
+            'Neutral': ['Calm', 'Neutral', 'Tired'],
+            'Negative': ['Anxious', 'Stressed', 'Sad', 'Frustrated', 'Angry']
+        }
+        
+        category_distribution = {'Positive': 0, 'Neutral': 0, 'Negative': 0}
+        for item in mood_counts:
+            mood = item['mood']
+            for category, moods in mood_categories.items():
+                if mood in moods:
+                    category_distribution[category] += item['count']
+                    break
+        
+        return Response({
+            "specific_moods": specific_moods, # Main data for Bar Chart
+            "category_distribution": category_distribution, # Data for summary cards
+            "total_entries": total_entries,
+            "total_employees": employees.count(),
+            "employer_name": employer.name
+        })

@@ -5,7 +5,7 @@ from . import views
 from .views import OrganizationViewSet, AdminUserManagementViewSet
 from rest_framework.routers import DefaultRouter
 from .views import FeatureUsageViewSet
-
+from .views import MoodBarGraphViewSet
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
@@ -203,6 +203,7 @@ router.register(
 )
 router.register(r"saved", SavedResourceViewSet, basename="saved-resource")
 router.register(r"activity", UserActivityViewSet, basename="user-activity")
+router.register(r'mood-bar-graph', MoodBarGraphViewSet, basename='mood-bar-graph')
 
 # System Admin routers
 router.register(
@@ -270,6 +271,7 @@ router.register(
     r"engagement-level", EngagementLevelViewSet, basename="engagement-level"
 )
 router.register(r"company-mood", CompanyMoodViewSet, basename="company-mood")
+# router.register(r'company-mood', CompanyMoodViewSet, basename='company-mood')
 router.register(r"wellness-graph", WellnessGraphViewSet, basename="wellness-graph")
 router.register(r"notifications", NotificationViewSet, basename="notification-list")
 router.register(
