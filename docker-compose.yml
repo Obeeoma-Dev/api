@@ -1,7 +1,7 @@
 
 services:
   backend:
-    build: ./api
+    build: .
     container_name: django_backend
     ports:
       - "8000:8000"
