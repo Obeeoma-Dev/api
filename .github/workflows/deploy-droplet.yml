@@ -17,10 +17,11 @@ jobs:
           command_timeout: 30m
           script: |
             # Pull latest code
-            cd ~/obeeoma_project/api
+            cd ~/obeeoma_project/api/Backend/api
             git pull origin main
             
             # Rebuild and restart Docker containers
+            cd ~/obeeoma_project/api/Backend
             docker-compose down
             docker-compose build
             docker-compose up -d
