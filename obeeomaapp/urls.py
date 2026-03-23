@@ -202,7 +202,11 @@ router.register(
     r"meditations", MeditationTechniqueViewSet, basename="meditation-technique"
 )
 router.register(r"saved", SavedResourceViewSet, basename="saved-resource")
+
 router.register(r"activity", UserActivityViewSet, basename="user-activity")
+
+
+# Adding  the mood-bar-graph
 router.register(r'mood-bar-graph', MoodBarGraphViewSet, basename='mood-bar-graph')
 
 # System Admin routers
