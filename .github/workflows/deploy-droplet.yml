@@ -21,6 +21,7 @@ jobs:
             git pull origin main
             
             # Rebuild and restart Docker containers
+            cd ~/obeeoma_project/api
             docker-compose down
             docker-compose build
             docker-compose up -d
