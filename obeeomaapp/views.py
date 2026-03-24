@@ -5173,6 +5173,91 @@ class CompanyMoodViewSet(viewsets.ModelViewSet):
     serializer_class = CompanyMoodSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    @action(detail=False, methods=['get'])
+    def dashboard_summary(self, request):
+        """Get employee moods summary for dashboard"""
+        from django.db.models import Count, Q
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Get the user's organization
+        try:
+            employee = Employee.objects.get(user=request.user)
+            organization = employee.organization
+        except Employee.DoesNotExist:
+            return Response(
+                {"error": "User is not an employee"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get all employees in the organization
+        org_employees = Employee.objects.filter(organization=organization)
+        
+        # Get mood data for the last 7 days
+        seven_days_ago = timezone.now() - timedelta(days=7)
+        recent_moods = MoodTracking.objects.filter(
+            user__employee__organization=organization,
+            checked_in_at__gte=seven_days_ago
+        ).select_related('user')
+        
+        # Count moods by category
+        mood_counts = {}
+        for mood_type in MoodTracking.MOOD_CATEGORIES.keys():
+            count = recent_moods.filter(mood=mood_type).count()
+            mood_counts[mood_type] = count
+        
+        # Calculate mood categories summary
+        positive_moods = recent_moods.filter(mood__in=['Ecstatic', 'Happy', 'Excited', 'Content']).count()
+        neutral_moods = recent_moods.filter(mood__in=['Calm', 'Neutral', 'Tired']).count()
+        negative_moods = recent_moods.filter(mood__in=['Anxious', 'Stressed', 'Sad', 'Frustrated', 'Angry']).count()
+        
+        total_moods = recent_moods.count()
+        
+        # Calculate percentages
+        positive_percentage = round((positive_moods / total_moods * 100), 2) if total_moods > 0 else 0
+        neutral_percentage = round((neutral_moods / total_moods * 100), 2) if total_moods > 0 else 0
+        negative_percentage = round((negative_moods / total_moods * 100), 2) if total_moods > 0 else 0
+        
+        # Get most common mood
+        most_common_mood = recent_moods.values('mood').annotate(count=Count('mood')).order_by('-count').first()
+        
+        # Get employee mood breakdown
+        employee_moods = []
+        for emp in org_employees:
+            latest_mood = recent_moods.filter(user=emp.user).order_by('-checked_in_at').first()
+            if latest_mood:
+                employee_moods.append({
+                    'employee_id': emp.id,
+                    'employee_name': emp.user.get_full_name() or emp.user.email,
+                    'mood': latest_mood.mood,
+                    'mood_category': MoodTracking.MOOD_CATEGORIES.get(latest_mood.mood, 'Unknown'),
+                    'checked_in_at': latest_mood.checked_in_at
+                })
+        
+        return Response({
+            'organization': organization.name,
+            'total_employees': org_employees.count(),
+            'employees_with_mood_data': len(employee_moods),
+            'mood_summary': {
+                'positive': {
+                    'count': positive_moods,
+                    'percentage': positive_percentage
+                },
+                'neutral': {
+                    'count': neutral_moods,
+                    'percentage': neutral_percentage
+                },
+                'negative': {
+                    'count': negative_moods,
+                    'percentage': negative_percentage
+                }
+            },
+            'mood_breakdown': mood_counts,
+            'most_common_mood': most_common_mood['mood'] if most_common_mood else None,
+            'employee_moods': employee_moods,
+            'period': 'Last 7 days'
+        })
+
 
 @extend_schema(tags=["Wellness Graph"])
 class WellnessGraphViewSet(viewsets.ModelViewSet):
