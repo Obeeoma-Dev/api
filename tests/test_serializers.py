@@ -548,8 +548,7 @@ class ChatSessionSerializerTest(TestCase):
             role='Developer'
         )
         self.chat_session = ChatSession.objects.create(
-            employee=self.employee_profile,
-            started_at=timezone.now()
+            employee=self.employee_profile
         )
 
     def test_chat_session_serialization(self):

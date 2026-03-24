@@ -32,8 +32,8 @@ if mood_count > 0:
     for item in distribution:
         print(f"   - {item['mood']}: {item['count']}")
 else:
-    print("   ❌ No mood tracking data found!")
-    print("   💡 Employees need to log their moods first")
+    print("    No mood tracking data found!")
+    print("    Employees need to log their moods first")
 
 # Check CompanyMood entries
 company_mood_count = CompanyMood.objects.count()
@@ -44,23 +44,23 @@ if company_mood_count > 0:
     for cm in CompanyMood.objects.all()[:3]:
         print(f"   - {cm.created_at}: {cm.summary_description[:100]}...")
 else:
-    print("   ℹ️  No company mood summaries (these are manually created)")
+    print("  No company mood summaries (these are manually created)")
 
 # Check employees
 employee_count = EmployeeProfile.objects.count()
 print(f"\n3. Employee Profiles: {employee_count}")
 
 if employee_count > 0:
-    print(f"   ✅ {employee_count} employees can track mood")
+    print(f"{employee_count} employees can track mood")
 else:
-    print("   ❌ No employee profiles found!")
+    print("   No employee profiles found!")
 
 print("\n" + "=" * 60)
 print("RECOMMENDATIONS:")
 print("=" * 60)
 
 if mood_count == 0:
-    print("\n❌ NO MOOD DATA - Frontend won't show anything")
+    print("\n NO MOOD DATA - Frontend won't show anything")
     print("\nTo fix:")
     print("1. Employees must log their mood via:")
     print("   POST /api/v1/employee/mood-tracking/")
@@ -71,7 +71,7 @@ if mood_count == 0:
     print("   >>> emp = EmployeeProfile.objects.first()")
     print("   >>> MoodTracking.objects.create(user=emp.user, employee=emp, mood='Happy')")
 else:
-    print("\n✅ Mood data exists - should display on frontend")
+    print("\n Mood data exists - should display on frontend")
     print(f"   Endpoint: GET /api/v1/employee/mood-tracking/employer-summary/")
 
 print("\n")
