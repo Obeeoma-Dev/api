@@ -19,10 +19,10 @@ cryptography==46.0.3
 dill==0.4.0
 distro==1.9.0
 dj-database-url==3.0.1
-Django==5.2.7
+Django==4.2.17
 django-cors-headers==4.9.0
 django-extensions==4.1
-django-filter==25.2
+django-filter==24.1
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
 drf-spectacular==0.28.0
