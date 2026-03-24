@@ -1344,7 +1344,9 @@ class Video(models.Model):
     # description = models.TextField(help_text="")
     # youtube_url = models.URLField(help_text="YouTube video URL")
     category = models.ForeignKey(EducationalResource,on_delete=models.SET_NULL,null=True,blank=True,related_name='videos')
-    # thumbnail = models.URLField(blank=True, null=True)
+    video_file = models.FileField(upload_to="videos/", blank=True, null=True)
+    video_url = models.URLField(blank=True, null=True, help_text="External video URL (YouTube, Vimeo, etc.)")
+    thumbnail = models.ImageField(upload_to="video_thumbnails/", blank=True, null=True)
     duration = models.CharField(max_length=20, blank=True, help_text="e.g., 10:30")
     MOOD_CHOICES = [
         ('anxiety', 'Anxiety Relief'),

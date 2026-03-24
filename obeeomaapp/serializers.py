@@ -1367,6 +1367,8 @@ class EducationalResourceSerializer(serializers.ModelSerializer):
 class VideoSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     is_saved = serializers.SerializerMethodField()
+    video_file_url = serializers.SerializerMethodField()
+    thumbnail_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Video
@@ -1374,7 +1376,7 @@ class VideoSerializer(serializers.ModelSerializer):
             'id', 'title', 'category', 'category_name', 'duration', 
             'target_mood', 'views', 'is_active', 'created_at', 'updated_at',
             'reviewed_by', 'review_date', 'views_count', 'helpful_count', 
-            'saved_count', 'is_saved'
+            'saved_count', 'is_saved', 'video_file_url', 'video_url', 'thumbnail_url'
         ]
         extra_kwargs = {
             'category': {'required': False, 'allow_null': True}
@@ -1388,18 +1390,33 @@ class VideoSerializer(serializers.ModelSerializer):
             return SavedResource.objects.filter(user=request.user, video=obj).exists()
         return False
 
+    @extend_schema_field(serializers.URLField())
+    def get_video_file_url(self, obj) -> str:
+        if obj.video_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.video_file.url)
+        return None
+
+    @extend_schema_field(serializers.URLField())
+    def get_thumbnail_url(self, obj) -> str:
+        if obj.thumbnail:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.thumbnail.url)
+        return None
+
 # Audio Serializer
 class AudioSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     is_saved = serializers.SerializerMethodField()
-    audio_url_full = serializers.SerializerMethodField()
+    audio_file_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Audio
         fields = [
-            'id', 'title', 'description',  'audio_url',
-            'audio_url_full',  'category_name', 'duration',
-            'plays', 'is_saved', 'created_at'
+            'id', 'title', 'description', 'audio_file_url', 'audio_url',
+            'category_name', 'duration', 'plays', 'is_saved', 'created_at'
         ]
         extra_kwargs = {
             'category': {'required': False, 'allow_null': True}
@@ -1414,7 +1431,7 @@ class AudioSerializer(serializers.ModelSerializer):
         return False
 
     @extend_schema_field(serializers.URLField())
-    def get_audio_url_full(self, obj) -> str:
+    def get_audio_file_url(self, obj) -> str:
         if obj.audio_file:
             request = self.context.get('request')
             if request:
@@ -1427,31 +1444,41 @@ class ArticleSerializer(serializers.ModelSerializer):
     author = serializers.CharField()
     published_date = serializers.DateTimeField(required=False)
     featured_image = serializers.ImageField(required=False, allow_null=True)
+    featured_image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Article
         fields = [
-            "id",
-            "title",
-            "category",
-            "published_date",
-            "status",
-            "excerpt",
-            "featured_image",
-            "author",
-            "content",
-            "featured",
+            "id", "title", "category", "published_date", "status", 
+            "excerpt", "featured_image", "featured_image_url", "author", 
+            "content", "featured", "views", "confirmed_reads", "reading_time"
         ]
+
+    @extend_schema_field(serializers.URLField())
+    def get_featured_image_url(self, obj) -> str:
+        if obj.featured_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.featured_image.url)
+        return None
+# Meditation Technique Serializer
+
 # Meditation Technique Serializer
 
 class MeditationTechniqueSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     difficulty_display = serializers.CharField(source='get_difficulty_display', read_only=True)
     is_saved = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = MeditationTechnique
-        fields = '__all__'
+        fields = [
+            'id', 'title', 'description', 'instructions', 'duration', 
+            'difficulty', 'difficulty_display', 'category', 'category_name',
+            'image', 'image_url', 'times_practiced', 'is_active', 
+            'created_at', 'updated_at', 'is_saved'
+        ]
         read_only_fields = ['times_practiced']
 
     @extend_schema_field(serializers.BooleanField())
@@ -1460,6 +1487,14 @@ class MeditationTechniqueSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             return SavedResource.objects.filter(user=request.user, meditation=obj).exists()
         return False
+
+    @extend_schema_field(serializers.URLField())
+    def get_image_url(self, obj) -> str:
+        if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+        return None
 
 
 # Saved Resource Serializer
@@ -1847,23 +1882,26 @@ class ContentArticleSerializer(serializers.ModelSerializer):
 
 class ContentMediaSerializer(serializers.ModelSerializer):
     owner = serializers.StringRelatedField(read_only=True)
+    media_url = serializers.SerializerMethodField()
 
     class Meta:
         model = ContentMedia
         fields = [
-            "id",
-            "title",
-            "description",
-            "media_type",
-            "s3_key",
-            "public_url",
-            "duration_seconds",
-            "uploaded",
-            "processed",
-            "owner",
-            "created_at",
+            "id", "title", "description", "media_type", "category", "status",
+            "duration", "file_size", "views", "s3_key", "public_url", "media_url",
+            "duration_seconds", "uploaded", "processed", "owner", "created_at", "updated_at"
         ]
-        read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at"]
+        read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at", "updated_at", "views"]
+
+    @extend_schema_field(serializers.URLField())
+    def get_media_url(self, obj) -> str:
+        if obj.public_url:
+            return obj.public_url
+        if obj.s3_key:
+            bucket_name = getattr(settings, 'AWS_STORAGE_BUCKET_NAME', 'obeeoma-media')
+            region = getattr(settings, 'AWS_S3_REGION_NAME', 'us-east-1')
+            return f"https://{bucket_name}.s3.{region}.amazonaws.com/{obj.s3_key}"
+        return None
 
 
 # New serializers for the requested endpoints
@@ -1925,20 +1963,23 @@ class ContentArticleSerializer(serializers.ModelSerializer):
 
 class ContentMediaSerializer(serializers.ModelSerializer):
     owner = serializers.StringRelatedField(read_only=True)
+    media_url = serializers.SerializerMethodField()
 
     class Meta:
         model = ContentMedia
         fields = [
-            "id",
-            "title",
-            "description",
-            "media_type",
-            "s3_key",
-            "public_url",
-            "duration_seconds",
-            "uploaded",
-            "processed",
-            "owner",
-            "created_at",
+            "id", "title", "description", "media_type", "category", "status",
+            "duration", "file_size", "views", "s3_key", "public_url", "media_url",
+            "duration_seconds", "uploaded", "processed", "owner", "created_at", "updated_at"
         ]
-        read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at"]
+        read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at", "updated_at", "views"]
+
+    @extend_schema_field(serializers.URLField())
+    def get_media_url(self, obj) -> str:
+        if obj.public_url:
+            return obj.public_url
+        if obj.s3_key:
+            bucket_name = getattr(settings, 'AWS_STORAGE_BUCKET_NAME', 'obeeoma-media')
+            region = getattr(settings, 'AWS_S3_REGION_NAME', 'us-east-1')
+            return f"https://{bucket_name}.s3.{region}.amazonaws.com/{obj.s3_key}"
+        return None
