@@ -14,9 +14,9 @@ with connection.cursor() as cursor:
             ALTER TABLE obeeomaapp_organization 
             ADD COLUMN created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL;
         """)
-        print("✅ Added created_at column")
+        print(" Added created_at column")
     except Exception as e:
-        print(f"❌ Error adding created_at: {e}")
+        print(f" Error adding created_at: {e}")
     
     try:
         # Add updated_at column
@@ -24,11 +24,11 @@ with connection.cursor() as cursor:
             ALTER TABLE obeeomaapp_organization 
             ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL;
         """)
-        print("✅ Added updated_at column")
+        print(" Added updated_at column")
     except Exception as e:
-        print(f"❌ Error adding updated_at: {e}")
+        print(f" Error adding updated_at: {e}")
 
-print("\n✅ Done! Testing...")
+print("\n Done! Testing...")
 
 # Test it
 from obeeomaapp.models import Organization
