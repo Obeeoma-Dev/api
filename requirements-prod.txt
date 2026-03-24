@@ -35,3 +35,4 @@ python-dateutil==2.9.0.post0
 pytz==2025.2
 PyYAML==6.0.2
 packaging==25.0
+django_extensions
