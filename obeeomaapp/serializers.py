@@ -1,7 +1,6 @@
 # serializers.py
 from datetime import timedelta
 from secrets import token_urlsafe
-from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from drf_spectacular.utils import extend_schema_field
 from django.utils import timezone
@@ -198,6 +197,18 @@ class SignupSerializer(serializers.ModelSerializer):
 
         return user
     
+
+class MoodGaugeChartSerializer(serializers.Serializer):
+    """Serializer for Mood Gauge Chart data"""
+    mood_label = serializers.CharField()
+    score = serializers.IntegerField()
+    clamped_score = serializers.IntegerField()
+    needle_angle = serializers.FloatField()
+    dominant_mood = serializers.CharField()
+    total_entries = serializers.IntegerField()
+    organization_name = serializers.CharField(allow_null=True)
+    date = serializers.DateField(allow_null=True)
+
 
 
 # Input serializer for contact person (employer)
@@ -713,7 +724,7 @@ class SelfAssessmentSerializer(serializers.ModelSerializer):
 class MoodTrackingSerializer(serializers.ModelSerializer):
     class Meta:
         model = MoodTracking
-        fields = ['id', 'mood',  'checked_in_at']
+        fields = ['id', 'mood', 'note', 'checked_in_at']
         read_only_fields = ['id', 'checked_in_at']
 
 class SelfHelpResourceSerializer(serializers.ModelSerializer):
@@ -854,8 +865,33 @@ class ChatMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatMessage
         fields = ["id", "sender", "message", "timestamp"]  
-        read_only_fields = ["id", "timestamp"]           
+        read_only_fields = ["id", "timestamp", "sender"]  # Sender is set automatically in view           
 
+class AdminChatMessageSerializer(serializers.ModelSerializer):
+    """Serializer for admin AI chat messages"""
+    class Meta:
+        model = AdminChatMessage
+        fields = ["id", "sender", "message", "timestamp"]
+        read_only_fields = ["id", "timestamp", "sender"]  # Sender is set automatically in view           
+
+
+
+class ReceptionistChatMessageSerializer(serializers.ModelSerializer):
+    """Serializer for receptionist AI chat messages"""
+    class Meta:
+        model = ReceptionistChatMessage
+        fields = ["id", "sender", "message", "timestamp"]
+        read_only_fields = ["id", "timestamp", "sender"]  # Sender is set automatically in view           
+
+
+class AIStatusSerializer(serializers.ModelSerializer):
+    """Serializer for AI status management"""
+    feature_display = serializers.CharField(source='get_feature_name_display', read_only=True)
+    
+    class Meta:
+        model = AIStatus
+        fields = ["id", "feature_name", "feature_display", "is_enabled", "last_active", "updated_at"]
+        read_only_fields = ["id", "updated_at"]
 
 
 class RecommendationLogSerializer(serializers.ModelSerializer):
@@ -1441,7 +1477,42 @@ class ArticleSerializer(serializers.ModelSerializer):
             "author",
             "content",
             "featured",
+            "views",
+            "confirmed_reads",
+            "reading_time",
         ]
+
+# Blog Serializer
+class BlogSerializer(serializers.ModelSerializer):
+    category = serializers.CharField()
+    author = serializers.CharField()
+    published_date = serializers.DateTimeField(required=False)
+    featured_image = serializers.ImageField(required=False, allow_null=True)
+
+    class Meta:
+        model = Blog
+        fields = [
+            "id",
+            "title",
+            "category",
+            "published_date",
+            "status",
+            "excerpt",
+            "featured_image",
+            "author",
+            "content",
+            "featured",
+            "views",
+            "confirmed_reads",
+            "reading_time",
+        ]
+
+# Article View Serializer
+class ArticleViewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ArticleView
+        fields = '__all__'
+
 # Meditation Technique Serializer
 
 class MeditationTechniqueSerializer(serializers.ModelSerializer):
@@ -1686,6 +1757,7 @@ class AdminSubscriptionSerializer(serializers.ModelSerializer):
     to view and manage ALL subscriptions
     across ALL organizations.
     """
+    employer = serializers.StringRelatedField(read_only=True)
 
     class Meta:
         model = Subscription
@@ -1847,6 +1919,7 @@ class ContentArticleSerializer(serializers.ModelSerializer):
 
 class ContentMediaSerializer(serializers.ModelSerializer):
     owner = serializers.StringRelatedField(read_only=True)
+    file_size_display = serializers.SerializerMethodField()
 
     class Meta:
         model = ContentMedia
@@ -1855,6 +1928,11 @@ class ContentMediaSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "media_type",
+            "category",
+            "status",
+            "duration",
+            "file_size",
+            "views",
             "s3_key",
             "public_url",
             "duration_seconds",
@@ -1862,8 +1940,12 @@ class ContentMediaSerializer(serializers.ModelSerializer):
             "processed",
             "owner",
             "created_at",
+            "updated_at",
         ]
-        read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at"]
+        read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at", "updated_at", "views"]
+
+    def get_file_size_display(self, obj) -> str:
+        return obj.file_size or "0 MB"
 
 
 # New serializers for the requested endpoints
@@ -1888,9 +1970,23 @@ class EngagementLevelSerializer(serializers.ModelSerializer):
 
 
 class CompanyMoodSerializer(serializers.ModelSerializer):
+    positive_percentage = serializers.ReadOnlyField()
+    negative_percentage = serializers.ReadOnlyField()
+    organization_name = serializers.CharField(source='organization.name', read_only=True)
+
     class Meta:
         model = CompanyMood
-        fields = ['id', 'summary_description', 'created_at']
+        fields = [
+            'id', 'organization', 'organization_name', 'date',
+            'total_entries', 'average_mood_score',
+            'ecstatic_count', 'happy_count', 'excited_count', 'content_count',
+            'calm_count', 'neutral_count', 'tired_count',
+            'anxious_count', 'stressed_count', 'sad_count', 'frustrated_count', 'angry_count',
+            'positive_count', 'neutral_mood_count', 'negative_count',
+            'positive_percentage', 'negative_percentage',
+            'summary_description', 'dominant_mood', 'sentiment_trend',
+            'created_at', 'updated_at'
+        ]
 
 
 class WellnessGraphSerializer(serializers.ModelSerializer):
@@ -1933,6 +2029,11 @@ class ContentMediaSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "media_type",
+            "category",
+            "status",
+            "duration",
+            "file_size",
+            "views",
             "s3_key",
             "public_url",
             "duration_seconds",
@@ -1940,5 +2041,6 @@ class ContentMediaSerializer(serializers.ModelSerializer):
             "processed",
             "owner",
             "created_at",
+            "updated_at",
         ]
         read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at"]
