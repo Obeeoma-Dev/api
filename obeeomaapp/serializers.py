@@ -1889,9 +1889,9 @@ class ContentMediaSerializer(serializers.ModelSerializer):
         fields = [
             "id", "title", "description", "media_type",
             "s3_key", "public_url", "media_url",
-            "duration_seconds", "uploaded", "processed", "owner", "created_at", "updated_at"
+            "duration_seconds", "uploaded", "processed", "owner", "created_at"
         ]
-        read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at", "updated_at"]
+        read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at"]
 
     @extend_schema_field(serializers.URLField())
     def get_media_url(self, obj) -> str:
@@ -1970,9 +1970,9 @@ class ContentMediaSerializer(serializers.ModelSerializer):
         fields = [
             "id", "title", "description", "media_type",
             "s3_key", "public_url", "media_url",
-            "duration_seconds", "uploaded", "processed", "owner", "created_at", "updated_at"
+            "duration_seconds", "uploaded", "processed", "owner", "created_at"
         ]
-        read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at", "updated_at"]
+        read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at"]
 
     @extend_schema_field(serializers.URLField())
     def get_media_url(self, obj) -> str:
