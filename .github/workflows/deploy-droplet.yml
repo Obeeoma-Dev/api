@@ -24,7 +24,11 @@ jobs:
             # Pull latest code
             cd ~/obeeoma_project/api
             echo "Pulling latest code..."
-            git pull origin main
+            
+            # Reset any local changes to avoid conflicts
+            git reset --hard HEAD
+            git clean -fd
+            git pull origin main --force
             
             # Clean up unused Docker resources
             echo "Cleaning up Docker resources..."
