@@ -15,7 +15,7 @@ jobs:
           username: ${{ secrets.DROPLET_USERNAME }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
           port: ${{ secrets.DROPLET_SSH_PORT || '22' }}
-          command_timeout: 30m
+          command_timeout: 60m
           script: |
             # Pull latest code
             cd ~/obeeoma_project
