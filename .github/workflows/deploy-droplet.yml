@@ -48,6 +48,7 @@ jobs:
             
             # Run Django commands
             echo "Running Django migrations..."
+            docker-compose exec -T backend python manage.py makemigrations
             docker-compose exec -T backend python manage.py migrate --noinput
             
             echo "Collecting static files..."
