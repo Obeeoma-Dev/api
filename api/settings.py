@@ -56,21 +56,20 @@ else:
     }
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
-    "obeeomaapp",
-    "rest_framework",
-    "rest_framework_simplejwt",
-    "rest_framework_simplejwt.token_blacklist", 
-    "django_extensions",
-    "drf_yasg",
-    "drf_spectacular",
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'obeeomaapp',
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
+    'django_extensions',
+    'drf_spectacular',
     'corsheaders',
-    'django_filters',
+    'django_filters'
 ]
 
 MIDDLEWARE = [
