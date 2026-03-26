@@ -25,6 +25,9 @@ jobs:
             cd ~/obeeoma_project/api
             echo "Pulling latest code..."
             
+            # Remove staticfiles and media directories (they're in .gitignore)
+            sudo rm -rf staticfiles media
+            
             # Reset any local changes to avoid conflicts
             git reset --hard HEAD
             git clean -fd

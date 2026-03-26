@@ -1,0 +1,3 @@
+# Never track these directories
+staticfiles/ export-ignore
+media/ export-ignore
