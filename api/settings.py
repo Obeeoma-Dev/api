@@ -13,7 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security
 SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret-key")
-DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "t")
+DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 PORT = os.getenv("PORT", "8000")
 
 # Groq AI Configuration
@@ -80,6 +80,7 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     # custom middleware to prevent caching
     "obeeomaapp.Middleware.security_middleware.NoCacheMiddleware",
+    # frontend authentication middleware
     "obeeomaapp.Middleware.frontend_auth_middleware.FrontendAuthMiddleware",
     
     "django.middleware.common.CommonMiddleware",
@@ -88,22 +89,6 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
-
-# Custom middleware to log all requests for debugging
-class RequestLoggingMiddleware:
-    def __init__(self, get_response):
-        self.get_response = get_response
-
-    def __call__(self, request):
-        print(f"🔥 REQUEST: {request.method} {request.path} from {request.META.get('REMOTE_ADDR', 'unknown')}")
-        print(f"   Headers: {dict(request.headers)}")
-        response = self.get_response(request)
-        print(f"🔥 RESPONSE: {response.status_code}")
-        return response
-
-# Add the logging middleware in development
-if DEBUG:
-    MIDDLEWARE.insert(0, "api.settings.RequestLoggingMiddleware")
 
 # Media files
 MEDIA_URL = "/media/"
@@ -300,3 +285,6 @@ AWS_S3_SIGNATURE_VERSION = "s3v4"
 # Defining them here makes it explicit and avoids "undefined" attribute errors.
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+
+
+

@@ -50,7 +50,6 @@ from .models import Feedback
 from .serializers import FeedbackSerializer
 import logging
 import csv
-import os
 
 logger = logging.getLogger(__name__)
 from django.db.models import Avg
@@ -99,7 +98,6 @@ import string
 import pyotp, qrcode, io, base64
 from django.utils.crypto import get_random_string
 from django.core.cache import cache
-import calendar
 from .models import Organization, ChatSession, ChatMessage, EmployeeProfile
 from .serializers import (
     PasswordResetOTPVerificationSerializer,
@@ -133,10 +131,6 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import EmployeeProfileSerializer
 # from sana_ai.services.mental_health_ai import get_ai_service  # TODO: Add sana_ai app
 from .Services.groq_service import GroqService
-
-# AI Status Management imports
-from .models import AIStatus
-from .serializers import AIStatusSerializer
 
 
 # Mood score mapping for trends (used to provide numeric scores to frontend)
@@ -339,7 +333,6 @@ def _build_login_success_payload(user):
 
     user_data = {
         "id": user.id,
-        "username": user.email,  # Use email as username since USERNAME_FIELD = 'email'
         "email": user.email,
         "role": user.role,
         "date_joined": user.date_joined,
@@ -1869,12 +1862,7 @@ class MoodTrackingView(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         employee = get_object_or_404(EmployeeProfile, user=self.request.user)
-        mood_entry = serializer.save(user=self.request.user, employee=employee)
-        
-        # Auto-sync to wellness graph
-        self._sync_to_wellness_graph(self.request.user, mood_entry)
-        
-        return mood_entry
+        serializer.save(user=self.request.user, employee=employee)
 
    
     # EMPLOYEE: Weekly Mood Summary
@@ -1917,578 +1905,51 @@ class MoodTrackingView(viewsets.ModelViewSet):
             checked_in_at__date__range=(start_date, today)
         )
 
-        overall = qs.aggregate(
-            average_mood=Avg('mood'),
-            total_entries=Count('id')
-        )
+        # Get all mood entries and convert to numeric scores
+        mood_entries = list(qs.values_list('mood', flat=True))
+        
+        # Calculate average using MOOD_SCORES mapping
+        if mood_entries:
+            mood_scores = [MOOD_SCORES.get(mood, 3) for mood in mood_entries]
+            average_mood = round(sum(mood_scores) / len(mood_scores), 2)
+        else:
+            average_mood = 0
 
+        # Mood distribution
         distribution = (
             qs.values('mood')
             .annotate(count=Count('mood'))
-            .order_by('mood')
+            .order_by('-count')
         )
 
-        daily_avg = (
-            qs.values('checked_in_at__date')
-            .annotate(avg_mood=Avg('mood'))
-            .order_by('checked_in_at__date')
-        )
+        # Daily average with proper score mapping
+        daily_data = qs.values('checked_in_at__date', 'mood')
+        daily_avg_dict = {}
+        
+        for entry in daily_data:
+            date = entry['checked_in_at__date']
+            mood = entry['mood']
+            score = MOOD_SCORES.get(mood, 3)
+            
+            if date not in daily_avg_dict:
+                daily_avg_dict[date] = []
+            daily_avg_dict[date].append(score)
+        
+        daily_avg = [
+            {
+                'date': str(date),
+                'avg_mood': round(sum(scores) / len(scores), 2)
+            }
+            for date, scores in sorted(daily_avg_dict.items())
+        ]
 
         return Response({
             "period": "last_7_days",
-            "average_mood": round(overall['average_mood'], 2) if overall['average_mood'] else 0,
-            "total_entries": overall['total_entries'],
-            "mood_distribution": distribution,
+            "average_mood": average_mood,
+            "total_entries": qs.count(),
+            "mood_distribution": list(distribution),
             "daily_average": daily_avg
         })
-
-    # ============================
-    # MOOD TRACKING SCREEN
-    # ============================
-    @action(detail=False, methods=['get'], url_path='screen')
-    def screen(self, request):
-        """Get mood tracking screen overview"""
-        employee = get_object_or_404(EmployeeProfile, user=request.user)
-        today = now().date()
-        
-        # Check if user already checked in today
-        today_checkin = MoodTracking.objects.filter(
-            employee=employee,
-            checked_in_at__date=today
-        ).first()
-        
-        # Get recent mood entries (last 7 days)
-        recent_entries = MoodTracking.objects.filter(
-            employee=employee,
-            checked_in_at__date__gte=today - timedelta(days=7)
-        ).order_by('-checked_in_at')
-        
-        # Calculate mood streak
-        streak = self._calculate_mood_streak(employee)
-        
-        return Response({
-            "has_checked_in_today": bool(today_checkin),
-            "today_mood": today_checkin.mood if today_checkin else None,
-            "current_streak": streak,
-            "recent_entries_count": recent_entries.count(),
-            "mood_categories": MoodTracking.MOOD_CATEGORIES
-        })
-
-    # ============================
-    # MOOD ENTRIES
-    # ============================
-    @action(detail=False, methods=['get', 'post'], url_path='entries')
-    def entries(self, request):
-        """Get or create mood entries"""
-        employee = get_object_or_404(EmployeeProfile, user=request.user)
-        
-        if request.method == 'GET':
-            # Get mood entries with optional date filtering
-            start_date = request.query_params.get('start_date')
-            end_date = request.query_params.get('end_date')
-            
-            queryset = MoodTracking.objects.filter(employee=employee)
-            
-            if start_date:
-                queryset = queryset.filter(checked_in_at__date__gte=start_date)
-            if end_date:
-                queryset = queryset.filter(checked_in_at__date__lte=end_date)
-                
-            entries = queryset.order_by('-checked_in_at')
-            serializer = self.get_serializer(entries, many=True)
-            return Response(serializer.data)
-            
-        elif request.method == 'POST':
-            # Create new mood entry
-            mood = request.data.get('mood')
-            note = request.data.get('note', '')
-            
-            if not mood:
-                return Response(
-                    {"error": "Mood is required"}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Check if already checked in today
-            today = now().date()
-            existing = MoodTracking.objects.filter(
-                employee=employee,
-                checked_in_at__date=today
-            ).first()
-            
-            if existing:
-                return Response(
-                    {"error": "Already checked in today"}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            mood_entry = MoodTracking.objects.create(
-                user=request.user,
-                employee=employee,
-                mood=mood,
-                note=note
-            )
-            
-            serializer = self.get_serializer(mood_entry)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    # ============================
-    # TODAY'S MOOD
-    # ============================
-    @action(detail=False, methods=['get', 'put'], url_path='today')
-    def today(self, request):
-        """Get or update today's mood"""
-        employee = get_object_or_404(EmployeeProfile, user=request.user)
-        today = now().date()
-        
-        mood_entry = MoodTracking.objects.filter(
-            employee=employee,
-            checked_in_at__date=today
-        ).first()
-        
-        if request.method == 'GET':
-            if mood_entry:
-                serializer = self.get_serializer(mood_entry)
-                return Response(serializer.data)
-            else:
-                return Response({"message": "No mood entry for today"})
-        
-        elif request.method == 'PUT':
-            if not mood_entry:
-                return Response(
-                    {"error": "No mood entry found for today"}, 
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            
-            mood = request.data.get('mood')
-            note = request.data.get('note', '')
-            
-            if mood:
-                mood_entry.mood = mood
-            if note:
-                mood_entry.note = note
-            
-            mood_entry.save()
-            serializer = self.get_serializer(mood_entry)
-            return Response(serializer.data)
-
-    # ============================
-    # MOOD CHART
-    # ============================
-    @action(detail=False, methods=['get'], url_path='chart')
-    def chart(self, request):
-        """Get mood data for chart visualization"""
-        employee = get_object_or_404(EmployeeProfile, user=request.user)
-        
-        # Get period from query params (default: 30 days)
-        period = int(request.query_params.get('period', 30))
-        start_date = now().date() - timedelta(days=period)
-        
-        entries = MoodTracking.objects.filter(
-            employee=employee,
-            checked_in_at__date__gte=start_date
-        ).order_by('checked_in_at')
-        
-        # Convert mood to numeric values for charting
-        mood_values = {
-            'Ecstatic': 5, 'Happy': 4, 'Excited': 4, 'Content': 3,
-            'Calm': 3, 'Neutral': 2, 'Tired': 2,
-            'Anxious': 1, 'Stressed': 1, 'Sad': 1, 'Frustrated': 1, 'Angry': 0
-        }
-        
-        chart_data = []
-        for entry in entries:
-            chart_data.append({
-                'date': entry.checked_in_at.strftime('%Y-%m-%d'),
-                'mood': entry.mood,
-                'value': mood_values.get(entry.mood, 2),
-                'note': entry.note
-            })
-        
-        return Response({
-            "period": f"last_{period}_days",
-            "data": chart_data,
-            "average_mood": sum(item['value'] for item in chart_data) / len(chart_data) if chart_data else 0
-        })
-
-    # ============================
-    # MOOD ANALYTICS
-    # ============================
-    @action(detail=False, methods=['get'], url_path='analytics')
-    def analytics(self, request):
-        """Get comprehensive mood analytics"""
-        employee = get_object_or_404(EmployeeProfile, user=request.user)
-        
-        # Get period from query params (default: 30 days)
-        period = int(request.query_params.get('period', 30))
-        start_date = now().date() - timedelta(days=period)
-        
-        entries = MoodTracking.objects.filter(
-            employee=employee,
-            checked_in_at__date__gte=start_date
-        )
-        
-        # Mood distribution
-        mood_distribution = (
-            entries.values('mood')
-            .annotate(count=Count('mood'))
-            .order_by('-count')
-        )
-        
-        # Category distribution
-        category_stats = {}
-        for mood, category in MoodTracking.MOOD_CATEGORIES.items():
-            category_stats[category] = entries.filter(mood=mood).count()
-        
-        # Weekly patterns
-        weekly_pattern = {}
-        for i in range(7):
-            day_entries = entries.filter(
-                checked_in_at__week_day=(i + 1) % 7  # Django uses 0-6 for Sunday-Saturday
-            )
-            if day_entries.exists():
-                avg_mood = day_entries.aggregate(avg=Avg('mood'))['avg']
-                weekly_pattern[calendar.day_name[i]] = {
-                    'count': day_entries.count(),
-                    'most_common': day_entries.values('mood').annotate(
-                        count=Count('mood')
-                    ).order_by('-count').first()['mood'] if day_entries.exists() else None
-                }
-        
-        # Streak information
-        current_streak = self._calculate_mood_streak(employee)
-        longest_streak = self._calculate_longest_streak(employee)
-        
-        return Response({
-            "period": f"last_{period}_days",
-            "total_entries": entries.count(),
-            "mood_distribution": list(mood_distribution),
-            "category_distribution": category_stats,
-            "weekly_pattern": weekly_pattern,
-            "current_streak": current_streak,
-            "longest_streak": longest_streak,
-            "check_in_rate": round((entries.count() / period) * 100, 1)
-        })
-
-    # ============================
-    # MOOD HISTORY
-    # ============================
-    @action(detail=False, methods=['get'], url_path='history')
-    def history(self, request):
-        """Get mood history with pagination"""
-        employee = get_object_or_404(EmployeeProfile, user=request.user)
-        
-        # Pagination parameters
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 20))
-        
-        start_date = request.query_params.get('start_date')
-        end_date = request.query_params.get('end_date')
-        
-        queryset = MoodTracking.objects.filter(employee=employee)
-        
-        if start_date:
-            queryset = queryset.filter(checked_in_at__date__gte=start_date)
-        if end_date:
-            queryset = queryset.filter(checked_in_at__date__lte=end_date)
-        
-        # Order by date descending
-        queryset = queryset.order_by('-checked_in_at')
-        
-        # Manual pagination
-        total_count = queryset.count()
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-        
-        entries = queryset[start_idx:end_idx]
-        serializer = self.get_serializer(entries, many=True)
-        
-        return Response({
-            "entries": serializer.data,
-            "pagination": {
-                "page": page,
-                "page_size": page_size,
-                "total_count": total_count,
-                "total_pages": (total_count + page_size - 1) // page_size
-            }
-        })
-
-    # ============================
-    # MOOD PATTERNS
-    # ============================
-    @action(detail=False, methods=['get'], url_path='patterns')
-    def patterns(self, request):
-        """Analyze mood patterns and trends"""
-        employee = get_object_or_404(EmployeeProfile, user=request.user)
-        
-        # Get period from query params (default: 90 days for pattern analysis)
-        period = int(request.query_params.get('period', 90))
-        start_date = now().date() - timedelta(days=period)
-        
-        entries = MoodTracking.objects.filter(
-            employee=employee,
-            checked_in_at__date__gte=start_date
-        ).order_by('checked_in_at')
-        
-        if entries.count() < 7:
-            return Response({
-                "error": "Insufficient data for pattern analysis. Need at least 7 entries.",
-                "patterns": {}
-            })
-        
-        patterns = {}
-        
-        # Time of day patterns
-        time_patterns = {'morning': [], 'afternoon': [], 'evening': []}
-        for entry in entries:
-            hour = entry.checked_in_at.hour
-            if 6 <= hour < 12:
-                time_patterns['morning'].append(entry.mood)
-            elif 12 <= hour < 18:
-                time_patterns['afternoon'].append(entry.mood)
-            else:
-                time_patterns['evening'].append(entry.mood)
-        
-        for time_period, moods in time_patterns.items():
-            if moods:
-                most_common = max(set(moods), key=moods.count)
-                patterns[f'{time_period}_most_common'] = most_common
-                patterns[f'{time_period}_entry_count'] = len(moods)
-        
-        # Day of week patterns
-        day_patterns = {}
-        for entry in entries:
-            day_name = entry.checked_in_at.strftime('%A')
-            if day_name not in day_patterns:
-                day_patterns[day_name] = []
-            day_patterns[day_name].append(entry.mood)
-        
-        for day, moods in day_patterns.items():
-            if moods:
-                most_common = max(set(moods), key=moods.count)
-                patterns[f'{day.lower()}_most_common'] = most_common
-        
-        # Mood sequences (consecutive days)
-        sequences = self._analyze_mood_sequences(entries)
-        patterns['mood_sequences'] = sequences
-        
-        # Improvement indicators
-        recent_moods = entries.order_by('-checked_in_at')[:14]  # Last 2 weeks
-        older_moods = entries.order_by('-checked_in_at')[14:28]  # Previous 2 weeks
-        
-        if recent_moods.count() >= 7 and older_moods.count() >= 7:
-            recent_positive = sum(1 for m in recent_moods if MoodTracking.MOOD_CATEGORIES.get(m.mood) == 'Positive')
-            older_positive = sum(1 for m in older_moods if MoodTracking.MOOD_CATEGORIES.get(m.mood) == 'Positive')
-            
-            patterns['trend'] = 'improving' if recent_positive > older_positive else 'declining' if recent_positive < older_positive else 'stable'
-        
-        return Response({"patterns": patterns})
-
-    # ============================
-    # MOOD INSIGHTS
-    # ============================
-    @action(detail=False, methods=['get'], url_path='insights')
-    def insights(self, request):
-        """Get personalized mood insights"""
-        employee = get_object_or_404(EmployeeProfile, user=request.user)
-        
-        # Get period from query params (default: 30 days)
-        period = int(request.query_params.get('period', 30))
-        start_date = now().date() - timedelta(days=period)
-        
-        entries = MoodTracking.objects.filter(
-            employee=employee,
-            checked_in_at__date__gte=start_date
-        )
-        
-        insights = []
-        
-        # Generate insights based on data
-        if entries.count() >= 5:
-            # Most common mood
-            most_common = entries.values('mood').annotate(count=Count('mood')).order_by('-count').first()
-            if most_common:
-                insights.append({
-                    "type": "most_common_mood",
-                    "title": f"Your most common mood is {most_common['mood']}",
-                    "description": f"You've logged this mood {most_common['count']} times in the last {period} days.",
-                    "priority": "medium"
-                })
-            
-            # Check-in consistency
-            check_in_rate = (entries.count() / period) * 100
-            if check_in_rate >= 80:
-                insights.append({
-                    "type": "consistency",
-                    "title": "Great consistency!",
-                    "description": f"You've checked in {check_in_rate:.1f}% of days. Keep it up!",
-                    "priority": "positive"
-                })
-            elif check_in_rate < 50:
-                insights.append({
-                    "type": "consistency",
-                    "title": "Try to be more consistent",
-                    "description": f"You've only checked in {check_in_rate:.1f}% of days. Regular check-ins help track your mood better.",
-                    "priority": "high"
-                })
-            
-            # Mood balance
-            positive_count = sum(1 for e in entries if MoodTracking.MOOD_CATEGORIES.get(e.mood) == 'Positive')
-            negative_count = sum(1 for e in entries if MoodTracking.MOOD_CATEGORIES.get(e.mood) == 'Negative')
-            
-            if negative_count > positive_count * 1.5:
-                insights.append({
-                    "type": "mood_balance",
-                    "title": "More negative moods detected",
-                    "description": "You've been logging more negative moods lately. Consider trying stress-reduction techniques.",
-                    "priority": "high"
-                })
-        
-        return Response({
-            "insights": insights,
-            "generated_at": now().isoformat(),
-            "period": f"last_{period}_days"
-        })
-
-    # ============================
-    # UNREAD INSIGHTS
-    # ============================
-    @action(detail=False, methods=['get'], url_path='unread-insights')
-    def unread_insights(self, request):
-        """Get unread mood insights"""
-        # This would typically integrate with a notification/read status system
-        # For now, return recent insights that haven't been "read"
-        employee = get_object_or_404(EmployeeProfile, user=request.user)
-        
-        # Get last time insights were viewed (simplified - using cache)
-        cache_key = f'mood_insights_viewed_{employee.id}'
-        last_viewed = cache.get(cache_key)
-        
-        # Get recent insights
-        insights_response = self.insights(request)
-        insights = insights_response.data.get('insights', [])
-        
-        # Filter for "unread" insights (created after last view)
-        if last_viewed:
-            # In a real implementation, you'd filter by creation timestamp
-            # For now, return all insights as unread
-            pass
-        
-        return Response({
-            "unread_count": len(insights),
-            "insights": insights
-        })
-
-    # ============================
-    # MARK INSIGHTS AS READ
-    # ============================
-    @action(detail=False, methods=['post'], url_path='mark-read')
-    def mark_read(self, request):
-        """Mark insights as read"""
-        employee = get_object_or_404(EmployeeProfile, user=request.user)
-        
-        # Mark current time as last viewed
-        cache_key = f'mood_insights_viewed_{employee.id}'
-        cache.set(cache_key, now().isoformat(), timeout=86400)  # Cache for 24 hours
-        
-        return Response({
-            "message": "Insights marked as read",
-            "timestamp": now().isoformat()
-        })
-
-    # ============================
-    # HELPER METHODS
-    # ============================
-    def _sync_to_wellness_graph(self, user, mood_entry):
-        """Automatically sync mood entry to wellness graph"""
-        mood_scores = {
-            'Ecstatic': 5, 'Happy': 4, 'Excited': 4, 'Content': 3,
-            'Calm': 3, 'Neutral': 2, 'Tired': 2,
-            'Anxious': 1, 'Stressed': 1, 'Sad': 1, 'Frustrated': 1, 'Angry': 0
-        }
-        
-        mood_date = mood_entry.checked_in_at.date()
-        mood_score = mood_scores.get(mood_entry.mood, 2)
-        
-        # Create or update wellness graph entry
-        WellnessGraph.objects.update_or_create(
-            user=user,
-            mood_date=mood_date,
-            defaults={'mood_score': mood_score}
-        )
-
-    def _calculate_mood_streak(self, employee):
-        """Calculate current mood check-in streak"""
-        today = now().date()
-        streak = 0
-        
-        for i in range(365):  # Check up to a year
-            check_date = today - timedelta(days=i)
-            has_checkin = MoodTracking.objects.filter(
-                employee=employee,
-                checked_in_at__date=check_date
-            ).exists()
-            
-            if has_checkin:
-                streak += 1
-            else:
-                break
-        
-        return streak
-
-    def _calculate_longest_streak(self, employee):
-        """Calculate longest mood check-in streak"""
-        entries = MoodTracking.objects.filter(
-            employee=employee
-        ).order_by('checked_in_at')
-        
-        if not entries.exists():
-            return 0
-        
-        longest_streak = 0
-        current_streak = 1
-        last_date = entries.first().checked_in_at.date()
-        
-        for entry in entries[1:]:
-            current_date = entry.checked_in_at.date()
-            if (current_date - last_date).days == 1:
-                current_streak += 1
-            else:
-                longest_streak = max(longest_streak, current_streak)
-                current_streak = 1
-            last_date = current_date
-        
-        return max(longest_streak, current_streak)
-
-    def _analyze_mood_sequences(self, entries):
-        """Analyze consecutive mood patterns"""
-        if not entries.exists():
-            return []
-        
-        sequences = []
-        current_sequence = [entries.first().mood]
-        
-        for entry in entries[1:]:
-            if entry.mood == current_sequence[-1]:
-                current_sequence.append(entry.mood)
-            else:
-                if len(current_sequence) >= 3:  # Only consider sequences of 3+ days
-                    sequences.append({
-                        "mood": current_sequence[0],
-                        "length": len(current_sequence),
-                        "start_date": entries[0].checked_in_at.strftime('%Y-%m-%d')
-                    })
-                current_sequence = [entry.mood]
-        
-        # Check the last sequence
-        if len(current_sequence) >= 3:
-            sequences.append({
-                "mood": current_sequence[0],
-                "length": len(current_sequence),
-                "start_date": entries[0].checked_in_at.strftime('%Y-%m-%d')
-            })
-        
-        return sequences
 @extend_schema(tags=['Employee - Assessments'])
 @extend_schema(tags=['Resources'])
 class SelfHelpResourceView(viewsets.ModelViewSet):
@@ -2641,9 +2102,10 @@ class ChatMessageView(viewsets.ModelViewSet):
             session__employee__user=self.request.user,
         )
 
-    def create(self, request, *args, **kwargs):
+    def perform_create(self, serializer):
         """
-        Override create to handle the AI chat flow and return AI response
+        Handles saving a new user message, ensures system prompt exists,
+        builds conversation history, calls Groq AI, and saves the AI reply.
         """
         # Get the chat session for the current user
         session = get_object_or_404(
@@ -2653,8 +2115,6 @@ class ChatMessageView(viewsets.ModelViewSet):
         )
 
         # Save the incoming user message
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
         user_message = serializer.save(session=session, sender="user")
         
         # Track sana_ai feature usage
@@ -2669,12 +2129,9 @@ class ChatMessageView(viewsets.ModelViewSet):
                 message="You are Sana, a helpful and professional AI assistant.",
             )
 
-        # Build conversation history for Groq API (exclude the current user message)
+        # Build conversation history for Groq API
         conversation_history = []
-        for msg in session.messages.all().order_by("timestamp"):
-            # Skip the current user message we just saved to avoid duplication
-            if msg.id == user_message.id:
-                continue
+        for msg in session.messages.all():
             # Use the model's api_role() helper to map DB roles to Groq roles
             role = msg.api_role()
             conversation_history.append({"role": role, "content": msg.message})
@@ -2704,7 +2161,7 @@ class ChatMessageView(viewsets.ModelViewSet):
         except ValueError as e:
             # Handle missing API key
             logger.error(f"Groq API configuration error: {str(e)}")
-            return Response(
+            raise Response(
                 {"error": "AI service not configured. Please contact support."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
@@ -2713,16 +2170,10 @@ class ChatMessageView(viewsets.ModelViewSet):
             logger.error(f"Groq chat error: {str(e)}")
 
             # Return error response to client instead of failing silently
-            return Response(
+            raise Response(
                 {"error": "AI service failed. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-    def perform_create(self, serializer):
-        """
-        This method is no longer used since we override create() above
-        """
-        pass
 
 
 @extend_schema(tags=["Employee - Recommendations"])
@@ -3705,12 +3156,11 @@ from django.http import HttpResponse
 import io, csv
 
 # Import your models and serializers
-from .models import CommonIssue, ResourceEngagement, MoodTracking, Department, WellnessGraph
+from .models import CommonIssue, ResourceEngagement, MoodTracking, Department
 from .serializers import (
     ChatEngagementSerializer,
     DepartmentContributionSerializer,
     OrganizationActivitySerializer,
-    WellnessGraphSerializer,
 )
 
 
@@ -4610,19 +4060,7 @@ class EmployeeEngagementSummaryView(APIView):
     permission_classes = [IsCompanyAdmin]
 
     def get(self, request):
-        # Get organization from user
-        user = request.user
-        if hasattr(user, 'employee_record') and user.employee_record:
-            organization = user.employee_record.organization
-        elif hasattr(user, 'organization') and user.organization:
-            organization = user.organization
-        else:
-            return Response(
-                {"error": "User must be associated with an organization"}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        employees = Employee.objects.filter(organization=organization)
+        employees = Employee.objects.filter(employer=request.user.employer)
 
         total = employees.count()
         active = employees.filter(is_active=True).count()
@@ -4867,115 +4305,55 @@ class ArticleViewSet(viewsets.ModelViewSet):  # Full CRUD support
     ordering_fields = ["published_date", "views", "reading_time"]
 
     @action(detail=True, methods=["post"])
-    def view(self, request, pk=None):
-        """Record that user viewed this article"""
+    def read(self, request, slug=None):
+        """Record that user read this article"""
         try:
             article = self.get_object()
         except Exception:
             raise NotFound("No article matches the given query.")
 
-        # Increment view count
         article.views += 1
         article.save()
 
-        # Create or update ArticleView record
+        # Track user activity if authenticated
         if request.user.is_authenticated:
-            ArticleView.objects.get_or_create(
-                article=article,
-                user=request.user,
-                defaults={'viewed_at': timezone.now()}
+            UserActivity.objects.create(user=request.user, article=article)
+
+        # Notify employees (should be outside Response)
+        for employee in Employee.objects.all():
+            Notification.objects.create(
+                employee=employee,
+                message=f"New article published: {article.title}",
+                content_type="article",
+                object_id=article.id,
             )
 
-        return Response({"message": "View recorded", "total_views": article.views})
+        return Response({"message": "Read recorded", "total_views": article.views})
 
-    @action(detail=True, methods=["post"])
-    def read(self, request, pk=None):
-        """Record that user confirmed reading this article"""
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    def save(self, request, slug=None):
+        """Save article to user's library"""
         try:
             article = self.get_object()
         except Exception:
             raise NotFound("No article matches the given query.")
 
-        # Increment confirmed reads count
-        article.confirmed_reads += 1
-        article.save()
+        saved, created = SavedResource.objects.get_or_create(
+            user=request.user, article=article
+        )
 
-        # Update ArticleView record if user is authenticated
-        if request.user.is_authenticated:
-            article_view, created = ArticleView.objects.get_or_create(
-                article=article,
-                user=request.user,
-                defaults={'viewed_at': timezone.now(), 'is_confirmed_read': True}
-            )
-            if not created:
-                article_view.is_confirmed_read = True
-                article_view.save()
+        if created:
+            return Response({"message": "Article saved to your library"})
+        else:
+            saved.delete()
+            return Response({"message": "Article removed from library"})
 
-        return Response({"message": "Read confirmed", "confirmed_reads": article.confirmed_reads})
-
-
-class BlogViewSet(viewsets.ModelViewSet):
-    queryset = Blog.objects.all()
-    serializer_class = BlogSerializer
-    permission_classes = [AllowAny]
-    authentication_classes = []
-    parser_classes = [MultiPartParser, FormParser]
-
-    filter_backends = [
-        DjangoFilterBackend,
-        filters.SearchFilter,
-        filters.OrderingFilter,
-    ]
-    filterset_fields = ["category", "status"]
-    search_fields = ["title", "content", "excerpt"]
-    ordering_fields = ["published_date", "views", "confirmed_reads"]
-
-    @action(detail=True, methods=["post"])
-    def view(self, request, pk=None):
-        """Record that user viewed this blog"""
-        try:
-            blog = self.get_object()
-        except Exception:
-            raise NotFound("No blog matches the given query.")
-
-        # Increment view count
-        blog.views += 1
-        blog.save()
-
-        # Create or update BlogView record
-        if request.user.is_authenticated:
-            BlogView.objects.get_or_create(
-                blog=blog,
-                user=request.user,
-                defaults={'viewed_at': timezone.now()}
-            )
-
-        return Response({"message": "View recorded", "total_views": blog.views})
-
-    @action(detail=True, methods=["post"])
-    def read(self, request, pk=None):
-        """Record that user confirmed reading this blog"""
-        try:
-            blog = self.get_object()
-        except Exception:
-            raise NotFound("No blog matches the given query.")
-
-        # Increment confirmed reads count
-        blog.confirmed_reads += 1
-        blog.save()
-
-        # Update BlogView record if user is authenticated
-        if request.user.is_authenticated:
-            blog_view, created = BlogView.objects.get_or_create(
-                blog=blog,
-                user=request.user,
-                defaults={'viewed_at': timezone.now(), 'is_confirmed_read': True}
-            )
-            if not created:
-                blog_view.is_confirmed_read = True
-                blog_view.save()
-
-        return Response({"message": "Read confirmed", "confirmed_reads": blog.confirmed_reads})
+    @action(detail=False, methods=["get"])
+    def trending(self, request):
+        """Return top 10 most viewed articles"""
+        trending = self.queryset.order_by("-views")[:10]
+        serializer = self.get_serializer(trending, many=True)
+        return Response(serializer.data)
 
 
 from rest_framework.permissions import (
@@ -5593,8 +4971,8 @@ from django.conf import settings
 from rest_framework import viewsets, status, permissions, views
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import ContentArticle, ContentMedia, Article, Blog, ArticleView
-from .serializers import ContentArticleSerializer, ContentMediaSerializer, ArticleSerializer, BlogSerializer
+from .models import ContentArticle, ContentMedia
+from .serializers import ContentArticleSerializer, ContentMediaSerializer
 
 
 # --- Helper to create a presigned PUT URL for DO Spaces ---
@@ -5670,7 +5048,6 @@ class PresignUploadView(views.APIView):
             {
                 "presigned_url": presigned_url,
                 "s3_key": object_key,
-                
                 "media_id": media.id,
             },
             status=status.HTTP_201_CREATED,
@@ -5741,53 +5118,6 @@ class ContentMediaViewSet(viewsets.ModelViewSet):
     serializer_class = ContentMediaSerializer
     permission_classes = [IsSystemAdminOrReadOnly]
 
-    def create(self, request, *args, **kwargs):
-        """Handle FormData uploads with new fields"""
-        # Extract data from FormData
-        title = request.data.get('title', '')
-        description = request.data.get('description', '')
-        category = request.data.get('category', '')
-        content_status = request.data.get('status', 'draft')
-        duration = request.data.get('duration', '')
-        file_size = request.data.get('file_size', '')
-        media_type = request.data.get('media_type', 'other')
-        
-        # Create ContentMedia object with all fields
-        content_media = ContentMedia.objects.create(
-            owner=request.user,
-            title=title,
-            description=description,
-            category=category if category else None,
-            status=content_status,
-            duration=duration,
-            file_size=file_size,
-            media_type=media_type,
-            uploaded=True if request.FILES.get('file') else False,
-        )
-        
-        # Handle file upload if present
-        if 'file' in request.FILES:
-            file = request.FILES['file']
-            
-            # Create the uploads directory if it doesn't exist
-            import os
-            uploads_dir = os.path.join(settings.MEDIA_ROOT, 'uploads')
-            os.makedirs(uploads_dir, exist_ok=True)
-            
-            # Save the file to disk
-            file_path = os.path.join(uploads_dir, file.name)
-            with open(file_path, 'wb+') as destination:
-                for chunk in file.chunks():
-                    destination.write(chunk)
-            
-            # Update the database record
-            content_media.s3_key = f"uploads/{file.name}"
-            content_media.uploaded = True
-            content_media.save()
-        
-        serializer = self.get_serializer(content_media)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
     def get_queryset(self):
         # Allow all access for superuser gideonmuteso@gmail.com
         if (
@@ -5810,8 +5140,8 @@ class ContentMediaViewSet(viewsets.ModelViewSet):
             # System admin sees all media
             return ContentMedia.objects.all().order_by("-created_at")
         else:
-            # Employees see only uploaded media (removed processed filter)
-            return ContentMedia.objects.filter(uploaded=True).order_by(
+            # Employees see only uploaded and processed media
+            return ContentMedia.objects.filter(uploaded=True, processed=True).order_by(
                 "-created_at"
             )
 
@@ -5836,497 +5166,102 @@ class EngagementLevelViewSet(viewsets.ModelViewSet):
     serializer_class = EngagementLevelSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+
 @extend_schema(tags=["Company Mood"])
 class CompanyMoodViewSet(viewsets.ModelViewSet):
+    queryset = CompanyMood.objects.all()
     serializer_class = CompanyMoodSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return CompanyMood.objects.all()
-        
-        # Get organization based on user role
-        if hasattr(user, 'employee_record') and user.employee_record:
-            organization = user.employee_record.organization
-        elif hasattr(user, 'organization') and user.organization:
-            organization = user.organization
-        else:
-            return CompanyMood.objects.none()
-            
-        return CompanyMood.objects.filter(organization=organization)
-
-    def perform_create(self, serializer):
-        user = self.request.user
-        
-        # Get organization based on user role
-        if hasattr(user, 'employee_record') and user.employee_record:
-            organization = user.employee_record.organization
-        elif hasattr(user, 'organization') and user.organization:
-            organization = user.organization
-        else:
-            raise ValidationError("User must be associated with an organization")
-            
-        serializer.save(organization=organization)
-
-    @action(detail=False, methods=['post'], url_path='aggregate-today')
-    def aggregate_today(self, request):
-        """Aggregate today's mood data for the organization"""
-        user = request.user
-        
-        # Get organization
-        if hasattr(user, 'employee_record') and user.employee_record:
-            organization = user.employee_record.organization
-        elif hasattr(user, 'organization') and user.organization:
-            organization = user.organization
-        else:
-            return Response(
-                {"error": "User must be associated with an organization"}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        today = now().date()
-        
-        # Get all mood entries for today from employees in this organization
-        today_entries = MoodTracking.objects.filter(
-            employee__organization=organization,
-            checked_in_at__date=today
-        )
-
-        if not today_entries.exists():
-            return Response(
-                {"message": "No mood entries found for today"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        # Calculate aggregated data
-        company_mood = self._calculate_company_mood(organization, today, today_entries)
-        
-        # Create or update CompanyMood record
-        mood_record, created = CompanyMood.objects.update_or_create(
-            organization=organization,
-            date=today,
-            defaults=company_mood
-        )
-
-        serializer = self.get_serializer(mood_record)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=['post'], url_path='aggregate-period')
-    def aggregate_period(self, request):
-        """Aggregate mood data for a specific period"""
-        user = request.user
-        
-        # Get organization
-        if hasattr(user, 'employee_record') and user.employee_record:
-            organization = user.employee_record.organization
-        elif hasattr(user, 'organization') and user.organization:
-            organization = user.organization
-        else:
-            return Response(
-                {"error": "User must be associated with an organization"}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        start_date = request.data.get('start_date')
-        end_date = request.data.get('end_date')
-
-        if not start_date or not end_date:
-            return Response(
-                {"error": "Both start_date and end_date are required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
-        except ValueError:
-            return Response(
-                {"error": "Invalid date format. Use YYYY-MM-DD"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Get mood entries for the period
-        period_entries = MoodTracking.objects.filter(
-            employee__organization=organization,
-            checked_in_at__date__range=[start_date, end_date]
-        )
-
-        if not period_entries.exists():
-            return Response(
-                {"message": "No mood entries found for the specified period"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        # Group entries by date and aggregate
-        results = []
-        current_date = start_date
-        while current_date <= end_date:
-            daily_entries = period_entries.filter(checked_in_at__date=current_date)
-            
-            if daily_entries.exists():
-                company_mood = self._calculate_company_mood(organization, current_date, daily_entries)
-                
-                mood_record, created = CompanyMood.objects.update_or_create(
-                    organization=organization,
-                    date=current_date,
-                    defaults=company_mood
-                )
-                
-                serializer = self.get_serializer(mood_record)
-                results.append(serializer.data)
-            
-            current_date += timedelta(days=1)
-
-        return Response({
-            "message": f"Aggregated mood data for {len(results)} days",
-            "data": results
-        })
-
-    @action(detail=False, methods=['get'], url_path='dashboard-summary')
+    @action(detail=False, methods=['get'])
     def dashboard_summary(self, request):
-        """Get comprehensive mood summary for dashboard"""
-        user = request.user
+        """Get employee moods summary for dashboard"""
+        from django.db.models import Count, Q
+        from django.utils import timezone
+        from datetime import timedelta
         
-        # Get organization
-        if hasattr(user, 'employee_record') and user.employee_record:
-            organization = user.employee_record.organization
-        elif hasattr(user, 'organization') and user.organization:
-            organization = user.organization
-        else:
-            return Response(
-                {"error": "User must be associated with an organization"}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Get different time periods
-        today = now().date()
-        last_7_days = today - timedelta(days=7)
-        last_30_days = today - timedelta(days=30)
-
-        # Today's data
-        today_mood = CompanyMood.objects.filter(
-            organization=organization,
-            date=today
-        ).first()
-
-        # Last 7 days
-        recent_moods = CompanyMood.objects.filter(
-            organization=organization,
-            date__gte=last_7_days
-        ).order_by('date')
-
-        # Last 30 days
-        monthly_moods = CompanyMood.objects.filter(
-            organization=organization,
-            date__gte=last_30_days
-        ).order_by('date')
-
-        # Calculate trends
-        trend_data = self._calculate_trends(recent_moods)
-
-        # Get employee participation
-        total_employees = Employee.objects.filter(organization=organization).count()
-        today_participants = MoodTracking.objects.filter(
-            employee__organization=organization,
-            checked_in_at__date=today
-        ).values('employee').distinct().count()
-
-        summary = {
-            "today": {
-                "total_entries": today_mood.total_entries if today_mood else 0,
-                "average_mood": today_mood.average_mood_score if today_mood else 0,
-                "positive_percentage": today_mood.positive_percentage if today_mood else 0,
-                "dominant_mood": today_mood.dominant_mood if today_mood else "No data",
-                "participants": today_participants,
-                "participation_rate": round((today_participants / total_employees * 100), 1) if total_employees > 0 else 0
-            },
-            "last_7_days": {
-                "total_entries": sum(mood.total_entries for mood in recent_moods),
-                "average_mood": sum(mood.average_mood_score for mood in recent_moods) / len(recent_moods) if recent_moods.exists() else 0,
-                "positive_percentage": sum(mood.positive_count for mood in recent_moods) / sum(mood.total_entries for mood in recent_moods) * 100 if recent_moods.exists() and sum(mood.total_entries for mood in recent_moods) > 0 else 0,
-                "trend": trend_data['trend'],
-                "days_with_data": recent_moods.count()
-            },
-            "last_30_days": {
-                "total_entries": sum(mood.total_entries for mood in monthly_moods),
-                "average_mood": sum(mood.average_mood_score for mood in monthly_moods) / len(monthly_moods) if monthly_moods.exists() else 0,
-                "days_with_data": monthly_moods.count()
-            },
-            "organization_stats": {
-                "total_employees": total_employees,
-                "active_days": recent_moods.count(),
-                "most_common_mood": self._get_most_common_mood(recent_moods)
-            }
-        }
-
-        return Response(summary)
-
-    def _calculate_company_mood(self, organization, date, entries):
-        """Calculate aggregated mood data for a specific day"""
-        # Initialize mood counts
-        mood_counts = {
-            'Ecstatic': 0, 'Happy': 0, 'Excited': 0, 'Content': 0,
-            'Calm': 0, 'Neutral': 0, 'Tired': 0,
-            'Anxious': 0, 'Stressed': 0, 'Sad': 0, 'Frustrated': 0, 'Angry': 0
-        }
-
-        # Count each mood
-        for entry in entries:
-            mood = entry.mood
-            if mood in mood_counts:
-                mood_counts[mood] += 1
-
-        # Calculate category totals
-        positive_moods = ['Ecstatic', 'Happy', 'Excited', 'Content']
-        neutral_moods = ['Calm', 'Neutral', 'Tired']
-        negative_moods = ['Anxious', 'Stressed', 'Sad', 'Frustrated', 'Angry']
-
-        positive_count = sum(mood_counts[mood] for mood in positive_moods)
-        neutral_count = sum(mood_counts[mood] for mood in neutral_moods)
-        negative_count = sum(mood_counts[mood] for mood in negative_moods)
-
-        total_entries = entries.count()
-
-        # Calculate average mood score (1-5 scale)
-        mood_scores = {
-            'Ecstatic': 5, 'Happy': 4, 'Excited': 4, 'Content': 3,
-            'Calm': 3, 'Neutral': 2, 'Tired': 2,
-            'Anxious': 1, 'Stressed': 1, 'Sad': 1, 'Frustrated': 1, 'Angry': 0
-        }
-
-        total_score = sum(mood_scores.get(entry.mood, 2) for entry in entries)
-        average_score = total_score / total_entries if total_entries > 0 else 0
-
-        # Find dominant mood
-        dominant_mood = max(mood_counts, key=mood_counts.get) if total_entries > 0 else 'None'
-
-        # Generate summary description
-        summary = self._generate_summary(positive_count, neutral_count, negative_count, dominant_mood, total_entries)
-
-        return {
-            'total_entries': total_entries,
-            'average_mood_score': round(average_score, 2),
-            'ecstatic_count': mood_counts['Ecstatic'],
-            'happy_count': mood_counts['Happy'],
-            'excited_count': mood_counts['Excited'],
-            'content_count': mood_counts['Content'],
-            'calm_count': mood_counts['Calm'],
-            'neutral_count': mood_counts['Neutral'],
-            'tired_count': mood_counts['Tired'],
-            'anxious_count': mood_counts['Anxious'],
-            'stressed_count': mood_counts['Stressed'],
-            'sad_count': mood_counts['Sad'],
-            'frustrated_count': mood_counts['Frustrated'],
-            'angry_count': mood_counts['Angry'],
-            'positive_count': positive_count,
-            'neutral_mood_count': neutral_count,
-            'negative_count': negative_count,
-            'summary_description': summary,
-            'dominant_mood': dominant_mood,
-            'sentiment_trend': 'stable'  # Will be calculated separately
-        }
-
-    def _generate_summary(self, positive, neutral, negative, dominant_mood, total):
-        """Generate a human-readable summary of the mood data"""
-        if total == 0:
-            return "No mood data available for this period."
-
-        positive_pct = (positive / total) * 100
-        negative_pct = (negative / total) * 100
-
-        summary_parts = []
-
-        if positive_pct >= 70:
-            summary_parts.append("Overall mood is very positive")
-        elif positive_pct >= 50:
-            summary_parts.append("Overall mood is moderately positive")
-        elif negative_pct >= 50:
-            summary_parts.append("Overall mood shows concerning negative trends")
-        else:
-            summary_parts.append("Overall mood is mixed")
-
-        summary_parts.append(f"with {dominant_mood.lower()} being the most common mood.")
-
-        if negative_pct >= 30:
-            summary_parts.append("Consider implementing wellness initiatives to support employee mental health.")
-
-        return " ".join(summary_parts)
-
-    def _calculate_trends(self, recent_moods):
-        """Calculate mood trends over recent days"""
-        if len(recent_moods) < 2:
-            return {'trend': 'insufficient_data'}
-
-        # Compare first half vs second half
-        mid_point = len(recent_moods) // 2
-        first_half = recent_moods[:mid_point]
-        second_half = recent_moods[mid_point:]
-
-        first_avg = sum(mood.average_mood_score for mood in first_half) / len(first_half) if first_half else 0
-        second_avg = sum(mood.average_mood_score for mood in second_half) / len(second_half) if second_half else 0
-
-        if second_avg > first_avg + 0.3:
-            trend = 'improving'
-        elif second_avg < first_avg - 0.3:
-            trend = 'declining'
-        else:
-            trend = 'stable'
-
-        return {'trend': trend}
-
-    def _get_most_common_mood(self, moods):
-        """Get the most common mood across multiple days"""
-        mood_totals = {}
-        
-        for mood_data in moods:
-            mood_totals[mood_data.dominant_mood] = mood_totals.get(mood_data.dominant_mood, 0) + 1
-
-        return max(mood_totals, key=mood_totals.get) if mood_totals else "No data"
-
-    @action(detail=False, methods=['get', 'post'], url_path='gauge-chart')
-    def get_gauge_chart(self, request):
-        """
-        Get mood gauge chart data for the organization.
-        Returns the current mood status as a gauge chart data.
-        
-        GET /api/company-mood/gauge-chart/
-        POST /api/company-mood/gauge-chart/
-        """
-        user = request.user
-        
-        # Check if user is authenticated
-        if not user.is_authenticated:
-            return Response(
-                {"error": "Authentication required", "detail": "Please login to access this endpoint"}, 
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-        
-        # Get organization - using Employee model approach (same as MoodTrackingView)
-        organization = None
-        
-        # Approach 1: Try to get from Employee model via filter (like MoodTrackingView)
+        # Get the user's organization
         try:
-            from obeeomaapp.models import Employee
-            emp = Employee.objects.filter(user=user).first()
-            if organization is None and emp:
-                # Employee has employer, but we need Organization for CompanyMood
-                # Try to get Organization from employer's contact_person or other relation
-                if hasattr(emp.employer, 'managed_organizations'):
-                    org = emp.employer.managed_organizations.first()
-                    if org:
-                        organization = org
-        except Exception:
-            pass
-        
-        # Approach 2: Try user.employee (EmployeeProfile) - has organization field
-        if not organization:
-            if hasattr(user, 'employee') and user.employee:
-                organization = user.employee.organization
-        
-        # Approach 3: Try to get Organization directly from user (if user is contact_person)
-        if not organization:
-            try:
-                from obeeomaapp.models import Organization
-                org = Organization.objects.filter(contact_person=user).first()
-                if org:
-                    organization = org
-            except Exception:
-                pass
-        
-        # Approach 4: If no organization found, get default from Organization
-        if not organization:
-            try:
-                from obeeomaapp.models import Organization
-                # Get the first organization as fallback
-                organization = Organization.objects.first()
-            except Exception:
-                pass
-        
-        if not organization:
+            employee = Employee.objects.get(user=request.user)
+            organization = employee.organization
+        except Employee.DoesNotExist:
             return Response(
-                {"error": "No organization found", "debug": f"User: {user.username}, email: {user.email}"}, 
+                {"error": "User is not an employee"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
-        # Get the most recent CompanyMood entry for the organization (no time filter)
-        company_mood = CompanyMood.objects.filter(
-            organization=organization
-        ).order_by('-date').first()
-
-        # If no CompanyMood exists, try to get from MoodTracking
-        if not company_mood:
-            # Get all mood entries to calculate current mood (no time limit)
-            recent_entries = MoodTracking.objects.filter(
-                employee__organization=organization
-            ).order_by('-checked_in_at')
-            
-            if not recent_entries.exists():
-                # Return empty state if no data - to match CompanyMoodViewSet
-                return Response({
-                    "mood_label": "",
-                    "score": 0,
-                    "clamped_score": 0,
-                    "needle_angle": 0,
-                    "dominant_mood": "",
-                    "total_entries": 0,
-                    "organization_name": organization.organizationName if organization else None,
-                    "date": None
+        
+        # Get all employees in the organization
+        org_employees = Employee.objects.filter(organization=organization)
+        
+        # Get mood data for the last 7 days
+        seven_days_ago = timezone.now() - timedelta(days=7)
+        recent_moods = MoodTracking.objects.filter(
+            user__employee__organization=organization,
+            checked_in_at__gte=seven_days_ago
+        ).select_related('user')
+        
+        # Count moods by category
+        mood_counts = {}
+        for mood_type in MoodTracking.MOOD_CATEGORIES.keys():
+            count = recent_moods.filter(mood=mood_type).count()
+            mood_counts[mood_type] = count
+        
+        # Calculate mood categories summary
+        positive_moods = recent_moods.filter(mood__in=['Ecstatic', 'Happy', 'Excited', 'Content']).count()
+        neutral_moods = recent_moods.filter(mood__in=['Calm', 'Neutral', 'Tired']).count()
+        negative_moods = recent_moods.filter(mood__in=['Anxious', 'Stressed', 'Sad', 'Frustrated', 'Angry']).count()
+        
+        total_moods = recent_moods.count()
+        
+        # Calculate percentages
+        positive_percentage = round((positive_moods / total_moods * 100), 2) if total_moods > 0 else 0
+        neutral_percentage = round((neutral_moods / total_moods * 100), 2) if total_moods > 0 else 0
+        negative_percentage = round((negative_moods / total_moods * 100), 2) if total_moods > 0 else 0
+        
+        # Get most common mood
+        most_common_mood = recent_moods.values('mood').annotate(count=Count('mood')).order_by('-count').first()
+        
+        # Get employee mood breakdown
+        employee_moods = []
+        for emp in org_employees:
+            latest_mood = recent_moods.filter(user=emp.user).order_by('-checked_in_at').first()
+            if latest_mood:
+                employee_moods.append({
+                    'employee_id': emp.id,
+                    'employee_name': emp.user.get_full_name() or emp.user.email,
+                    'mood': latest_mood.mood,
+                    'mood_category': MoodTracking.MOOD_CATEGORIES.get(latest_mood.mood, 'Unknown'),
+                    'checked_in_at': latest_mood.checked_in_at
                 })
-            
-            # Calculate dominant mood from all entries
-            mood_counts = {}
-            for entry in recent_entries:
-                mood = entry.mood
-                mood_counts[mood] = mood_counts.get(mood, 0) + 1
-            
-            dominant_mood = max(mood_counts, key=mood_counts.get) if mood_counts else "Neutral"
-            total_entries = recent_entries.count()
-            date = None
-        else:
-            dominant_mood = company_mood.dominant_mood
-            total_entries = company_mood.total_entries
-            date = None
-
-        # Map mood to gauge score (0-1000 scale)
-        # This matches the TypeScript logic:
-        # Angry: 100, Frustrated: 200, Neutral: 500, Happy: 700, Ecstatic: 900
-        GAUGE_SCORES = {
-            'Angry': 100,
-            'Frustrated': 200,
-            'Neutral': 500,
-            'Happy': 700,
-            'Ecstatic': 900,
-            # Map other moods to nearest category
-            'Excited': 900,
-            'Content': 700,
-            'Calm': 500,
-            'Tired': 500,
-            'Anxious': 200,
-            'Stressed': 200,
-            'Sad': 200,
-        }
-        
-        score = GAUGE_SCORES.get(dominant_mood, 500)
-        clamped_score = min(max(score, 0), 1000)
-        needle_angle = 180 - (clamped_score / 1000) * 180
-        
-        # Handle "Needs Attention" suffix from TypeScript
-        mood_label = dominant_mood.replace("Needs Attention", "").strip() or "Ecstatic"
         
         return Response({
-            "mood_label": mood_label,
-            "score": score,
-            "clamped_score": clamped_score,
-            "needle_angle": round(needle_angle, 2),
-            "dominant_mood": dominant_mood,
-            "total_entries": total_entries,
-            "organization_name": organization.organizationName if organization else None,
-            "date": None
+            'organization': organization.name,
+            'total_employees': org_employees.count(),
+            'employees_with_mood_data': len(employee_moods),
+            'mood_summary': {
+                'positive': {
+                    'count': positive_moods,
+                    'percentage': positive_percentage
+                },
+                'neutral': {
+                    'count': neutral_moods,
+                    'percentage': neutral_percentage
+                },
+                'negative': {
+                    'count': negative_moods,
+                    'percentage': negative_percentage
+                }
+            },
+            'mood_breakdown': mood_counts,
+            'most_common_mood': most_common_mood['mood'] if most_common_mood else None,
+            'employee_moods': employee_moods,
+            'period': 'Last 7 days'
         })
+
 
 @extend_schema(tags=["Wellness Graph"])
 class WellnessGraphViewSet(viewsets.ModelViewSet):
+    queryset = WellnessGraph.objects.all()
     serializer_class = WellnessGraphSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -6335,172 +5270,6 @@ class WellnessGraphViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
-
-    @action(detail=False, methods=['get'], url_path='sync-from-mood-tracking')
-    def sync_from_mood_tracking(self, request):
-        """Sync wellness graph data from mood tracking entries"""
-        user = request.user
-        
-        # Get all mood tracking entries for this user
-        mood_entries = MoodTracking.objects.filter(user=user).order_by('checked_in_at')
-        
-        if not mood_entries.exists():
-            return Response(
-                {"message": "No mood tracking entries found to sync"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        # Convert mood names to numeric scores
-        mood_scores = {
-            'Ecstatic': 5, 'Happy': 4, 'Excited': 4, 'Content': 3,
-            'Calm': 3, 'Neutral': 2, 'Tired': 2,
-            'Anxious': 1, 'Stressed': 1, 'Sad': 1, 'Frustrated': 1, 'Angry': 0
-        }
-        
-        synced_count = 0
-        updated_count = 0
-        
-        for entry in mood_entries:
-            mood_date = entry.checked_in_at.date()
-            mood_score = mood_scores.get(entry.mood, 2)  # Default to neutral (2)
-            
-            # Create or update wellness graph entry
-            wellness_entry, created = WellnessGraph.objects.update_or_create(
-                user=user,
-                mood_date=mood_date,
-                defaults={'mood_score': mood_score}
-            )
-            
-            if created:
-                synced_count += 1
-            else:
-                # Update if score is different
-                if wellness_entry.mood_score != mood_score:
-                    wellness_entry.mood_score = mood_score
-                    wellness_entry.save()
-                    updated_count += 1
-        
-        return Response({
-            "message": "Successfully synced mood tracking data to wellness graph",
-            "synced_entries": synced_count,
-            "updated_entries": updated_count,
-            "total_processed": synced_count + updated_count
-        })
-
-    @action(detail=False, methods=['get'], url_path='chart-data')
-    def chart_data(self, request):
-        """Get wellness graph data optimized for frontend charts"""
-        user = request.user
-        
-        # Get date range from query params
-        days = int(request.query_params.get('days', 30))
-        start_date = now().date() - timedelta(days=days)
-        
-        # Get wellness graph data
-        wellness_data = WellnessGraph.objects.filter(
-            user=user,
-            mood_date__gte=start_date
-        ).order_by('mood_date')
-        
-        # If no wellness graph data, try to sync from mood tracking
-        if not wellness_data.exists():
-            sync_response = self.sync_from_mood_tracking(request)
-            if sync_response.status_code == 200:
-                # Retry getting data after sync
-                wellness_data = WellnessGraph.objects.filter(
-                    user=user,
-                    mood_date__gte=start_date
-                ).order_by('mood_date')
-        
-        # Format data for frontend
-        chart_data = []
-        for entry in wellness_data:
-            chart_data.append({
-                'date': entry.mood_date.strftime('%Y-%m-%d'),
-                'score': entry.mood_score,
-                'mood_label': self._get_mood_label(entry.mood_score)
-            })
-        
-        # Calculate statistics
-        if chart_data:
-            scores = [item['score'] for item in chart_data]
-            avg_score = sum(scores) / len(scores)
-            max_score = max(scores)
-            min_score = min(scores)
-            
-            # Determine trend (last 7 days vs previous 7 days)
-            if len(chart_data) >= 14:
-                recent_avg = sum(scores[-7:]) / 7
-                previous_avg = sum(scores[-14:-7]) / 7
-                trend = 'improving' if recent_avg > previous_avg else 'declining' if recent_avg < previous_avg else 'stable'
-            else:
-                trend = 'insufficient_data'
-        else:
-            avg_score = max_score = min_score = 0
-            trend = 'no_data'
-        
-        return Response({
-            "data": chart_data,
-            "statistics": {
-                "average_score": round(avg_score, 2),
-                "max_score": max_score,
-                "min_score": min_score,
-                "total_days": len(chart_data),
-                "trend": trend
-            },
-            "period": f"last_{days}_days"
-        })
-
-    @action(detail=False, methods=['post'], url_path='auto-sync')
-    def auto_sync(self, request):
-        """Automatically sync latest mood tracking entries"""
-        user = request.user
-        
-        # Get the latest mood tracking entry
-        latest_mood = MoodTracking.objects.filter(user=user).order_by('-checked_in_at').first()
-        
-        if not latest_mood:
-            return Response(
-                {"message": "No mood tracking entries found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        # Convert to wellness graph entry
-        mood_scores = {
-            'Ecstatic': 5, 'Happy': 4, 'Excited': 4, 'Content': 3,
-            'Calm': 3, 'Neutral': 2, 'Tired': 2,
-            'Anxious': 1, 'Stressed': 1, 'Sad': 1, 'Frustrated': 1, 'Angry': 0
-        }
-        
-        mood_date = latest_mood.checked_in_at.date()
-        mood_score = mood_scores.get(latest_mood.mood, 2)
-        
-        # Create or update wellness graph entry
-        wellness_entry, created = WellnessGraph.objects.update_or_create(
-            user=user,
-            mood_date=mood_date,
-            defaults={'mood_score': mood_score}
-        )
-        
-        return Response({
-            "message": "Auto-sync completed",
-            "mood_date": mood_date.strftime('%Y-%m-%d'),
-            "mood_score": mood_score,
-            "original_mood": latest_mood.mood,
-            "was_created": created
-        })
-
-    def _get_mood_label(self, score):
-        """Convert numeric score back to mood label"""
-        mood_labels = {
-            5: 'Ecstatic',
-            4: 'Happy/Excited',
-            3: 'Content/Calm',
-            2: 'Neutral/Tired',
-            1: 'Anxious/Stressed/Sad',
-            0: 'Angry/Frustrated'
-        }
-        return mood_labels.get(score, 'Unknown')
 
 
 @extend_schema(tags=["Employee Management"])
@@ -6570,419 +5339,3 @@ def auth_check(request):
             'role': request.user.role
         }
     })
-
-
-# Admin AI Chat View
-@extend_schema(tags=["Admin - AI Chat"])
-class AdminChatView(viewsets.ViewSet):
-    """
-    Admin-specific AI chat functionality
-    No sessions - just message history with last 10 messages for context
-    """
-    permission_classes = [permissions.IsAuthenticated]
-    serializer_class = AdminChatMessageSerializer
-
-    def get_queryset(self):
-        """Only system admins can access their own chat messages"""
-        # Check if user is system admin using User model role field
-        if self.request.user.role != "system_admin":
-            return AdminChatMessage.objects.none()
-        return AdminChatMessage.objects.filter(admin=self.request.user)
-
-    def list(self, request):
-        """Get last 10 messages for context"""
-        # Check if user is system admin using User model role field
-        if request.user.role != "system_admin":
-            return Response(
-                {"error": "Access denied. System admins only."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        messages = self.get_queryset()[:10]  # Get last 10 messages
-        serializer = self.serializer_class(messages, many=True)
-        return Response(serializer.data)
-
-    def create(self, request):
-        """Send a message and get AI response"""
-        # Debug: Check if environment variable is loaded
-        logger.info(f"DEBUG: GROQ_API_KEY loaded: {'YES' if os.environ.get('GROQ_API_KEY') else 'MISSING'}")
-        
-        # Check if user is system admin using User model role field
-        if request.user.role != "system_admin":
-            return Response(
-                {"error": "Access denied. System admins only."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        user_message = request.data.get("message", "").strip()
-        if not user_message:
-            return Response(
-                {"error": "Message cannot be empty"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            # Save user message
-            admin_message = AdminChatMessage.objects.create(
-                admin=request.user,
-                sender="admin",
-                message=user_message
-            )
-
-            # Get last 10 messages for context (excluding the one we just saved)
-            conversation_history = []
-            recent_messages = self.get_queryset()[:10]
-            
-            for msg in recent_messages:
-                if msg.id != admin_message.id:  # Skip the message we just saved
-                    conversation_history.append({
-                        "role": msg.api_role,  # Property, not method - no parentheses
-                        "content": msg.message
-                    })
-
-            # Get AI response using existing GroqService
-            logger.info("DEBUG: About to initialize GroqService")
-            groq_service = GroqService()
-            logger.info("DEBUG: GroqService initialized successfully")
-            
-            # Enhanced system prompt for admin-specific insights
-            system_prompt = """You are an AI assistant for the Obeeoma mental health platform administrator. 
-            You provide insights on:
-            1. Resource consumption patterns and trends
-            2. Platform growth strategies and recommendations
-            3. System optimization suggestions
-            4. User engagement analytics
-            5. Mental health platform best practices
-            
-            Be concise, data-driven, and actionable in your responses."""
-            
-            # Add system prompt to conversation history
-            full_conversation = [{"role": "system", "content": system_prompt}] + conversation_history
-            logger.info(f"DEBUG: About to call Groq API with {len(full_conversation)} messages")
-            
-            ai_reply = groq_service.get_response(
-                user_message=user_message,
-                conversation_history=full_conversation,
-            )
-            logger.info("DEBUG: Groq API call successful")
-
-            # Save AI response
-            ai_message = AdminChatMessage.objects.create(
-                admin=request.user,
-                sender="ai",
-                message=ai_reply
-            )
-
-            # Return both messages
-            response_data = {
-                "user_message": AdminChatMessageSerializer(admin_message).data,
-                "ai_response": AdminChatMessageSerializer(ai_message).data,
-            }
-
-            return Response(response_data, status=status.HTTP_201_CREATED)
-
-        except ValueError as e:
-            logger.error(f"Groq API configuration error: {str(e)}")
-            return Response(
-                {"error": "AI service not configured. Please contact support."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-        except Exception as e:
-            logger.error(f"Admin AI chat error: {str(e)}")
-            return Response(
-                {"error": "Failed to process message. Please try again."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    @action(detail=False, methods=['delete'])
-    def clear_history(self, request):
-        """Clear all chat history for this admin"""
-        if request.user.role != "system_admin":
-            return Response(
-                {"error": "Access denied. System admins only."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        AdminChatMessage.objects.filter(admin=request.user).delete()
-        return Response(
-            {"message": "Chat history cleared successfully"},
-            status=status.HTTP_200_OK
-        )
-
-
-# Admin AI Status Management View
-@extend_schema(tags=["Admin - AI Status"])
-class AdminAIStatusView(viewsets.ViewSet):
-    """
-    Admin AI status management functionality
-    Handle toggling AI features and retrieving status
-    """
-    permission_classes = [permissions.IsAuthenticated]
-    serializer_class = AIStatusSerializer
-
-    def list(self, request):
-        """Get all AI feature statuses"""
-        # Check if user is system admin
-        if request.user.role != "system_admin":
-            return Response(
-                {"error": "Access denied. System admins only."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        # Get all AI statuses
-        ai_statuses = AIStatus.objects.all()
-        serializer = self.serializer_class(ai_statuses, many=True)
-        
-        # Return as a dict for easier frontend consumption
-        status_dict = {}
-        for status in serializer.data:
-            feature_key = status['feature_name']
-            status_dict[feature_key] = {
-                'is_enabled': status['is_enabled'],
-                'last_active': status['last_active']
-            }
-        
-        return Response(status_dict)
-
-    def create(self, request):
-        """Toggle AI feature status"""
-        # Check if user is system admin
-        if request.user.role != "system_admin":
-            return Response(
-                {"error": "Access denied. System admins only."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        enabled = request.data.get("enabled")
-        feature_name = request.data.get("feature_name", "admin_ai")  # Default to admin_ai for backward compatibility
-        
-        if enabled is None:
-            return Response(
-                {"error": "enabled field is required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Validate feature_name
-        valid_features = [choice[0] for choice in AIStatus.AI_FEATURE_CHOICES]
-        if feature_name not in valid_features:
-            return Response(
-                {"error": f"Invalid feature_name. Must be one of: {valid_features}"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            # Toggle the specified AI feature
-            ai_status = AIStatus.toggle_feature(
-                feature_name=feature_name,
-                enabled=enabled,
-                user=request.user
-            )
-            
-            serializer = self.serializer_class(ai_status)
-            feature_display = ai_status.get_feature_name_display()
-            
-            return Response({
-                "message": f"{feature_display} {'enabled' if enabled else 'disabled'} successfully",
-                "status": serializer.data
-            }, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            logger.error(f"Failed to toggle Admin AI: {str(e)}")
-            return Response(
-                {"error": "Failed to toggle AI status. Please try again."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-
-
-
-
-# Receptionist AI Chat View
-@extend_schema(tags=["Public - Receptionist Chat"])
-class ReceptionistChatView(viewsets.ViewSet):
-    """
-    Public receptionist AI chat functionality
-    No authentication required - focused on platform information and guidance
-    """
-    permission_classes = []  # No authentication required
-    serializer_class = ReceptionistChatMessageSerializer
-
-    def get_queryset(self):
-        """Get messages for a session (default session for simplicity)"""
-        session_id = self.request.data.get('session_id', 'default')
-        return ReceptionistChatMessage.objects.filter(session_id=session_id)
-
-    def create(self, request):
-        """Send a message and get AI response"""
-        user_message = request.data.get("message", "").strip()
-        session_id = request.data.get("session_id", "default")
-        
-        if not user_message:
-            return Response(
-                {"error": "Message cannot be empty"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            # Save user message
-            user_chat_message = ReceptionistChatMessage.objects.create(
-                session_id=session_id,
-                sender="user",
-                message=user_message
-            )
-
-            # Get last 5 messages for context (excluding the one we just saved)
-            conversation_history = []
-            recent_messages = self.get_queryset()[:5]
-            
-            for msg in recent_messages:
-                if msg.id != user_chat_message.id:  # Skip the message we just saved
-                    conversation_history.append({
-                        "role": msg.api_role,
-                        "content": msg.message
-                    })
-
-            # Get AI response using existing GroqService
-            groq_service = GroqService()
-            
-            # Enhanced system prompt for receptionist-specific responses
-            system_prompt = """You are Sana, the AI receptionist for Obeeoma, an AI-powered mental health platform tailored for Africa's workforce.
-
-Your role is to:
-1. Welcome visitors and explain what Obeeoma offers
-2. Guide users about our mental health services and features
-3. Explain how the platform connects to our mobile app
-4. Direct users to create accounts for full access
-5. Answer questions about mental health workplace wellness in Africa
-6. Politely redirect conversations back to Obeeoma's services when asked off-topic
-
-Key information about Obeeoma:
-- AI-powered mental health platform for African workplaces
-- Offers assessments, resources, and AI-guided support
-- Connected to a mobile app for on-the-go access
-- Focuses on empowering Africa's workforce mental wellness
-- Provides confidential, accessible mental health support
-
-Be warm, professional, and helpful. Always guide conversations toward how Obeeoma can help with mental health in the workplace. If asked questions outside our scope, politely relate it back to our mission or suggest creating an account to explore our full range of services."""
-            
-            # Add system prompt to conversation history
-            full_conversation = [{"role": "system", "content": system_prompt}] + conversation_history
-            
-            ai_reply = groq_service.get_response(
-                user_message=user_message,
-                conversation_history=full_conversation,
-            )
-
-            # Save AI response
-            ai_message = ReceptionistChatMessage.objects.create(
-                session_id=session_id,
-                sender="ai",
-                message=ai_reply
-            )
-
-            # Return both messages
-            response_data = {
-                "user_message": ReceptionistChatMessageSerializer(user_chat_message).data,
-                "ai_response": ReceptionistChatMessageSerializer(ai_message).data,
-            }
-
-            return Response(response_data, status=status.HTTP_201_CREATED)
-
-        except ValueError as e:
-            logger.error(f"Groq API configuration error: {str(e)}")
-            return Response(
-                {"error": "AI service not configured. Please contact support."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-        except Exception as e:
-            logger.error(f"Receptionist AI chat error: {str(e)}")
-            return Response(
-                {"error": "Failed to process message. Please try again."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-
-# Mood Bar Graph View for Employer Dashboard
-@extend_schema(tags=["Employer Dashboard"])
-class MoodBarGraphViewSet(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated]
-    
-    def list(self, request):
-        """
-        GET /mood-bar-graph/
-        Returns specific mood distribution for the employer's organization
-        """
-        # --- 1. GET EMPLOYER LOGIC (Kept from your original) ---
-        employer = None
-        user = request.user
-        
-        if hasattr(user, 'organization') and user.organization:
-            try:
-                employer, _ = Employer.objects.get_or_create(
-                    name=user.organization.organizationName,
-                    defaults={'is_active': True}
-                )
-            except: pass
-        
-        if not employer:
-            try:
-                employee_profile = Employee.objects.filter(user=user).first()
-                if employee_profile:
-                    employer = employee_profile.employer
-            except: pass
-        
-        if not employer:
-            return Response({
-                "specific_moods": [],
-                "total_employees": 0,
-                "message": "No organization found for this user"
-            })
-        
-        # --- 2. DATA AGGREGATION ---
-        employees = Employee.objects.filter(employer=employer)
-        employee_users = employees.values_list('user', flat=True)
-        
-        # Fetch specific moods (Angry, Sad, Ecstatic, etc.)
-        mood_counts = (
-            MoodTracking.objects
-            .filter(user__in=employee_users)
-            .values('mood')
-            .annotate(count=Count('id'))
-            .order_by('-count')
-        )
-        
-        total_entries = sum(item['count'] for item in mood_counts)
-
-        # --- 3. FORMATTING FOR FRONTEND ---
-        # This is exactly what your BarGraph.tsx and Redux Slice expect
-        specific_moods = []
-        for item in mood_counts:
-            percentage = (item['count'] / total_entries * 100) if total_entries > 0 else 0
-            specific_moods.append({
-                'mood': item['mood'], # e.g., "Angry"
-                'count': item['count'],
-                'percentage': round(percentage, 2)
-            })
-
-        # Keep Category distribution for your summary cards/logic
-        mood_categories = {
-            'Positive': ['Ecstatic', 'Happy', 'Excited', 'Content'],
-            'Neutral': ['Calm', 'Neutral', 'Tired'],
-            'Negative': ['Anxious', 'Stressed', 'Sad', 'Frustrated', 'Angry']
-        }
-        
-        category_distribution = {'Positive': 0, 'Neutral': 0, 'Negative': 0}
-        for item in mood_counts:
-            mood = item['mood']
-            for category, moods in mood_categories.items():
-                if mood in moods:
-                    category_distribution[category] += item['count']
-                    break
-        
-        return Response({
-            "specific_moods": specific_moods, # Main data for Bar Chart
-            "category_distribution": category_distribution, # Data for summary cards
-            "total_entries": total_entries,
-            "total_employees": employees.count(),
-            "employer_name": employer.name
-        })

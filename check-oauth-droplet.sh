@@ -9,10 +9,10 @@ echo ""
 
 # Check if we can connect
 echo "📡 Connecting to droplet..."
-ssh -o ConnectTimeout=5 obeeoma@64.225.122.101 "echo '✅ Connected successfully'" 2>/dev/null
+ssh -o ConnectTimeout=5 obeeoma@64.225.122.101 "echo ' Connected successfully'" 2>/dev/null
 
 if [ $? -ne 0 ]; then
-    echo "❌ Cannot connect to droplet. Check your SSH connection."
+    echo " Cannot connect to droplet. Check your SSH connection."
     exit 1
 fi
 
@@ -25,7 +25,7 @@ ssh obeeoma@64.225.122.101 << 'ENDSSH'
 cd ~/api
 
 if [ ! -f .env ]; then
-    echo "❌ .env file not found!"
+    echo " .env file not found!"
     exit 1
 fi
 

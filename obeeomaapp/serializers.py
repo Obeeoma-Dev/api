@@ -1,6 +1,7 @@
 # serializers.py
 from datetime import timedelta
 from secrets import token_urlsafe
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from drf_spectacular.utils import extend_schema_field
 from django.utils import timezone
@@ -197,18 +198,6 @@ class SignupSerializer(serializers.ModelSerializer):
 
         return user
     
-
-class MoodGaugeChartSerializer(serializers.Serializer):
-    """Serializer for Mood Gauge Chart data"""
-    mood_label = serializers.CharField()
-    score = serializers.IntegerField()
-    clamped_score = serializers.IntegerField()
-    needle_angle = serializers.FloatField()
-    dominant_mood = serializers.CharField()
-    total_entries = serializers.IntegerField()
-    organization_name = serializers.CharField(allow_null=True)
-    date = serializers.DateField(allow_null=True)
-
 
 
 # Input serializer for contact person (employer)
@@ -724,7 +713,7 @@ class SelfAssessmentSerializer(serializers.ModelSerializer):
 class MoodTrackingSerializer(serializers.ModelSerializer):
     class Meta:
         model = MoodTracking
-        fields = ['id', 'mood', 'note', 'checked_in_at']
+        fields = ['id', 'mood',  'checked_in_at']
         read_only_fields = ['id', 'checked_in_at']
 
 class SelfHelpResourceSerializer(serializers.ModelSerializer):
@@ -865,33 +854,8 @@ class ChatMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatMessage
         fields = ["id", "sender", "message", "timestamp"]  
-        read_only_fields = ["id", "timestamp", "sender"]  # Sender is set automatically in view           
+        read_only_fields = ["id", "timestamp"]           
 
-class AdminChatMessageSerializer(serializers.ModelSerializer):
-    """Serializer for admin AI chat messages"""
-    class Meta:
-        model = AdminChatMessage
-        fields = ["id", "sender", "message", "timestamp"]
-        read_only_fields = ["id", "timestamp", "sender"]  # Sender is set automatically in view           
-
-
-
-class ReceptionistChatMessageSerializer(serializers.ModelSerializer):
-    """Serializer for receptionist AI chat messages"""
-    class Meta:
-        model = ReceptionistChatMessage
-        fields = ["id", "sender", "message", "timestamp"]
-        read_only_fields = ["id", "timestamp", "sender"]  # Sender is set automatically in view           
-
-
-class AIStatusSerializer(serializers.ModelSerializer):
-    """Serializer for AI status management"""
-    feature_display = serializers.CharField(source='get_feature_name_display', read_only=True)
-    
-    class Meta:
-        model = AIStatus
-        fields = ["id", "feature_name", "feature_display", "is_enabled", "last_active", "updated_at"]
-        read_only_fields = ["id", "updated_at"]
 
 
 class RecommendationLogSerializer(serializers.ModelSerializer):
@@ -1403,6 +1367,8 @@ class EducationalResourceSerializer(serializers.ModelSerializer):
 class VideoSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     is_saved = serializers.SerializerMethodField()
+    video_file_url = serializers.SerializerMethodField()
+    thumbnail_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Video
@@ -1410,7 +1376,7 @@ class VideoSerializer(serializers.ModelSerializer):
             'id', 'title', 'category', 'category_name', 'duration', 
             'target_mood', 'views', 'is_active', 'created_at', 'updated_at',
             'reviewed_by', 'review_date', 'views_count', 'helpful_count', 
-            'saved_count', 'is_saved'
+            'saved_count', 'is_saved', 'video_file_url', 'video_url', 'thumbnail_url'
         ]
         extra_kwargs = {
             'category': {'required': False, 'allow_null': True}
@@ -1424,18 +1390,33 @@ class VideoSerializer(serializers.ModelSerializer):
             return SavedResource.objects.filter(user=request.user, video=obj).exists()
         return False
 
+    @extend_schema_field(serializers.URLField())
+    def get_video_file_url(self, obj) -> str:
+        if obj.video_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.video_file.url)
+        return None
+
+    @extend_schema_field(serializers.URLField())
+    def get_thumbnail_url(self, obj) -> str:
+        if obj.thumbnail:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.thumbnail.url)
+        return None
+
 # Audio Serializer
 class AudioSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     is_saved = serializers.SerializerMethodField()
-    audio_url_full = serializers.SerializerMethodField()
+    audio_file_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Audio
         fields = [
-            'id', 'title', 'description',  'audio_url',
-            'audio_url_full',  'category_name', 'duration',
-            'plays', 'is_saved', 'created_at'
+            'id', 'title', 'description', 'audio_file_url', 'audio_url',
+            'category_name', 'duration', 'plays', 'is_saved', 'created_at'
         ]
         extra_kwargs = {
             'category': {'required': False, 'allow_null': True}
@@ -1450,7 +1431,7 @@ class AudioSerializer(serializers.ModelSerializer):
         return False
 
     @extend_schema_field(serializers.URLField())
-    def get_audio_url_full(self, obj) -> str:
+    def get_audio_file_url(self, obj) -> str:
         if obj.audio_file:
             request = self.context.get('request')
             if request:
@@ -1463,55 +1444,24 @@ class ArticleSerializer(serializers.ModelSerializer):
     author = serializers.CharField()
     published_date = serializers.DateTimeField(required=False)
     featured_image = serializers.ImageField(required=False, allow_null=True)
+    featured_image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Article
         fields = [
-            "id",
-            "title",
-            "category",
-            "published_date",
-            "status",
-            "excerpt",
-            "featured_image",
-            "author",
-            "content",
-            "featured",
-            "views",
-            "confirmed_reads",
-            "reading_time",
+            "id", "title", "category", "published_date", "status", 
+            "excerpt", "featured_image", "featured_image_url", "author", 
+            "content", "featured", "views", "confirmed_reads", "reading_time"
         ]
 
-# Blog Serializer
-class BlogSerializer(serializers.ModelSerializer):
-    category = serializers.CharField()
-    author = serializers.CharField()
-    published_date = serializers.DateTimeField(required=False)
-    featured_image = serializers.ImageField(required=False, allow_null=True)
-
-    class Meta:
-        model = Blog
-        fields = [
-            "id",
-            "title",
-            "category",
-            "published_date",
-            "status",
-            "excerpt",
-            "featured_image",
-            "author",
-            "content",
-            "featured",
-            "views",
-            "confirmed_reads",
-            "reading_time",
-        ]
-
-# Article View Serializer
-class ArticleViewSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ArticleView
-        fields = '__all__'
+    @extend_schema_field(serializers.URLField())
+    def get_featured_image_url(self, obj) -> str:
+        if obj.featured_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.featured_image.url)
+        return None
+# Meditation Technique Serializer
 
 # Meditation Technique Serializer
 
@@ -1519,10 +1469,16 @@ class MeditationTechniqueSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     difficulty_display = serializers.CharField(source='get_difficulty_display', read_only=True)
     is_saved = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = MeditationTechnique
-        fields = '__all__'
+        fields = [
+            'id', 'title', 'description', 'instructions', 'duration', 
+            'difficulty', 'difficulty_display', 'category', 'category_name',
+            'image', 'image_url', 'times_practiced', 'is_active', 
+            'created_at', 'updated_at', 'is_saved'
+        ]
         read_only_fields = ['times_practiced']
 
     @extend_schema_field(serializers.BooleanField())
@@ -1531,6 +1487,14 @@ class MeditationTechniqueSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             return SavedResource.objects.filter(user=request.user, meditation=obj).exists()
         return False
+
+    @extend_schema_field(serializers.URLField())
+    def get_image_url(self, obj) -> str:
+        if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+        return None
 
 
 # Saved Resource Serializer
@@ -1757,7 +1721,6 @@ class AdminSubscriptionSerializer(serializers.ModelSerializer):
     to view and manage ALL subscriptions
     across ALL organizations.
     """
-    employer = serializers.StringRelatedField(read_only=True)
 
     class Meta:
         model = Subscription
@@ -1919,33 +1882,26 @@ class ContentArticleSerializer(serializers.ModelSerializer):
 
 class ContentMediaSerializer(serializers.ModelSerializer):
     owner = serializers.StringRelatedField(read_only=True)
-    file_size_display = serializers.SerializerMethodField()
+    media_url = serializers.SerializerMethodField()
 
     class Meta:
         model = ContentMedia
         fields = [
-            "id",
-            "title",
-            "description",
-            "media_type",
-            "category",
-            "status",
-            "duration",
-            "file_size",
-            "views",
-            "s3_key",
-            "public_url",
-            "duration_seconds",
-            "uploaded",
-            "processed",
-            "owner",
-            "created_at",
-            "updated_at",
+            "id", "title", "description", "media_type", "category", "status",
+            "duration", "file_size", "views", "s3_key", "public_url", "media_url",
+            "duration_seconds", "uploaded", "processed", "owner", "created_at", "updated_at"
         ]
         read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at", "updated_at", "views"]
 
-    def get_file_size_display(self, obj) -> str:
-        return obj.file_size or "0 MB"
+    @extend_schema_field(serializers.URLField())
+    def get_media_url(self, obj) -> str:
+        if obj.public_url:
+            return obj.public_url
+        if obj.s3_key:
+            bucket_name = getattr(settings, 'AWS_STORAGE_BUCKET_NAME', 'obeeoma-media')
+            region = getattr(settings, 'AWS_S3_REGION_NAME', 'us-east-1')
+            return f"https://{bucket_name}.s3.{region}.amazonaws.com/{obj.s3_key}"
+        return None
 
 
 # New serializers for the requested endpoints
@@ -1970,23 +1926,9 @@ class EngagementLevelSerializer(serializers.ModelSerializer):
 
 
 class CompanyMoodSerializer(serializers.ModelSerializer):
-    positive_percentage = serializers.ReadOnlyField()
-    negative_percentage = serializers.ReadOnlyField()
-    organization_name = serializers.CharField(source='organization.name', read_only=True)
-
     class Meta:
         model = CompanyMood
-        fields = [
-            'id', 'organization', 'organization_name', 'date',
-            'total_entries', 'average_mood_score',
-            'ecstatic_count', 'happy_count', 'excited_count', 'content_count',
-            'calm_count', 'neutral_count', 'tired_count',
-            'anxious_count', 'stressed_count', 'sad_count', 'frustrated_count', 'angry_count',
-            'positive_count', 'neutral_mood_count', 'negative_count',
-            'positive_percentage', 'negative_percentage',
-            'summary_description', 'dominant_mood', 'sentiment_trend',
-            'created_at', 'updated_at'
-        ]
+        fields = ['id', 'summary_description', 'created_at']
 
 
 class WellnessGraphSerializer(serializers.ModelSerializer):
@@ -2021,26 +1963,23 @@ class ContentArticleSerializer(serializers.ModelSerializer):
 
 class ContentMediaSerializer(serializers.ModelSerializer):
     owner = serializers.StringRelatedField(read_only=True)
+    media_url = serializers.SerializerMethodField()
 
     class Meta:
         model = ContentMedia
         fields = [
-            "id",
-            "title",
-            "description",
-            "media_type",
-            "category",
-            "status",
-            "duration",
-            "file_size",
-            "views",
-            "s3_key",
-            "public_url",
-            "duration_seconds",
-            "uploaded",
-            "processed",
-            "owner",
-            "created_at",
-            "updated_at",
+            "id", "title", "description", "media_type", "category", "status",
+            "duration", "file_size", "views", "s3_key", "public_url", "media_url",
+            "duration_seconds", "uploaded", "processed", "owner", "created_at", "updated_at"
         ]
-        read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at"]
+        read_only_fields = ["id", "s3_key", "public_url", "uploaded", "processed", "owner", "created_at", "updated_at", "views"]
+
+    @extend_schema_field(serializers.URLField())
+    def get_media_url(self, obj) -> str:
+        if obj.public_url:
+            return obj.public_url
+        if obj.s3_key:
+            bucket_name = getattr(settings, 'AWS_STORAGE_BUCKET_NAME', 'obeeoma-media')
+            region = getattr(settings, 'AWS_S3_REGION_NAME', 'us-east-1')
+            return f"https://{bucket_name}.s3.{region}.amazonaws.com/{obj.s3_key}"
+        return None

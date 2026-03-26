@@ -2,14 +2,18 @@
 import os
 import sys
 import django
+from django.contrib.auth import get_user_model
+from django.db.models import Count
 
 # Setup Django
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'api.settings')
 django.setup()
 
-from django.contrib.auth import get_user_model
-from obeeomaapp.models import Employee, EmployeeProfile, Organization, OnboardingState, PSS10Assessment, MentalHealthAssessment
+from obeeomaapp.models import (
+    Employee, EmployeeProfile, Organization, OnboardingState,
+    PSS10Assessment, MentalHealthAssessment
+)
 
 User = get_user_model()
 
@@ -49,10 +53,15 @@ profile_count = EmployeeProfile.objects.count()
 print(f"  EmployeeProfile records: {profile_count}")
 
 # Show recent employee profiles
-recent_profiles = EmployeeProfile.objects.select_related('user').order_by('-joined_on')[:5]
+recent_profiles = EmployeeProfile.objects.select_related(
+    'user'
+).order_by('-joined_on')[:5]
 print("  Recent employee profiles:")
 for profile in recent_profiles:
-    print(f"    {profile.user.email} - {profile.display_name} - Joined: {profile.joined_on}")
+    print(
+        f"    {profile.user.email} - {profile.display_name} - "
+        f"Joined: {profile.joined_on}"
+    )
 
 print()
 
@@ -62,10 +71,15 @@ onboarding_states = OnboardingState.objects.count()
 print(f"  OnboardingState records: {onboarding_states}")
 
 # Show recent onboarding states
-recent_onboarding = OnboardingState.objects.select_related('user').order_by('-id')[:5]
+recent_onboarding = OnboardingState.objects.select_related(
+    'user'
+).order_by('-id')[:5]
 print("  Recent onboarding states:")
 for state in recent_onboarding:
-    print(f"    {state.user.email} - Completed: {state.completed} - First Action: {state.first_action_done}")
+    print(
+        f"    {state.user.email} - Completed: {state.completed} - "
+        f"First Action: {state.first_action_done}"
+    )
 
 print()
 
@@ -82,7 +96,9 @@ print()
 print("ORGANIZATIONS:")
 orgs = Organization.objects.all()
 for org in orgs:
-    employee_count = User.objects.filter(organization=org, role='employee').count()
+    employee_count = User.objects.filter(
+        organization=org, role='employee'
+    ).count()
     print(f"  {org.organizationName}: {employee_count} employees")
 
 print()
