@@ -12,7 +12,8 @@ cd ~/obeeoma_project/api
 
 # Pull latest code
 echo "Pulling latest code..."
-git pull origin main
+git stash push -m "Stashing local changes before deployment" || true
+git pull origin main --force
 
 # Stop existing containers
 echo "Stopping existing containers..."
