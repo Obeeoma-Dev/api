@@ -1451,7 +1451,7 @@ class ArticleSerializer(serializers.ModelSerializer):
         fields = [
             "id", "title", "category", "published_date", "status", 
             "excerpt", "featured_image", "featured_image_url", "author", 
-            "content", "featured", "views", "confirmed_reads", "reading_time"
+            "content", "featured", "views", "reading_time"
         ]
 
     @extend_schema_field(serializers.URLField())

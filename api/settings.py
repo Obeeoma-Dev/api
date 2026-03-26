@@ -203,6 +203,9 @@ SPECTACULAR_SETTINGS = {
             "description": "Local development server"
         },
     ],
+    "PREPROCESSING_HOOKS": [],
+    "POSTPROCESSING_HOOKS": [],
+    "SCHEMA_PATH_PREFIX": "/api/",
 }
 
 # Logging Configuration
