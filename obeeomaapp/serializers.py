@@ -1887,7 +1887,7 @@ class ContentMediaSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContentMedia
         fields = [
-            "id", "title", "description", "media_type", "category", "status",
+            "id", "title", "description", "media_type", "status",
             "duration", "file_size", "views", "s3_key", "public_url", "media_url",
             "duration_seconds", "uploaded", "processed", "owner", "created_at", "updated_at"
         ]
@@ -1968,7 +1968,7 @@ class ContentMediaSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContentMedia
         fields = [
-            "id", "title", "description", "media_type", "category", "status",
+            "id", "title", "description", "media_type", "status",
             "duration", "file_size", "views", "s3_key", "public_url", "media_url",
             "duration_seconds", "uploaded", "processed", "owner", "created_at", "updated_at"
         ]
