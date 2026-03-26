@@ -15,30 +15,57 @@ jobs:
           username: ${{ secrets.DROPLET_USERNAME }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
           port: ${{ secrets.DROPLET_SSH_PORT || '22' }}
-          command_timeout: 60m
+          command_timeout: 45m
           script: |
+            set -e  # Exit on any error
+            
+            echo "=== Starting deployment ==="
+            
             # Pull latest code
-            cd ~/obeeoma_project
+            cd ~/obeeoma_project/api
+            echo "Pulling latest code..."
             git pull origin main
-
-            # Rebuild and restart Docker containers
-            docker-compose down
-            docker-compose build --no-cache
+            
+            # Clean up unused Docker resources
+            echo "Cleaning up Docker resources..."
+            docker system prune -f --volumes
+            
+            # Build and start containers with caching
+            echo "Building and starting containers..."
+            docker-compose build --parallel
             docker-compose up -d
-
+            
+            # Wait for backend to be healthy
+            echo "Waiting for backend to be healthy..."
+            timeout 300 bash -c 'until docker-compose ps backend | grep -q "healthy\|Up"; do sleep 5; done'
+            
             # Run Django commands
-            docker-compose exec -T django_backend python manage.py migrate --noinput
-            docker-compose exec -T django_backend python manage.py collectstatic --noinput
-
+            echo "Running Django migrations..."
+            docker-compose exec -T backend python manage.py migrate --noinput
+            
+            echo "Collecting static files..."
+            docker-compose exec -T backend python manage.py collectstatic --noinput --verbosity=0
+            
             # Health check
-            sleep 10
-            if curl -f http://127.0.0.1:8000/api/v1/; then
-              echo "Backend deployed successfully!"
-            else
-              echo "Backend deployment failed"
-              docker-compose logs django_backend --tail 20
-              exit 1
-            fi
-
-            echo "Deployment complete!"
+            echo "Performing final health check..."
+            for i in {1..10}; do
+              if curl -f -s http://127.0.0.1:8000/api/v1/ > /dev/null; then
+                echo "✅ Backend deployed successfully!"
+                break
+              else
+                echo "⏳ Health check attempt $i/10 failed, retrying in 10 seconds..."
+                sleep 10
+              fi
+              
+              if [ $i -eq 10 ]; then
+                echo "❌ Backend deployment failed after 10 attempts"
+                echo "=== Container logs ==="
+                docker-compose logs backend --tail 50
+                echo "=== Container status ==="
+                docker-compose ps
+                exit 1
+              fi
+            done
+            
+            echo "=== Deployment complete! ==="
             docker-compose ps

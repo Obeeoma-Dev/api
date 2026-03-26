@@ -1,7 +1,11 @@
 
 services:
   backend:
-    build: .
+    build: 
+      context: .
+      cache_from:
+        - backend:latest
+    image: backend:latest
     container_name: django_backend
     ports:
       - "8000:8000"
@@ -11,7 +15,13 @@ services:
       - ./staticfiles:/app/staticfiles
       - ./media:/app/media
     restart: unless-stopped
-    command: gunicorn --bind 0.0.0.0:8000 --workers 3 api.wsgi:application
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 api.wsgi:application
 
   nginx:
     image: nginx:alpine
@@ -24,5 +34,6 @@ services:
       - ./staticfiles:/app/staticfiles:ro
       - ./media:/app/media:ro
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
