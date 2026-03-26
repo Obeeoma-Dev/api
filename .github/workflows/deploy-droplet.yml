@@ -52,7 +52,6 @@ jobs:
             docker-compose exec -T backend python manage.py migrate --noinput
             
             echo "Collecting static files..."
-            docker-compose exec -T backend mkdir -p /app/staticfiles
             docker-compose exec -T backend python manage.py collectstatic --noinput --verbosity=0
             
             # Health check

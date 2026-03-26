@@ -27,6 +27,9 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Copy project files
 COPY . /app/
 
+# Create staticfiles directory with proper permissions
+RUN mkdir -p /app/staticfiles /app/media
+
 # Collect static files (only if needed)
 RUN python manage.py collectstatic --noinput --verbosity=0 || true
 
