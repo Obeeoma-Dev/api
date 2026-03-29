@@ -1,43 +1,186 @@
 """
 AI Service for Public Receptionist Chat
-Provides simple responses for landing page visitors
+Provides conversational responses for registration, features, and platform guidance
 """
 
 def get_receptionist_response(message: str, session_id: str) -> str:
     """
     Generate AI response for receptionist chat.
-    Simple rule-based responses for now.
+    Focuses on registration guidance, platform features, and user support.
     """
     message_lower = message.lower()
     
-    # Greeting responses
-    if any(greeting in message_lower for greeting in ['hello', 'hi', 'hey', 'good morning', 'good afternoon']):
-        return "Hello! Welcome to Obeeoma! 👋 I'm Sana, your AI receptionist. I'm here to tell you about our mental health platform and answer any questions you might have about our services."
+    # Platform registration guidance
+    if any(word in message_lower for word in ['register', 'signup', 'create account', 'join', 'start']):
+        return """Welcome!  Let me guide you through getting started with Obeeoma:
+
+**Registration Steps:**
+1. Click "Sign Up" on our landing page
+2. Choose your role: Employee or Employer
+3. Fill in your basic information
+4. Verify your email address
+5. Complete your profile setup
+
+**Mobile App:** Download our app from App Store or Google Play for the best experience! 📱
+
+Need help with any specific step? I'm here to assist!"""
     
-    # Service information
-    elif 'service' in message_lower or 'what do you do' in message_lower or 'what is obeeoma' in message_lower:
-        return "Obeeoma is a comprehensive mental health platform designed for Africa's workforce. We provide AI-powered mental health support, wellness assessments, crisis intervention, employee assistance programs, and organizational analytics to help companies support their employees' mental wellbeing."
+    # Mobile app questions
+    elif any(word in message_lower for word in ['mobile', 'app', 'phone', 'download']):
+        return """**Obeeoma Mobile App** 
+
+**Features:**
+- Mental health assessments on the go
+- AI-powered wellness conversations  
+- Crisis support hotline (24/7)
+- Track your mood and progress
+- Access company resources
+- Push notifications for appointments
+
+**Download:**
+- App Store: Search "Obeeoma"
+- Google Play: Search "Obeeoma"
+- Direct links on our website
+
+The app syncs seamlessly with your web account!"""
     
-    # Pricing/cost
-    elif 'price' in message_lower or 'cost' in message_lower or 'how much' in message_lower:
-        return "Our pricing is flexible and scales with your organization size. We offer various plans from small businesses to large enterprises. For specific pricing information, I'd recommend contacting our sales team or starting with our free trial to see how Obeeoma can benefit your organization."
+    # Platform features
+    elif any(word in message_lower for word in ['features', 'what can', 'how to', 'help', 'services']):
+        return """**Obeeoma Platform Features** 
+
+**For Employees:**
+- Mental health assessments
+- AI wellness conversations  
+- Crisis support & counseling
+- Personal wellness tracking
+- Mobile app access
+- Company resources
+
+**For Employers:**
+- Employee wellness analytics
+- Organization management
+- Wellness programs
+- Resource library
+- Engagement tracking
+
+**Getting Started:**
+1. Register your account
+2. Complete your profile
+3. Take your first assessment
+4. Explore resources
+5. Download mobile app
+
+What would you like to explore first?"""
     
-    # Features
-    elif 'feature' in message_lower or 'what can you do' in message_lower:
-        return "Obeeoma offers: 🧠 AI-powered mental health support, 📊 Wellness assessments and tracking, 🚨 Crisis intervention services, 💼 Employee assistance programs, 📈 Organizational analytics, 📱 Mobile app access, and 🔒 Confidential support for all employees."
+    # Payment/billing
+    elif any(word in message_lower for word in ['cost', 'price', 'payment', 'billing', 'money']):
+        return """**Obeeoma Pricing** 
+
+**Free Tier:**
+- Basic assessments
+- Limited AI conversations
+- Community resources
+
+**Premium Plans:**
+- Individual: $9.99/month
+- Team: $49.99/month (up to 10 users)
+- Enterprise: Custom pricing
+
+**What's Included:**
+- Unlimited AI conversations
+- Advanced analytics
+- Priority support
+- Custom wellness programs
+- Mobile app full access
+
+**Billing:**
+- Monthly or annual options
+- Cancel anytime
+- Enterprise invoicing available
+
+Want to see a detailed comparison?"""
+    
+    # Technical support
+    elif any(word in message_lower for word in ['problem', 'issue', 'error', 'bug', 'support']):
+        return """**Technical Support** 
+
+**Common Solutions:**
+- Clear browser cache and cookies
+- Update to latest browser version
+- Check internet connection
+- Try the mobile app
+
+**Get Help:**
+- Email: support@obeeoma.com
+- Live chat (business hours)
+- App: Help section
+- Phone: 1-800-OBEOMA
+
+**Response Times:**
+- Email: Within 24 hours
+- Live chat: Immediate (during hours)
+- Premium: Priority support
+
+What specific issue are you experiencing?"""
     
     # Contact information
-    elif 'contact' in message_lower or 'email' in message_lower or 'phone' in message_lower:
-        return "You can reach our team through our website's contact form, or email us at info@obeeoma.com. We're always happy to discuss how we can support your organization's mental health initiatives!"
+    elif any(word in message_lower for word in ['contact', 'email', 'phone', 'reach']):
+        return """**Contact Obeeoma** 
+
+**Get in Touch:**
+- Email: info@obeeoma.com
+- Live Chat: Available on website
+- Phone: 1-800-OBEOMA
+- Website: www.obeeoma.com
+
+**Business Hours:**
+- Monday-Friday: 9AM-6PM (GMT)
+- Weekend: Limited support
+- Emergency: 24/7 crisis line
+
+**Response Times:**
+- General inquiries: Within 24 hours
+- Technical support: 2-4 hours
+- Emergency: Immediate
+
+How can I help you get started today?"""
     
-    # Getting started
-    elif 'start' in message_lower or 'begin' in message_lower or 'sign up' in message_lower:
-        return "Getting started is easy! You can sign up for a free trial on our website, schedule a demo with our team, or contact us for a personalized consultation. We'll help you set up everything and train your team on using the platform effectively."
+    # Greeting responses
+    elif any(greeting in message_lower for greeting in ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'greetings']):
+        return """Hello! Welcome to Obeeoma!
+
+I'm your AI receptionist, here to help you with:
+- Platform registration and setup
+- Mobile app features and downloads  
+- Platform features and capabilities
+- Pricing and billing questions
+- Technical support guidance
+- Organization management
+- Mental health resources
+
+**Quick Start:**
+- New to Obeeoma? Ask about "registration"
+- Want mobile access? Ask about "mobile app"
+- Need features overview? Ask about "features"
+
+What would you like to know about Obeeoma today?"""
     
-    # Help/support
-    elif 'help' in message_lower or 'support' in message_lower:
-        return "I'm here to help! I can tell you about Obeeoma's services, pricing, features, and how to get started. What specific aspect of our mental health platform would you like to know more about?"
-    
-    # Default response
+    # Default conversational response
     else:
-        return "Thank you for your interest in Obeeoma! I'm here to help you learn about our mental health platform. I can answer questions about our services, features, pricing, or how to get started. What would you like to know more about?"
+        return """Hello! I'm your Obeeoma receptionist assistant.
+
+I'm here to help you with:
+- Platform registration and setup
+- Mobile app features and downloads  
+- Platform features and capabilities
+- Pricing and billing questions
+- Technical support guidance
+- Organization management
+- Mental health resources
+
+**Quick Start:**
+- New to Obeeoma? Ask about "registration"
+- Want mobile access? Ask about "mobile app"
+- Need features overview? Ask about "features"
+
+What would you like to know about Obeeoma today? I'll guide you step by step! 🌟"""

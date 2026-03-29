@@ -26,7 +26,7 @@ from obeeomaapp.views import (
     CrisisTriggerView, NotificationView,
     EngagementTrackerView, FeedbackView, ChatSessionView,
     ChatMessageView, RecommendationLogView,
-    home, OrganizationSignupView, PublicReceptionistChatView,
+    home, OrganizationSignupView, PublicReceptionistChatView, AdminAIChatView,
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet,
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, MediaViewSet,
      CompleteOnboardingView, MarkOnboardingCompleteView,
@@ -246,6 +246,9 @@ urlpatterns = [
 
     # Public Receptionist AI (No authentication required)
     path('receptionist/chat/', PublicReceptionistChatView.as_view(), name='public-receptionist-chat'),
+
+    # Admin AI Chat (For admin dashboard)
+    path('admin/ai-chat/', AdminAIChatView.as_view(), name='admin-ai-chat'),
 
     # Include router URLs
     path("", include(router.urls)),

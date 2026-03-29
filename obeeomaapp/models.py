@@ -2005,3 +2005,30 @@ class WellnessGraph(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.mood_score} on {self.mood_date}"
+
+
+# Admin Chat Messages model.
+class AdminChatMessage(models.Model):
+    """
+    Chat messages for admin dashboard AI assistant.
+    Stores conversations between admin users and AI assistant.
+    """
+    MESSAGE_TYPE_CHOICES = [
+        ("user", "User"),
+        ("ai", "AI Assistant"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="admin_chat_messages"
+    )
+    message = models.TextField()
+    message_type = models.CharField(max_length=10, choices=MESSAGE_TYPE_CHOICES)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-timestamp"]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.message_type} - {self.timestamp.strftime('%Y-%m-%d %H:%M')}"

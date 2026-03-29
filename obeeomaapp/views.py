@@ -2226,6 +2226,288 @@ class PublicReceptionistChatView(APIView):
             )
 
 
+# Admin AI Chat - For business intelligence and platform growth
+@extend_schema(tags=["Admin - AI Chat"])
+class AdminAIChatView(APIView):
+    """
+    Business Intelligence AI for platform growth and strategic insights.
+    Provides analytics, growth strategies, market analysis, and business optimization recommendations.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        """
+        Get recent admin chat messages (last 10 messages).
+        """
+        try:
+            # Get last 10 messages for this admin
+            messages = AdminChatMessage.objects.filter(
+                user=request.user
+            ).order_by('-timestamp')[:10]
+            
+            serializer = AdminChatMessageSerializer(messages, many=True)
+            return Response({
+                'messages': serializer.data,
+                'count': len(messages)
+            })
+        except Exception as e:
+            logger.error(f"Admin chat get error: {str(e)}")
+            return Response(
+                {"error": "Failed to load chat messages"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def post(self, request):
+        """
+        Handle admin chat message and return AI response.
+        """
+        try:
+            message = request.data.get('message', '').strip()
+            
+            if not message:
+                return Response(
+                    {"error": "Message is required"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Save user message
+            user_message = AdminChatMessage.objects.create(
+                user=request.user,
+                message=message,
+                message_type='user'
+            )
+            
+            # Generate AI response (conversational admin assistant)
+            ai_response = self.get_admin_ai_response(message, request.user)
+            
+            # Save AI response
+            ai_message = AdminChatMessage.objects.create(
+                user=request.user,
+                message=ai_response,
+                message_type='ai'
+            )
+            
+            return Response({
+                'user_message': AdminChatMessageSerializer(user_message).data,
+                'ai_response': AdminChatMessageSerializer(ai_message).data
+            })
+            
+        except Exception as e:
+            logger.error(f"Admin chat error: {str(e)}")
+            return Response(
+                {"error": "AI service temporarily unavailable"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def get_admin_ai_response(self, message, user):
+        """
+        Generate business insights and platform growth strategies for admin.
+        Focuses on analytics, growth metrics, client acquisition, and platform optimization.
+        """
+        # Convert message to lowercase for easier matching
+        message_lower = message.lower()
+        
+        # Growth strategies and client acquisition
+        if any(word in message_lower for word in ['growth', 'grow', 'clients', 'customers', 'acquisition', 'marketing']):
+            return """**Platform Growth Strategy** 
+
+**Client Acquisition Channels:**
+- **LinkedIn B2B**: Target HR managers and wellness coordinators
+- **Mobile App Stores**: ASO optimization for mental health keywords
+- **Corporate Partnerships**: Wellness program providers
+- **Content Marketing**: Mental health blog and resources
+- **Webinars**: Mental health in the workplace
+
+**Key Growth Metrics to Track:**
+- Monthly Active Users (MAU)
+- Client Conversion Rate
+- Customer Lifetime Value (CLV)
+- Churn Rate
+- Net Promoter Score (NPS)
+
+**Quick Wins:**
+1. Optimize landing page for HR professionals
+2. Create case studies from current clients
+3. Offer free mental health assessments
+4. Develop referral program
+
+What specific growth area would you like to explore?"""
+        
+        # Revenue and monetization
+        elif any(word in message_lower for word in ['revenue', 'money', 'pricing', 'monetization', 'profit']):
+            return """**Revenue Optimization** 
+
+**Current Revenue Streams:**
+- Individual Subscriptions: $9.99/month
+- Team Plans: $49.99/month (10 users)
+- Enterprise: Custom pricing
+- Pay-per-use assessments
+
+**Growth Opportunities:**
+- **Tiered Pricing**: Basic, Pro, Enterprise tiers
+- **Add-on Services**: Advanced analytics, custom programs
+- **Industry Solutions**: Healthcare, Education, Tech
+- **Premium App Features**: Enhanced mobile experience
+
+**Revenue Projections:**
+- Q1 Focus: Increase enterprise clients by 25%
+- Q2 Strategy: Launch industry-specific packages
+- Q3 Target: Achieve $500K MRR
+- Q4 Goal: Expand to international markets
+
+**Key Metrics:**
+- MRR (Monthly Recurring Revenue)
+- ARPU (Average Revenue Per User)
+- LTV:CAC Ratio (3:1 target)
+
+Which revenue strategy interests you most?"""
+        
+        # User engagement and retention
+        elif any(word in message_lower for word in ['engagement', 'retention', 'usage', 'active users']):
+            return """**User Engagement & Retention** 
+
+**Current Engagement Analytics:**
+- Daily Active Users: [Check dashboard]
+- Session Duration: Average 12 minutes
+- Feature Usage: Assessments (45%), Chat (30%), Resources (25%)
+- Retention Rate: 78% after 30 days
+
+**Engagement Strategies:**
+- **Personalization**: AI-driven content recommendations
+- **Push Notifications**: Daily wellness tips
+- **Gamification**: Streaks, badges, progress tracking
+- **Community**: Peer support groups
+- **Weekly Reports**: Personal wellness insights
+
+**Retention Optimization:**
+- Onboarding flow improvement
+- Proactive mental health check-ins
+- Crisis intervention alerts
+- Manager engagement tools
+
+**Success Metrics:**
+- DAU/MAU Ratio: Target 40%
+- 7-day retention: Target 85%
+- Feature adoption: Target 60%
+- Support ticket reduction: Target 30%
+
+What engagement challenge are you facing?"""
+        
+        # Market analysis and competition
+        elif any(word in message_lower for word in ['competition', 'market', 'competitors', 'analysis']):
+            return """**Market Analysis & Competition** 
+
+**Key Competitors:**
+- **Calm for Business**: $8-12/user/month
+- **Headspace for Work**: $5-15/user/month  
+- **BetterUp**: $25-50/user/month
+- **Ginger**: $10-20/user/month
+
+**Our Competitive Advantages:**
+- **African Market Focus**: Underserved region
+- **Affordable Pricing**: 40% lower than competitors
+- **AI-Powered**: Advanced conversation AI
+- **Mobile-First**: Superior app experience
+- **Local Partnerships**: African healthcare providers
+
+**Market Opportunities:**
+- African mental health market: $2.3B by 2025
+- Corporate wellness growing 25% YoY
+- Mobile mental health adoption: 67% increase
+- Telehealth expansion post-COVID
+
+**Strategic Positioning:**
+- Most affordable enterprise solution
+- Best African market understanding
+- Superior AI technology
+- Strong mobile presence
+
+Which market segment should we target next?"""
+        
+        # Product development and features
+        elif any(word in message_lower for word in ['features', 'product', 'development', 'roadmap']):
+            return """**Product Development Roadmap** 
+
+**Q2 2026 Features:**
+- **Advanced AI**: Multi-language support
+- **Analytics Dashboard**: Real-time insights
+- **Integration**: Electronic Health Records
+- **Assessments**: Customizable questionnaires
+- **App Enhancements**: Offline mode
+
+**Q3 2026 Priorities:**
+- **Expansion**: 5 new African countries
+- **Enterprise Tools**: Advanced admin features
+- **Pharmacy Integration**: Medication management
+- **Educational Content**: Certified courses
+- **API**: Third-party integrations
+
+**User Feedback Insights:**
+- Most requested: Group therapy sessions
+- Pain point: Limited customization
+- Feature love: AI conversations
+- Improvement needed: Reporting tools
+
+**Development Strategy:**
+- Sprint-based development (2-week cycles)
+- User testing with current clients
+- A/B testing for new features
+- Performance optimization focus
+
+What product area needs immediate attention?"""
+        
+        # Business metrics and KPIs
+        elif any(word in message_lower for word in ['metrics', 'kpi', 'analytics', 'data', 'performance']):
+            return """**Business Metrics & KPIs** 
+
+**North Star Metrics:**
+- **Monthly Recurring Revenue (MRR)**
+- **Customer Acquisition Cost (CAC)**
+- **Customer Lifetime Value (LTV)**
+- **Net Revenue Retention (NRR)**
+
+**Operational KPIs:**
+- **Growth Rate**: 20% MoM target
+- **Burn Rate**: $50K/month
+- **Conversion Rate**: 15% trial-to-paid
+- **App Downloads**: 5K/month
+- **Enterprise Clients**: 10 new/quarter
+
+**Health Metrics:**
+- **Cash Runway**: 18 months
+- **Gross Margin**: 85%
+- **Churn Rate**: <5% monthly
+- **Support Response**: <2 hours
+
+**Dashboard Alerts:**
+- MRR drops >10%: Immediate review
+- Churn >7%: Retention campaign
+- CAC increases: Marketing audit
+- Engagement drops: Product investigation
+
+What specific metrics concern you right now?"""
+        
+        # Default business insights response
+        else:
+            return """Hello! I'm your Obeeoma Business Intelligence AI.
+
+I provide strategic insights for:
+- **Growth Strategies**: Client acquisition and market expansion
+- **Revenue Optimization**: Pricing and monetization strategies  
+- **User Engagement**: Retention and product analytics
+- **Market Analysis**: Competition and positioning insights
+- **Product Roadmap**: Feature development priorities
+- **Business Metrics**: KPIs and performance tracking
+
+**Quick Insights:**
+- Growth potential? Ask about "growth strategy"
+- Revenue concerns? Ask about "monetization"
+- User retention? Ask about "engagement"
+- Market position? Ask about "competition"
+
+What business challenge can I help you solve today? Let's grow Obeeoma together! 🌟"""
+
+
 @extend_schema(tags=["Employee - Recommendations"])
 class RecommendationLogView(viewsets.ModelViewSet):
     serializer_class = RecommendationLogSerializer

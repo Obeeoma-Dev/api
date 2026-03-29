@@ -1904,6 +1904,18 @@ class ContentMediaSerializer(serializers.ModelSerializer):
         return None
 
 
+# Admin Chat Message Serializer
+class AdminChatMessageSerializer(serializers.ModelSerializer):
+    """
+    Serializer for admin chat messages.
+    """
+    timestamp = serializers.DateTimeField(format='%Y-%m-%d %H:%M:%S')
+    
+    class Meta:
+        model = AdminChatMessage
+        fields = ['id', 'message', 'message_type', 'timestamp']
+
+
 # New serializers for the requested endpoints
 
 class EngagementLevelSerializer(serializers.ModelSerializer):
@@ -1983,3 +1995,15 @@ class ContentMediaSerializer(serializers.ModelSerializer):
             region = getattr(settings, 'AWS_S3_REGION_NAME', 'us-east-1')
             return f"https://{bucket_name}.s3.{region}.amazonaws.com/{obj.s3_key}"
         return None
+
+
+# Admin Chat Message Serializer
+class AdminChatMessageSerializer(serializers.ModelSerializer):
+    """
+    Serializer for admin chat messages.
+    """
+    timestamp = serializers.DateTimeField(format='%Y-%m-%d %H:%M:%S')
+    
+    class Meta:
+        model = AdminChatMessage
+        fields = ['id', 'message', 'message_type', 'timestamp']
