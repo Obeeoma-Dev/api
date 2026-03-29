@@ -183,4 +183,4 @@ I'm here to help you with:
 - Want mobile access? Ask about "mobile app"
 - Need features overview? Ask about "features"
 
-What would you like to know about Obeeoma today? I'll guide you step by step! 🌟"""
+What would you like to know about Obeeoma today? I'll guide you step by step! """
