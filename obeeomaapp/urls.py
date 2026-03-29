@@ -26,7 +26,7 @@ from obeeomaapp.views import (
     CrisisTriggerView, NotificationView,
     EngagementTrackerView, FeedbackView, ChatSessionView,
     ChatMessageView, RecommendationLogView,
-    home, OrganizationSignupView,
+    home, OrganizationSignupView, PublicReceptionistChatView,
     VideoViewSet, AudioViewSet, ArticleViewSet, MeditationTechniqueViewSet,
     SavedResourceViewSet, EducationalResourceViewSet, UserActivityViewSet, MediaViewSet,
      CompleteOnboardingView, MarkOnboardingCompleteView,
@@ -243,6 +243,9 @@ urlpatterns = [
         'patch': 'partial_update',
         'delete': 'destroy'
     }), name='chat-message-detail'),
+
+    # Public Receptionist AI (No authentication required)
+    path('receptionist/chat/', PublicReceptionistChatView.as_view(), name='public-receptionist-chat'),
 
     # Include router URLs
     path("", include(router.urls)),

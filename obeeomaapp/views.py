@@ -2176,6 +2176,56 @@ class ChatMessageView(viewsets.ModelViewSet):
             )
 
 
+# Public Receptionist AI - No authentication required
+@extend_schema(tags=["Public - Receptionist AI"])
+class PublicReceptionistChatView(APIView):
+    """
+    Public AI receptionist for landing page visitors.
+    No authentication required.
+    """
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        """
+        Handle receptionist chat messages from public users.
+        Creates a temporary session and returns AI response.
+        """
+        try:
+            message = request.data.get('message', '').strip()
+            session_id = request.data.get('session_id', 'landing_page')
+            
+            if not message:
+                return Response(
+                    {"error": "Message is required"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Create a simple response for now - you can integrate with your AI service later
+            from .utils.ai_service import get_receptionist_response
+            
+            ai_response = get_receptionist_response(message, session_id)
+            
+            return Response({
+                "user_message": {
+                    "sender": "user",
+                    "message": message,
+                    "timestamp": timezone.now().isoformat()
+                },
+                "ai_response": {
+                    "sender": "ai", 
+                    "message": ai_response,
+                    "timestamp": timezone.now().isoformat()
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Public receptionist chat error: {str(e)}")
+            return Response(
+                {"error": "AI service temporarily unavailable"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
 @extend_schema(tags=["Employee - Recommendations"])
 class RecommendationLogView(viewsets.ModelViewSet):
     serializer_class = RecommendationLogSerializer
