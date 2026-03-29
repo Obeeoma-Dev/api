@@ -36,6 +36,9 @@ jobs:
             # Clean up unused Docker resources
             echo "Cleaning up Docker resources..."
             docker system prune -f --volumes
+
+            # Remove any orphaned containers that might cause reference issues
+            docker-compose down --remove-orphans || true
             
             # Build and start containers with caching
             echo "Building and starting containers..."
