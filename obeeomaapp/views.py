@@ -98,12 +98,13 @@ import string
 import pyotp, qrcode, io, base64
 from django.utils.crypto import get_random_string
 from django.core.cache import cache
-from .models import Organization, ChatSession, ChatMessage, EmployeeProfile
+from .models import Organization, ChatSession, ChatMessage, EmployeeProfile, AdminChatMessage
 from .serializers import (
     PasswordResetOTPVerificationSerializer,
     InvitationOTPVerificationSerializer,
     ChatSessionSerializer,
     ChatMessageSerializer,
+    AdminChatMessageSerializer,
 )
 from .serializers import OrganizationCreateSerializer
 from django.template.loader import render_to_string

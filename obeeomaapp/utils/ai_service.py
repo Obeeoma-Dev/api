@@ -100,6 +100,35 @@ What would you like to explore first?"""
 
 Want to see a detailed comparison?"""
     
+    # Account access and login
+    elif any(word in message_lower for word in ['login', 'access', 'account', 'sign in', 'how do i']):
+        return """**Account Access** 
+
+**To Login:**
+1. Go to our website or open the mobile app
+2. Click "Sign In" 
+3. Enter your email and password
+4. Click "Login"
+
+**Forgot Password?**
+- Click "Forgot Password" on login page
+- Enter your email address
+- Check your email for reset link
+- Create new password
+
+**First Time Login?**
+- Use the password you created during registration
+- Check your email for login credentials
+- Mobile app: Use same email/password as web
+
+**Having Trouble?**
+- Verify you're using the correct email
+- Check that Caps Lock is off
+- Try resetting your password
+- Contact support if issues persist
+
+Need help with any specific login step?"""
+    
     # Technical support
     elif any(word in message_lower for word in ['problem', 'issue', 'error', 'bug', 'support']):
         return """**Technical Support** 
