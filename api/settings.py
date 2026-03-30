@@ -69,7 +69,10 @@ INSTALLED_APPS = [
     'django_extensions',
     'drf_spectacular',
     'corsheaders',
-    'django_filters'
+    'django_filters',
+    'cloudinary_storage',
+    'cloudinary',
+
 ]
 
 MIDDLEWARE = [
@@ -208,6 +211,17 @@ SPECTACULAR_SETTINGS = {
     "SCHEMA_PATH_PREFIX": "/api/",
 }
 
+
+
+# Cloudinary Configuration
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME'),
+    'API_KEY': os.environ.get('CLOUDINARY_API_KEY'),
+    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
+}
+
+# Use Cloudinary for Media files
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 # Logging Configuration
 LOGGING = {
     'version': 1,
