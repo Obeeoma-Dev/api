@@ -22,7 +22,7 @@ jobs:
             echo "=== Starting deployment ==="
             
             # Pull latest code
-            cd ~/obeeoma_project/api
+            cd ~/obeeoma_project
             echo "Pulling latest code..."
             
             # Remove staticfiles and media directories (they're in .gitignore)
@@ -42,6 +42,7 @@ jobs:
             
             # Build and start containers with caching
             echo "Building and starting containers..."
+            cd Backend
             docker-compose build --parallel
             docker-compose up -d
             
