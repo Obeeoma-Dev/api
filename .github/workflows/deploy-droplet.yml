@@ -37,8 +37,11 @@ jobs:
             echo "Cleaning up Docker resources..."
             docker system prune -f --volumes
 
-            # Remove any orphaned containers that might cause reference issues
+            # Remove existing containers to avoid name conflicts
+            echo "Removing existing containers..."
             docker-compose down --remove-orphans || true
+            docker stop $(docker ps -aq --filter "name=django_backend") || true
+            docker rm $(docker ps -aq --filter "name=django_backend") || true
             
             # Build and start containers with caching
             echo "Building and starting containers..."
