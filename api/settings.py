@@ -19,7 +19,13 @@ PORT = os.getenv("PORT", "8000")
 # Groq AI Configuration
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
-ALLOWED_HOSTS=["127.0.0.1", "localhost", "64.225.122.101"]
+ALLOWED_HOSTS = [
+    "127.0.0.1",
+    "localhost",
+    "64.225.122.101",
+    "api-2-cnkp.onrender.com",  # Your Render URL
+    ".onrender.com",  # Allow all Render subdomains
+]
 
 
 # Required for Nginx proxy
@@ -36,7 +42,9 @@ FERNET_KEY = os.getenv("FERNET_KEY")
 CSRF_TRUSTED_ORIGINS = [
     "http://64.225.122.101:8000",
     "http://64.225.122.101",
-    "http://64.225.122.101:5173", 
+    "http://64.225.122.101:5173",
+    "https://api-2-cnkp.onrender.com",  # Your Render URL
+    "https://*.onrender.com",  # All Render apps
 ]
 
 # Database configuration - PostgreSQL for production, SQLite for local
@@ -190,16 +198,20 @@ SIMPLE_JWT = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "My API",
-    "DESCRIPTION": "API documentation",
+    "TITLE": "Obeeoma API",
+    "DESCRIPTION": "Mental Health & Wellness API",
     "VERSION": "1.0.0",
     'ENUM_NAME_OVERRIDES': {
         'NameEnum': 'ResourceTypeEnum'
     },
     "SERVERS": [
         {
+            "url": "https://api-2-cnkp.onrender.com",
+            "description": "Render Production Server"
+        },
+        {
             "url": "http://64.225.122.101",
-            "description": "Production server"
+            "description": "DigitalOcean server"
         },
         {
             "url": "http://127.0.0.1:8000",

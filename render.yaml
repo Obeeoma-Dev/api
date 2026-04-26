@@ -1,0 +1,32 @@
+services:
+  # Django Backend
+  - type: web
+    name: obeeoma-backend
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn api.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: obeeoma-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: False
+      - key: ALLOWED_HOSTS
+        sync: false
+      - key: DJANGO_SETTINGS_MODULE
+        value: api.settings
+
+databases:
+  - name: obeeoma-db
+    databaseName: obeeoma
+    user: obeeoma
+    region: oregon
+    plan: free
