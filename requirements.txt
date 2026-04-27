@@ -12,6 +12,7 @@ certifi==2025.10.5
 cffi==2.0.0
 charset-normalizer==3.4.4
 click==8.2.1
+cloudinary==1.44.2
 colorama==0.4.6
 coverage==7.11.0
 crispy-bootstrap5==2025.4
@@ -22,6 +23,7 @@ distro==1.9.0
 dj-database-url==3.0.1
 Django==5.2.6
 django-bootstrap5==23.4
+django-cloudinary-storage==0.3.0
 django-cors-headers==4.9.0
 django-crispy-forms==2.4
 django-extensions==4.1
